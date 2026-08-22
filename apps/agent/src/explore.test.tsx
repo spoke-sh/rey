@@ -5,8 +5,10 @@ import {
   atlasTerrainPrewarmStatus,
   CanvasFooter,
   CanvasToolbar,
+  DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS,
   explorerFooterReducer,
   explorerGeographicCoordinate,
+  explorerRegimeNotice,
   initialExplorerFooterState,
   shouldMountTerrainSurface,
 } from "./explore";
@@ -99,42 +101,104 @@ describe("Explorer canvas toolbar", () => {
     expect(markup).toContain("SELECT TO TRAVERSE");
     expect(markup).toContain('aria-live="polite"');
     expect(markup).toContain('data-visible="true"');
+    expect(markup).toContain('data-minimum-visible-ms="5000"');
+    expect(markup).toContain('data-notice-phase="visible"');
     expect(markup).toContain('data-notice-tone="guide"');
     expect(markup).not.toContain("BOUNDED /");
     expect(markup).not.toContain("regional atlas members");
     expect(markup).not.toContain("candidate terrain controls");
   });
 
-  it("dismisses onboarding and resurfaces only retained map notices", () => {
-    const initial = initialExplorerFooterState();
-    const interacting = explorerFooterReducer(initial, { type: "interact" });
+  it("holds notices for five seconds before queued or automatic dismissal", () => {
+    const initial = initialExplorerFooterState(1_000);
+    const interacting = explorerFooterReducer(initial, {
+      type: "interact",
+      occurred_at_ms: 2_000,
+    });
 
     expect(interacting.has_interacted).toBe(true);
-    expect(interacting.notice).toBeNull();
+    expect(interacting.notice).toMatchObject({
+      dismiss_requested: true,
+      minimum_visible_ms: 5_000,
+      phase: "visible",
+      published_at_ms: 1_000,
+    });
 
-    const updated = explorerFooterReducer(interacting, {
+    const earlyExpiration = explorerFooterReducer(interacting, {
+      type: "expire",
+      notice_id: interacting.notice!.id,
+      occurred_at_ms: 5_999,
+    });
+    expect(earlyExpiration).toBe(interacting);
+
+    const exiting = explorerFooterReducer(interacting, {
+      type: "expire",
+      notice_id: interacting.notice!.id,
+      occurred_at_ms: 6_000,
+    });
+    expect(exiting.notice?.phase).toBe("exiting");
+
+    const dismissed = explorerFooterReducer(exiting, {
+      type: "clear",
+      notice_id: exiting.notice!.id,
+    });
+    expect(dismissed.notice).toBeNull();
+
+    const updated = explorerFooterReducer(dismissed, {
       type: "publish",
+      published_at_ms: 10_000,
       message: "LENS / ATLAS · REGIONAL EVIDENCE ATLAS",
+      minimum_visible_ms: DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS,
       tone: "update",
-      auto_hide_ms: 4_800,
+      auto_hide_ms: 5_000,
     });
     expect(updated.notice).toMatchObject({
       id: "explorer-notice:1",
+      dismiss_requested: false,
       message: "LENS / ATLAS · REGIONAL EVIDENCE ATLAS",
+      minimum_visible_ms: 5_000,
+      phase: "visible",
+      published_at_ms: 10_000,
       tone: "update",
     });
     expect(
       explorerFooterReducer(updated, {
         type: "expire",
         notice_id: "a-stale-notice",
+        occurred_at_ms: 15_000,
       }),
     ).toBe(updated);
+    const matureInteraction = explorerFooterReducer(updated, {
+      type: "interact",
+      occurred_at_ms: 15_000,
+    });
+    expect(matureInteraction.notice).toMatchObject({
+      dismiss_requested: false,
+      phase: "exiting",
+    });
+
+    const exitingMarkup = renderToStaticMarkup(
+      createElement(CanvasFooter, {
+        notice: matureInteraction.notice,
+        scene: { globe: null } as TopologyScene,
+      }),
+    );
+    expect(exitingMarkup).toContain('data-visible="false"');
+    expect(exitingMarkup).toContain('data-notice-phase="exiting"');
+    expect(exitingMarkup).toContain("LENS / ATLAS · REGIONAL EVIDENCE ATLAS");
+  });
+
+  it("uses the exact regional globe caption when World enters", () => {
     expect(
-      explorerFooterReducer(updated, {
-        type: "expire",
-        notice_id: updated.notice!.id,
-      }).notice,
-    ).toBeNull();
+      explorerRegimeNotice({
+        globe: {
+          beacons: [],
+          posture: "regional_scenes",
+          source_revision: "blake3:0123456789abcdef",
+        },
+        regime: "world",
+      } as unknown as TopologyScene),
+    ).toBe("REGIONAL WORLD / REV blake3:01234");
   });
 
   it("renders a quiet footer without retaining hidden copy", () => {
@@ -146,9 +210,11 @@ describe("Explorer canvas toolbar", () => {
     );
 
     expect(markup).toContain('data-visible="false"');
+    expect(markup).toContain('data-notice-phase="quiet"');
     expect(markup).toContain('data-notice-tone="quiet"');
     expect(markup).not.toContain("WHEEL /");
     expect(markup).not.toContain("LENS /");
+    expect(markup).not.toContain("RENDERER DEGRADED");
   });
 
   it("reports bound geographic camera coordinates without relabeling local X/Y", () => {

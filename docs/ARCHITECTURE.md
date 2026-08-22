@@ -1068,15 +1068,21 @@ the immutable graph or scene identity. Explorer exposes no transient per-layer
 controls: available contours, water, weather, and probes remain visible while
 base terrain and validity retain their independent pass identities.
 The centered canvas footer uses the canvas header's background but remains a
-transient status projection rather than an evidence or mailbox store. It slides
-away after the first map interaction and resurfaces only for exact lens, focus,
-source-revision, last-good revalidation, or degraded-renderer changes; ordinary
-readiness and camera motion remain quiet. The zoom/geographic-coordinate
+transient status projection rather than an evidence or mailbox store. Every
+notice remains visible for at least five seconds by default; map input during
+that interval queues dismissal without shortening it. The footer resurfaces
+only for exact lens, focus, source-revision, or last-good revalidation changes;
+ordinary readiness, camera motion, and renderer-status changes remain quiet.
+Renderer degradation stays
+explicit in machine-readable diagnostics and the visible reference fallback
+without publishing a footer notice. The zoom/geographic-coordinate
 diagnostics track that motion, sitting above a visible notice and returning to
 the lower canvas edge when quiet. Their latitude/longitude authority remains
 explicit: globe-view, synthetic semantic-Mercator, or footprint-bound native
 CRS84; unbound local coordinates remain unavailable rather than being relabeled
-as geographic.
+as geographic. A regional World entry reuses the globe's human caption and
+abbreviated exact source revision. Notice content has an independent bounded
+entrance transition and remains mounted while the footer eases closed.
 The revisioned survey-terrain scene compiler owns reference field evaluation,
 contours, projected hydrology/weather, and natural-feature derivation. Named
 reference, WebGL2, and WebGPU voyages retain both target viewports; parity

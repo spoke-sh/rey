@@ -68,6 +68,7 @@ import {
   type AcceleratedTerrainReport,
 } from "./explore/renderers/accelerated-terrain";
 import {
+  globeCaption,
   ReferenceMapReading,
   ReferenceRenderer,
   type FocusableTopologyObject,
@@ -94,14 +95,25 @@ const visibleReferenceLayers: ReferenceLayerVisibility = {
   weather: true,
   probes: true,
 };
-const EXPLORER_NOTICE_DURATION_MS = 4_800;
+export const DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS = 5_000;
+const EXPLORER_NOTICE_DURATION_MS = DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS;
 const EXPLORER_ATTENTION_DURATION_MS = 7_200;
+const EXPLORER_FOOTER_EXIT_DURATION_MS = 260;
+
+function explorerFooterClockNow(): number {
+  return globalThis.performance?.now() ?? Date.now();
+}
 
 export type ExplorerFooterNoticeTone = "guide" | "update" | "attention";
+export type ExplorerFooterNoticePhase = "visible" | "exiting";
 
 export interface ExplorerFooterNotice {
   id: string;
+  dismiss_requested: boolean;
   message: string;
+  minimum_visible_ms: number;
+  phase: ExplorerFooterNoticePhase;
+  published_at_ms: number;
   tone: ExplorerFooterNoticeTone;
   auto_hide_ms: number | null;
 }
@@ -113,23 +125,32 @@ export interface ExplorerFooterState {
 }
 
 export type ExplorerFooterAction =
-  | { type: "interact" }
+  | { type: "interact"; occurred_at_ms: number }
   | {
       type: "publish";
+      published_at_ms: number;
       message: string;
+      minimum_visible_ms: number;
       tone: Exclude<ExplorerFooterNoticeTone, "guide">;
       auto_hide_ms: number;
     }
-  | { type: "expire"; notice_id: string };
+  | { type: "expire"; notice_id: string; occurred_at_ms: number }
+  | { type: "clear"; notice_id: string };
 
-export function initialExplorerFooterState(): ExplorerFooterState {
+export function initialExplorerFooterState(
+  publishedAtMs = 0,
+): ExplorerFooterState {
   return {
     has_interacted: false,
     next_notice_sequence: 1,
     notice: {
       id: "explorer-notice:onboarding",
+      dismiss_requested: false,
       message:
         "WHEEL / + − TO CHANGE LENS · DRAG TO ORBIT · SELECT TO TRAVERSE",
+      minimum_visible_ms: DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS,
+      phase: "visible",
+      published_at_ms: publishedAtMs,
       tone: "guide",
       auto_hide_ms: null,
     },
@@ -141,8 +162,20 @@ export function explorerFooterReducer(
   action: ExplorerFooterAction,
 ): ExplorerFooterState {
   if (action.type === "interact") {
-    if (state.has_interacted && state.notice === null) return state;
-    return { ...state, has_interacted: true, notice: null };
+    if (state.notice === null || state.notice.phase === "exiting")
+      return state.has_interacted ? state : { ...state, has_interacted: true };
+    const minimumVisibleUntil =
+      state.notice.published_at_ms + state.notice.minimum_visible_ms;
+    const canDismiss = action.occurred_at_ms >= minimumVisibleUntil;
+    return {
+      ...state,
+      has_interacted: true,
+      notice: {
+        ...state.notice,
+        dismiss_requested: !canDismiss,
+        phase: canDismiss ? "exiting" : "visible",
+      },
+    };
   }
   if (action.type === "publish") {
     return {
@@ -150,13 +183,27 @@ export function explorerFooterReducer(
       next_notice_sequence: state.next_notice_sequence + 1,
       notice: {
         id: `explorer-notice:${state.next_notice_sequence}`,
+        dismiss_requested: false,
         message: action.message,
+        minimum_visible_ms: action.minimum_visible_ms,
+        phase: "visible",
+        published_at_ms: action.published_at_ms,
         tone: action.tone,
         auto_hide_ms: action.auto_hide_ms,
       },
     };
   }
   if (state.notice?.id !== action.notice_id) return state;
+  if (action.type === "expire") {
+    if (state.notice.phase === "exiting") return state;
+    if (
+      action.occurred_at_ms <
+      state.notice.published_at_ms + state.notice.minimum_visible_ms
+    )
+      return state;
+    return { ...state, notice: { ...state.notice, phase: "exiting" } };
+  }
+  if (state.notice.phase !== "exiting") return state;
   return { ...state, notice: null };
 }
 
@@ -236,7 +283,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const [footerState, dispatchFooter] = useReducer(
     explorerFooterReducer,
     undefined,
-    initialExplorerFooterState,
+    () => initialExplorerFooterState(explorerFooterClockNow()),
   );
   const suppressNextRegimeNoticeRef = useRef(false);
   const layers = visibleReferenceLayers;
@@ -339,24 +386,29 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const previousNoticeRegimeRef = useRef(regime);
   const previousSourceRevisionKeyRef = useRef(sourceRevisionKey);
   const previousRevalidationNoticeRef = useRef("");
-  const previousRendererNoticeRef = useRef("");
   const previousTerrainReadyNoticeRef = useRef("");
 
   const publishFooterNotice = (
     message: string,
     tone: Exclude<ExplorerFooterNoticeTone, "guide"> = "update",
     autoHideMs = EXPLORER_NOTICE_DURATION_MS,
+    minimumVisibleMs = DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS,
   ) =>
     dispatchFooter({
       type: "publish",
+      published_at_ms: explorerFooterClockNow(),
       message,
+      minimum_visible_ms: minimumVisibleMs,
       tone,
       auto_hide_ms: autoHideMs,
     });
 
   const acknowledgeMapInteraction = () => {
     const firstInteraction = !footerState.has_interacted;
-    dispatchFooter({ type: "interact" });
+    dispatchFooter({
+      type: "interact",
+      occurred_at_ms: explorerFooterClockNow(),
+    });
     return firstInteraction;
   };
 
@@ -385,13 +437,45 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
 
   useEffect(() => {
     const notice = footerState.notice;
-    if (!notice || notice.auto_hide_ms === null) return;
-    const timeout = window.setTimeout(
-      () => dispatchFooter({ type: "expire", notice_id: notice.id }),
-      notice.auto_hide_ms,
-    );
+    if (!notice) return;
+    let duration: number;
+    let expirationAtMs: number | undefined;
+    if (notice.phase === "exiting") duration = EXPLORER_FOOTER_EXIT_DURATION_MS;
+    else {
+      const minimumVisibleUntil =
+        notice.published_at_ms + notice.minimum_visible_ms;
+      const automaticExpiration =
+        notice.auto_hide_ms === null
+          ? Number.POSITIVE_INFINITY
+          : notice.published_at_ms +
+            Math.max(notice.auto_hide_ms, notice.minimum_visible_ms);
+      const requestedExpiration = notice.dismiss_requested
+        ? minimumVisibleUntil
+        : Number.POSITIVE_INFINITY;
+      const expiration = Math.min(automaticExpiration, requestedExpiration);
+      if (!Number.isFinite(expiration)) return;
+      expirationAtMs = expiration;
+      duration = Math.max(0, expiration - explorerFooterClockNow());
+    }
+    const timeout = window.setTimeout(() => {
+      if (notice.phase === "exiting")
+        dispatchFooter({ type: "clear", notice_id: notice.id });
+      else
+        dispatchFooter({
+          type: "expire",
+          notice_id: notice.id,
+          occurred_at_ms: expirationAtMs ?? explorerFooterClockNow(),
+        });
+    }, duration);
     return () => window.clearTimeout(timeout);
-  }, [footerState.notice?.auto_hide_ms, footerState.notice?.id]);
+  }, [
+    footerState.notice?.auto_hide_ms,
+    footerState.notice?.dismiss_requested,
+    footerState.notice?.id,
+    footerState.notice?.minimum_visible_ms,
+    footerState.notice?.phase,
+    footerState.notice?.published_at_ms,
+  ]);
 
   useEffect(() => {
     const previousRegime = previousNoticeRegimeRef.current;
@@ -402,8 +486,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       return;
     }
     if (!footerState.has_interacted) return;
-    publishFooterNotice(`LENS / ${lensLabel(regime)} · ${scene.label}`);
-  }, [footerState.has_interacted, regime, scene.label]);
+    publishFooterNotice(explorerRegimeNotice(scene));
+  }, [footerState.has_interacted, regime, scene]);
 
   useEffect(() => {
     const previousKey = previousSourceRevisionKeyRef.current;
@@ -429,27 +513,6 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       EXPLORER_ATTENTION_DURATION_MS,
     );
   }, [sceneProjection.error?.message, sceneProjection.retained_last_good]);
-
-  useEffect(() => {
-    const status = terrainRenderer.status;
-    const needsAttention = status.degraded || status.lifecycle === "failed";
-    const rendererKey = needsAttention
-      ? `${status.lifecycle}:${status.backend}:${status.detail}`
-      : "";
-    const previousKey = previousRendererNoticeRef.current;
-    previousRendererNoticeRef.current = rendererKey;
-    if (!rendererKey || previousKey === rendererKey) return;
-    publishFooterNotice(
-      `RENDERER DEGRADED / ${status.backend?.toUpperCase() ?? "REFERENCE"} · ${status.detail}`,
-      "attention",
-      EXPLORER_ATTENTION_DURATION_MS,
-    );
-  }, [
-    terrainRenderer.status.backend,
-    terrainRenderer.status.degraded,
-    terrainRenderer.status.detail,
-    terrainRenderer.status.lifecycle,
-  ]);
 
   useEffect(() => {
     const submittedSnapshot = terrainRenderer.submitted_frame?.snapshot_id;
@@ -555,13 +618,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   animatedZoomRef.current = applyZoomAt;
 
   const setZoomAt = (nextZoom: number, client?: Point) => {
-    const firstInteraction = acknowledgeMapInteraction();
+    acknowledgeMapInteraction();
     cancelWheelZoom();
     const boundedZoom = clampLensZoom(nextZoom);
-    const currentRegime = resolveRegimeForZoom(zoomRef.current);
-    const nextRegime = resolveRegimeForZoom(boundedZoom, currentRegime);
-    if (firstInteraction && nextRegime !== currentRegime)
-      suppressNextRegimeNoticeRef.current = true;
     applyZoomAt(boundedZoom, client);
     wheelTargetZoomRef.current = boundedZoom;
   };
@@ -640,8 +699,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
 
   const handleWheel = (event: globalThis.WheelEvent) => {
     event.preventDefault();
-    const firstInteraction = acknowledgeMapInteraction();
-    const currentRegime = resolveRegimeForZoom(zoomRef.current);
+    acknowledgeMapInteraction();
     const targetZoom = clampLensZoom(
       wheelTargetZoomRef.current +
         wheelZoomDelta(
@@ -650,11 +708,6 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           event.deltaMode,
         ),
     );
-    if (
-      firstInteraction &&
-      resolveRegimeForZoom(targetZoom, currentRegime) !== currentRegime
-    )
-      suppressNextRegimeNoticeRef.current = true;
     wheelTargetZoomRef.current = targetZoom;
     wheelPointerRef.current = { x: event.clientX, y: event.clientY };
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
@@ -959,7 +1012,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             styles.canvasCoordinates,
             scene.globe?.posture === "orientation" &&
               styles.orientationCoordinates,
-            footerState.notice && styles.canvasCoordinatesFooterVisible,
+            footerState.notice?.phase === "visible" &&
+              styles.canvasCoordinatesFooterVisible,
           )}
           data-renderer-active-band-ids={terrainRenderer.active_band_ids.join(
             ",",
@@ -1273,6 +1327,7 @@ export function CanvasFooter({
   notice: ExplorerFooterNotice | null;
   scene: TopologyScene;
 }) {
+  const visible = notice?.phase === "visible";
   return (
     <footer
       aria-atomic="true"
@@ -1281,13 +1336,16 @@ export function CanvasFooter({
         styles.canvasFooter,
         scene.globe?.posture === "orientation" &&
           styles.orientationCanvasFooter,
-        notice && styles.canvasFooterVisible,
+        visible && styles.canvasFooterVisible,
         notice?.tone === "attention" && styles.canvasFooterAttention,
       )}
       data-explorer-footer=""
+      data-dismiss-requested={String(notice?.dismiss_requested ?? false)}
+      data-minimum-visible-ms={notice?.minimum_visible_ms}
       data-notice-id={notice?.id}
+      data-notice-phase={notice?.phase ?? "quiet"}
       data-notice-tone={notice?.tone ?? "quiet"}
-      data-visible={String(notice !== null)}
+      data-visible={String(visible)}
       role="status"
     >
       {notice ? (
@@ -1295,6 +1353,7 @@ export function CanvasFooter({
           className={sx(
             styles.canvasFooterNotice,
             coordinate && styles.canvasFooterNoticeWithCoordinate,
+            notice.phase === "exiting" && styles.canvasFooterNoticeExiting,
           )}
           key={notice.id}
         >
@@ -1398,4 +1457,9 @@ function lensLabel(regime: LensRegime): string {
   if (regime === "neighborhoods") return "MESOSCOPIC";
   if (regime === "objects") return "MICROSCOPE";
   return "EVIDENTIARY";
+}
+
+export function explorerRegimeNotice(scene: TopologyScene): string {
+  if (scene.regime === "world" && scene.globe) return globeCaption(scene.globe);
+  return `LENS / ${lensLabel(scene.regime)} · ${scene.label}`;
 }

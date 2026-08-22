@@ -389,8 +389,16 @@ more truthful than familiar-looking synthetic map texture.
 - A missing admitted region stops traversal instead of choosing an arbitrary
   scene.
 - Camera motion stays quiet. The footer asks for attention only when retained
-  map state, focus, revisions, revalidation, or renderer degradation changes
-  materially.
+  map state, focus, revisions, or revalidation changes materially. Renderer
+  degradation remains explicit in renderer diagnostics and visible fallback;
+  it does not publish a footer notice.
+- Lens-entry notices use the entered projection's own human identity. Entering
+  a regional World globe repeats its exact abbreviated globe caption and
+  revision, and notice content remains mounted through the bounded eased exit
+  instead of disappearing before the footer closes.
+- Every notice remains visible for at least five seconds by default regardless
+  of map input. Input inside that window queues dismissal at the minimum
+  boundary rather than shortening the notice.
 - Full screen changes viewport ownership only.
 
 Explorer is also the read side of a separate authoring boundary:

@@ -16,6 +16,7 @@ import { exploreStyles as styles } from "../../stylex/explore.stylex";
 import { className as sx } from "../../stylex/shared.stylex";
 import type {
   TopologyEdge,
+  TopologyGlobe,
   TopologyNode,
   TopologyPointOfInterest,
   TopologyScene,
@@ -78,6 +79,14 @@ export interface ReferenceLayerVisibility {
   water: boolean;
   weather: boolean;
   probes: boolean;
+}
+
+export function globeCaption(globe: TopologyGlobe): string {
+  if (globe.posture === "orientation")
+    return `UNMAPPED PROJECT / ${globe.beacons.length} WORKLOAD BEACONS / NO DISTANCE CLAIM`;
+  const worldLabel =
+    globe.posture === "semantic_atlas" ? "SEMANTIC SPHERE" : "REGIONAL WORLD";
+  return `${worldLabel} / REV ${globe.source_revision.slice(0, 12)}`;
 }
 
 export function ReferenceRenderer({
@@ -1478,9 +1487,7 @@ function SemanticGlobeLayer({
         x={center.x}
         y={center.y + radius * WORLD_GLOBE_ATMOSPHERE_SCALE + 30}
       >
-        {globe.posture === "orientation"
-          ? `UNMAPPED PROJECT / ${globe.beacons.length} WORKLOAD BEACONS / NO DISTANCE CLAIM`
-          : `${globe.posture === "semantic_atlas" ? "SEMANTIC SPHERE" : "REGIONAL WORLD"} / REV ${globe.source_revision.slice(0, 12)}`}
+        {globeCaption(globe)}
       </text>
     </svg>
   );

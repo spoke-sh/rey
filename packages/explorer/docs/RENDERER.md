@@ -5,12 +5,12 @@
 
 ## Backend Selection
 
-| Preference  | Behavior                                                                                      |
-| ----------- | --------------------------------------------------------------------------------------------- |
-| `auto`      | Prefer WebGPU; accept the Three.js WebGL2 compatibility backend with visible degraded status. |
-| `webgpu`    | Require WebGPU; fall back to reference status if Three.js selects another backend.            |
-| `webgl2`    | Force the WebGL2 backend, primarily for compatibility qualification.                          |
-| `reference` | Skip accelerated initialization and report the application reference renderer.                |
+| Preference  | Behavior                                                                                            |
+| ----------- | --------------------------------------------------------------------------------------------------- |
+| `auto`      | Prefer WebGPU; accept the Three.js WebGL2 compatibility backend with explicit degraded diagnostics. |
+| `webgpu`    | Require WebGPU; fall back to reference status if Three.js selects another backend.                  |
+| `webgl2`    | Force the WebGL2 backend, primarily for compatibility qualification.                                |
+| `reference` | Skip accelerated initialization and report the application reference renderer.                      |
 
 Lifecycle states are `idle`, `initializing`, `ready`, `failed`, and
 `disposed`. Status snapshots are immutable and identify the selected backend

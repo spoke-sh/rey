@@ -9,6 +9,11 @@ const beaconPulse = stylex.keyframes({
   "50%": { opacity: 0.78, transform: "scale(1.12)" },
 });
 
+const footerNoticeEnter = stylex.keyframes({
+  "0%": { opacity: 0, transform: "translateY(5px)" },
+  "100%": { opacity: 1, transform: "translateY(0)" },
+});
+
 export const exploreStyles = stylex.create({
   explorePage: {
     display: "flex",
@@ -1327,8 +1332,27 @@ export const exploreStyles = stylex.create({
     color: "var(--rey-foreground)",
   },
   canvasFooterNotice: {
+    animationDuration: "220ms",
+    animationName: {
+      default: footerNoticeEnter,
+      "@media (prefers-reduced-motion: reduce)": "none",
+    },
+    animationTimingFunction: "cubic-bezier(.2,.8,.2,1)",
     lineHeight: 1.4,
     maxWidth: "min(78vw, 980px)",
+    opacity: 1,
+    transform: "translateY(0)",
+    transitionDuration: {
+      default: "220ms",
+      "@media (prefers-reduced-motion: reduce)": "0.01ms",
+    },
+    transitionProperty: "opacity, transform",
+    transitionTimingFunction: "cubic-bezier(.2,.8,.2,1)",
+  },
+  canvasFooterNoticeExiting: {
+    animationName: "none",
+    opacity: 0,
+    transform: "translateY(5px)",
   },
   canvasFooterNoticeWithCoordinate: {
     maxWidth: "min(48vw, 720px)",

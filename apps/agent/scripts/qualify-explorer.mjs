@@ -1372,6 +1372,7 @@ async function runVoyage(options) {
       const footerBounds = footer?.getBoundingClientRect();
       const diagnosticsBounds = diagnostics?.getBoundingClientRect();
       return footer?.dataset.visible === "true" &&
+        footer?.dataset.minimumVisibleMs === "5000" &&
         footer?.dataset.noticeTone === "guide" &&
         footer?.textContent?.includes("WHEEL / + − TO CHANGE LENS · DRAG TO ORBIT · SELECT TO TRAVERSE") === true &&
         style?.justifyContent === "center" &&
@@ -1382,7 +1383,10 @@ async function runVoyage(options) {
     })()`);
     if (!onboardingNoticeObserved)
       throw new Error("the centered Explorer onboarding notice is unavailable");
-    if (!(await connection.evaluate(regimeExpression("world")))) {
+    const enteredWorld = !(await connection.evaluate(
+      regimeExpression("world"),
+    ));
+    if (enteredWorld) {
       await dispatchClick(
         connection,
         `document.querySelector('[aria-label="Zoom out one semantic level"]')`,
@@ -1396,6 +1400,20 @@ async function runVoyage(options) {
       "World projection",
       options.timeoutMs,
     );
+    if (enteredWorld)
+      await waitFor(
+        connection,
+        `(() => {
+          const footer = document.querySelector('[data-explorer-footer]');
+          const caption = document.querySelector('[data-globe-caption]')?.textContent?.trim();
+          return caption?.startsWith('REGIONAL WORLD / REV ') === true &&
+            footer?.dataset.visible === 'true' &&
+            footer?.dataset.noticePhase === 'visible' &&
+            footer?.textContent?.includes(caption) === true;
+        })()`,
+        "revision-bound regional World footer notice",
+        options.timeoutMs,
+      );
     process.stdout.write("READY world projection\n");
     await waitFor(
       connection,
@@ -1483,6 +1501,13 @@ async function runVoyage(options) {
         `${options.loss} visible reference fallback`,
         options.timeoutMs,
       );
+      const rendererDegradationStayedOutOfFooter = await connection.evaluate(
+        `document.querySelector('[data-explorer-footer]')?.textContent?.includes('RENDERER DEGRADED') !== true`,
+      );
+      if (!rendererDegradationStayedOutOfFooter)
+        throw new Error(
+          `${options.loss} published renderer degradation in the Explorer footer`,
+        );
       process.stdout.write(`READY backend loss / ${options.loss}\n`);
       captures.push(
         await captureStage(

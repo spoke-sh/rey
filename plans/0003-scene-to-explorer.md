@@ -267,12 +267,16 @@ execution timing.
       passes from admitted availability without changing the immutable graph
       identity.
 - [x] Center an onboarding canvas-footer notice on the same background as the
-      canvas header, slide it closed after first interaction, and resurface bounded
-      auto-expiring notices only for exact lens, focus, source-revision, last-good
-      revalidation, or renderer-degradation changes. Keep zoom and
+      canvas header, retain every notice for a default minimum of five seconds
+      regardless of input, queue early dismissal at that boundary, and resurface
+      bounded auto-expiring notices only for exact lens, focus, source-revision,
+      or last-good revalidation changes. Keep renderer status in machine-readable
+      diagnostics and visible fallback without publishing it in the footer. Keep zoom and
       authority-qualified latitude/longitude diagnostics above the visible notice
       and at the lower canvas edge while it is quiet; never relabel unbound local
-      X/Y as geographic position.
+      X/Y as geographic position. Reuse the exact abbreviated regional-globe
+      caption on World entry and retain notice content through the bounded eased
+      exit instead of removing it before the footer closes.
 
 ### 6. Qualify the complete voyage
 
