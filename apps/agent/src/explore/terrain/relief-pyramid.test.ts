@@ -39,6 +39,18 @@ describe("materialized landscape relief pyramid", () => {
     expect(pyramid.relief_levels).toHaveLength(
       pyramid.height_hierarchy.levels.length,
     );
+    expect(
+      pyramid.relief_levels.every(
+        (level) =>
+          level.field.grid.columns === level.relief.columns &&
+          level.field.grid.rows === level.relief.rows &&
+          level.byte_length ===
+            level.field.field_bytes +
+              level.relief.hillshade.byteLength +
+              level.relief.salience.byteLength +
+              level.relief.tangent.byteLength,
+      ),
+    ).toBe(true);
     expect(fine.tiles.length).toBeGreaterThan(1);
     expect(fine.maximum_gutter_radius_cells).toBeGreaterThan(0);
     expect(fine.border_digest_id).toMatch(/^blake3:[0-9a-f]{64}$/);

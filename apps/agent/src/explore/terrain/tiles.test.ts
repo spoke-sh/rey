@@ -6,10 +6,12 @@ import {
 } from "@rey/explorer";
 import { describe, expect, it } from "vitest";
 import { admittedField, terrainTileView } from "./tiles.fixture";
+import { compileMaterializedLandscapePyramid } from "./relief-pyramid";
 import {
   materializeTerrainTile,
   materializeTerrainTileRelief,
   projectTerrainTilePyramid,
+  projectMaterializedLandscapeTilePyramid,
   selectTerrainTilesForView,
   terrainTileReliefPartitionMismatchCount,
   terrainTileReliefSeamMismatchCount,
@@ -114,6 +116,53 @@ describe("admitted terrain tile projection", () => {
     expect(close.screen_error_pixels).toBeLessThanOrEqual(
       root.geometric_error * 4,
     );
+  });
+
+  it("selects exact conservative hierarchy levels with revision-bound tiles", () => {
+    const materialized = compileMaterializedLandscapePyramid(admittedField());
+    const pyramid = projectMaterializedLandscapeTilePyramid(materialized);
+    expect(pyramid.maximum_level).toBe(materialized.relief_levels.length - 1);
+    expect([...new Set(pyramid.tiles.map(({ level }) => level))]).toHaveLength(
+      materialized.relief_levels.length,
+    );
+    for (const tile of pyramid.tiles) {
+      const reliefLevel = materialized.relief_levels[tile.level]!;
+      const heightLevel = materialized.height_hierarchy.levels[tile.level]!;
+      expect(tile).toMatchObject({
+        cache_key: tile.tile_id,
+        field_set_id: reliefLevel.field.field_set_id,
+        mosaic_id: materialized.height_hierarchy.mosaic_id,
+        height_level_id: heightLevel.level_id,
+        relief_field_id: reliefLevel.relief.relief_field_id,
+        relief_operator_revision: reliefLevel.relief.implementation_revision,
+        validity_support_id: heightLevel.validity_id,
+        border_digest_id: reliefLevel.border_digest_id,
+      });
+      expect(tile.cache_key).toContain(tile.mosaic_id);
+      expect(tile.cache_key).toContain(tile.height_level_id);
+      expect(tile.cache_key).toContain(tile.relief_operator_revision);
+      expect(tile.cache_key).toContain(tile.validity_support_id);
+      if (tile.parent_id)
+        expect(
+          pyramid.tiles.find(({ tile_id }) => tile_id === tile.parent_id)
+            ?.child_ids,
+        ).toContain(tile.tile_id);
+    }
+    const errors = materialized.relief_levels.map(
+      ({ level }) =>
+        pyramid.tiles.find((tile) => tile.level === level)!.geometric_error,
+    );
+    expect(errors.at(-1)).toBe(0);
+    for (let level = 1; level < errors.length; level += 1)
+      expect(errors[level]).toBeLessThanOrEqual(errors[level - 1]!);
+
+    const overview = selectTerrainTilesForView(pyramid, terrainTileView(0.001));
+    const close = selectTerrainTilesForView(pyramid, terrainTileView(4));
+    expect(overview.level).toBeLessThanOrEqual(close.level);
+    expect(new Set(close.tiles.map(({ level }) => level))).toEqual(
+      new Set([close.level]),
+    );
+    expect(terrainTileSeamMismatchCount(close.tiles)).toBe(0);
   });
 });
 

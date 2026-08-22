@@ -8,7 +8,7 @@ import type { TerrainFieldSet } from "./compile";
 import type { TerrainTileDescriptor } from "./tiles";
 
 export const TERRAIN_TILE_RESIDENCY_REVISION =
-  "rey.terrain.tile-residency@1" as const;
+  "rey.terrain.tile-residency@2" as const;
 export const MAX_TERRAIN_TILE_CPU_BYTES = 48 * 1024 * 1024;
 export const MAX_TERRAIN_TILE_GPU_BYTES = 64 * 1024 * 1024;
 
@@ -71,8 +71,13 @@ export class TerrainTileResidency {
     if (requested.size !== requestedTileIds.length)
       throw new Error("terrain residency request contains duplicate tiles");
     const compiledById = new Map(
-      compiled.map((tile) => [tile.descriptor.tile_id, tile]),
+      compiled.map((tile) => {
+        verifyCompiledTileIdentity(tile);
+        return [tile.descriptor.cache_key, tile] as const;
+      }),
     );
+    if (compiledById.size !== compiled.length)
+      throw new Error("terrain residency input contains duplicate cache keys");
     const requestedTiles = requestedTileIds.map((tileId) => {
       const tile = this.#entries.get(tileId) ?? compiledById.get(tileId);
       if (!tile)
@@ -171,4 +176,25 @@ function terrainTileCpuBytes(
   tile: Pick<CompiledTerrainTile, "fields" | "relief">,
 ): number {
   return tile.fields.field_bytes + landscapeReliefFieldByteLength(tile.relief);
+}
+
+function verifyCompiledTileIdentity(tile: CompiledTerrainTile): void {
+  const { descriptor, relief } = tile;
+  if (
+    descriptor.tile_id !== descriptor.cache_key ||
+    descriptor.relief_field_id !== relief.source_relief_field_id ||
+    descriptor.relief_operator_revision !== relief.implementation_revision ||
+    relief.field_set_id !== descriptor.tile_id
+  )
+    throw new Error(
+      "terrain tile cache identity does not match compiled evidence",
+    );
+  for (const identity of [
+    descriptor.mosaic_id,
+    descriptor.height_level_id,
+    descriptor.validity_support_id,
+    descriptor.border_digest_id,
+  ])
+    if (!identity || !descriptor.cache_key.includes(identity))
+      throw new Error("terrain tile cache key omits derivation identity");
 }

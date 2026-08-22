@@ -26,7 +26,7 @@ describe("bounded terrain compilation worker", () => {
       fields: [source],
       programs: [],
       view: terrainTileView(4),
-      maximum_cpu_bytes: 8 * 1024 * 1024,
+      maximum_cpu_bytes: 16 * 1024 * 1024,
       maximum_gpu_bytes: 8 * 1024 * 1024,
     });
     expect(result.execution).toBe("main_thread_fallback");
@@ -153,7 +153,7 @@ describe("bounded terrain compilation worker", () => {
           fields: [admittedField()],
           programs: [],
           view: terrainTileView(4),
-          maximum_cpu_bytes: 8 * 1024 * 1024,
+          maximum_cpu_bytes: 16 * 1024 * 1024,
           maximum_gpu_bytes: 8 * 1024 * 1024,
         },
         abort.signal,

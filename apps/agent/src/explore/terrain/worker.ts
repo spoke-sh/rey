@@ -29,7 +29,7 @@ import {
 import {
   materializeTerrainTile,
   materializeTerrainTileRelief,
-  projectTerrainTilePyramid,
+  projectMaterializedLandscapeTilePyramid,
   selectTerrainTilesForView,
   terrainTileReliefPartitionMismatchCount,
   terrainTileReliefSeamMismatchCount,
@@ -39,7 +39,7 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@7" as const;
+  "rey.terrain.compilation-worker@8" as const;
 
 export interface TerrainProgramWorkerRequest {
   program: TerrainProgram;
@@ -73,6 +73,10 @@ export interface TerrainCompilationMetrics {
   height_hierarchy_bytes: number;
   relief_hierarchy_levels: number;
   relief_hierarchy_bytes: number;
+  relief_derived_bytes: number;
+  relief_halo_source_cells: number;
+  selected_tile_cpu_bytes: number;
+  selected_tile_gpu_bytes: number;
   relief_border_digest_mismatches: number;
   gpu_timing_ms: null;
   gpu_timing_authority: "unavailable_without_capable_gpu_timer";
@@ -126,8 +130,8 @@ export function executeTerrainCompilationJob(
   const passthroughFields = job.fields.filter(
     (field) => !field.active_band_ids.includes("admitted_dem"),
   );
-  const pyramids = admittedFields.map((field) =>
-    projectTerrainTilePyramid(field),
+  const pyramids = materializedLandscapePyramids.map((pyramid) =>
+    projectMaterializedLandscapeTilePyramid(pyramid),
   );
   const selections = pyramids.map((pyramid) =>
     selectTerrainTilesForView(pyramid, job.view),
@@ -136,25 +140,34 @@ export function executeTerrainCompilationJob(
     deriveRegionalTerrainPresentationLines(field, job.regime),
   );
   const fieldById = new Map(
-    admittedFields.map((field) => [field.field_set_id, field]),
+    materializedLandscapePyramids.flatMap((pyramid) =>
+      pyramid.relief_levels.map(
+        (level) => [level.field.field_set_id, level.field] as const,
+      ),
+    ),
   );
   const reliefById = new Map(
-    admittedFields.map((field, index) => [
-      field.field_set_id,
-      materializedLandscapePyramids[index]!.relief_levels.at(-1)!.relief,
-    ]),
+    materializedLandscapePyramids.flatMap((pyramid) =>
+      pyramid.relief_levels.map(
+        (level) => [level.field.field_set_id, level.relief] as const,
+      ),
+    ),
   );
   const landscapePyramids = materializedLandscapePyramids.map(
     ({ envelope }) => envelope,
   );
   const compiledTiles = selections.flatMap((selection, pyramidIndex) => {
     const pyramid = pyramids[pyramidIndex]!;
-    const source = fieldById.get(pyramid.field_set_id);
-    if (!source) throw new Error("terrain tile pyramid lost its source field");
-    const sourceRelief = reliefById.get(pyramid.field_set_id);
-    if (!sourceRelief)
-      throw new Error("terrain tile pyramid lost its source relief field");
     return selection.tiles.map((descriptor) => {
+      const source = fieldById.get(descriptor.field_set_id);
+      if (!source)
+        throw new Error("terrain tile pyramid lost its hierarchy field");
+      const sourceRelief = reliefById.get(descriptor.field_set_id);
+      if (
+        !sourceRelief ||
+        sourceRelief.relief_field_id !== descriptor.relief_field_id
+      )
+        throw new Error("terrain tile pyramid lost its exact relief field");
       const fields = materializeTerrainTile(source, descriptor);
       const relief = materializeTerrainTileRelief(
         source,
@@ -292,6 +305,48 @@ export function executeTerrainCompilationJob(
             (levelTotal, level) => levelTotal + level.byte_length,
             0,
           ),
+        0,
+      ),
+      relief_derived_bytes: materializedLandscapePyramids.reduce(
+        (total, pyramid) =>
+          total +
+          pyramid.relief_levels.reduce(
+            (levelTotal, level) =>
+              levelTotal + landscapeReliefFieldByteLength(level.relief),
+            0,
+          ),
+        0,
+      ),
+      relief_halo_source_cells: materializedLandscapePyramids.reduce(
+        (total, pyramid) =>
+          total +
+          pyramid.relief_levels.reduce(
+            (levelTotal, level) =>
+              levelTotal +
+              level.tiles.reduce(
+                (tileTotal, tile) =>
+                  tileTotal +
+                  (tile.source_window.column_end -
+                    tile.source_window.column_start +
+                    1) *
+                    (tile.source_window.row_end -
+                      tile.source_window.row_start +
+                      1),
+                0,
+              ),
+            0,
+          ),
+        0,
+      ),
+      selected_tile_cpu_bytes: tiles.reduce(
+        (total, tile) =>
+          total +
+          tile.fields.field_bytes +
+          landscapeReliefFieldByteLength(tile.relief),
+        0,
+      ),
+      selected_tile_gpu_bytes: tiles.reduce(
+        (total, tile) => total + tile.descriptor.gpu_bytes,
         0,
       ),
       relief_border_digest_mismatches: materializedLandscapePyramids.reduce(

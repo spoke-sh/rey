@@ -760,10 +760,10 @@ admitted overview source produce deterministic mosaics with no validity gain.
 - [x] Make whole-field and partitioned compilation equivalent within one named
       numeric tolerance. Moving the camera or changing the active tile
       partition must not change a sample's height, normal, or illumination.
-- [ ] Select pyramid levels with stable screen-space error and compatible
+- [x] Select pyramid levels with stable screen-space error and compatible
       neighboring support. Preserve current cancellation and CPU/GPU residency
       bounds; add derived-channel bytes and halo work to those measurements.
-- [ ] Cache by mosaic revision, pyramid level, tile identity, operator revision,
+- [x] Cache by mosaic revision, pyramid level, tile identity, operator revision,
       and validity support so an Atlas prewarm can be reused without admitting
       stale or differently composed terrain.
 

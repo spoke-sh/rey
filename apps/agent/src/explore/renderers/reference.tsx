@@ -67,7 +67,7 @@ import { featureVisibleAtLens } from "../engine/cartography";
 import {
   materializeTerrainTile,
   materializeTerrainTileRelief,
-  projectTerrainTilePyramid,
+  projectMaterializedLandscapeTilePyramid,
 } from "../terrain/tiles";
 import { refineRegionalTerrainField } from "../terrain/refinement";
 import { deriveRegionalTerrainGeography } from "../terrain/regional-geography";
@@ -468,19 +468,26 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
         .flatMap((field) => {
           const materializedPyramid =
             compileMaterializedLandscapePyramid(field);
-          const relief = materializedPyramid.relief_levels.at(-1)!.relief;
           const envelope = materializedPyramid.envelope;
           const heightHierarchy = materializedPyramid.height_hierarchy;
-          const pyramid = projectTerrainTilePyramid(field);
+          const pyramid =
+            projectMaterializedLandscapeTilePyramid(materializedPyramid);
           return pyramid.tiles
-            .filter(({ level }) => level === 0)
-            .map((tile) => ({
-              field: materializeTerrainTile(field, tile),
-              relief: materializeTerrainTileRelief(field, relief, tile),
-              envelope,
-              heightHierarchy,
-              materializedPyramid,
-            }));
+            .filter(({ level }) => level === pyramid.maximum_level)
+            .map((tile) => {
+              const level = materializedPyramid.relief_levels[tile.level]!;
+              return {
+                field: materializeTerrainTile(level.field, tile),
+                relief: materializeTerrainTileRelief(
+                  level.field,
+                  level.relief,
+                  tile,
+                ),
+                envelope,
+                heightHierarchy,
+                materializedPyramid,
+              };
+            });
         }),
     [scene.terrain_fields],
   );

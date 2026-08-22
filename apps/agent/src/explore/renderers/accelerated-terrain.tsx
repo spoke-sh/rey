@@ -22,11 +22,14 @@ import {
 import {
   MAX_TERRAIN_TILE_CPU_BYTES,
   MAX_TERRAIN_TILE_GPU_BYTES,
+  TERRAIN_TILE_RESIDENCY_REVISION,
   TerrainTileResidency,
   type TerrainTileResidencyStats,
 } from "../terrain/residency";
 import { TerrainCompilationWorkerClient } from "../terrain/worker-client";
 import type { TerrainCompilationResult } from "../terrain/worker";
+import { LANDSCAPE_HEIGHT_HIERARCHY_REVISION } from "../terrain/height-pyramid";
+import { LANDSCAPE_RELIEF_HIERARCHY_REVISION } from "../terrain/relief-pyramid";
 import { exploreStyles as styles } from "../../stylex/explore.stylex";
 import { className as sx } from "../../stylex/shared.stylex";
 import type { TopologyGlobe } from "../../topology";
@@ -53,6 +56,10 @@ export interface AcceleratedTerrainReport {
   landscape_relief_pyramid_ids: readonly string[];
   landscape_relief_hierarchy_levels: number;
   landscape_relief_hierarchy_bytes: number;
+  landscape_relief_derived_bytes: number;
+  landscape_relief_halo_source_cells: number;
+  landscape_selected_tile_cpu_bytes: number;
+  landscape_selected_tile_gpu_bytes: number;
   landscape_relief_derivation_tile_count: number;
   landscape_relief_maximum_gutter_cells: number;
   landscape_relief_border_digest_ids: readonly string[];
@@ -158,6 +165,10 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     landscape_relief_pyramid_ids: Object.freeze([]),
     landscape_relief_hierarchy_levels: 0,
     landscape_relief_hierarchy_bytes: 0,
+    landscape_relief_derived_bytes: 0,
+    landscape_relief_halo_source_cells: 0,
+    landscape_selected_tile_cpu_bytes: 0,
+    landscape_selected_tile_gpu_bytes: 0,
     landscape_relief_derivation_tile_count: 0,
     landscape_relief_maximum_gutter_cells: 0,
     landscape_relief_border_digest_ids: Object.freeze([]),
@@ -451,7 +462,18 @@ export function AcceleratedTerrainSurface({
     .flatMap((requests) => requests.map((request) => request.working_set_id))
     .join("|");
   const terrainSourceKey = [
-    ...snapshot.scene.terrain_fields.map((field) => field.field_set_id),
+    LANDSCAPE_RELIEF_ENGINE_REVISION,
+    LANDSCAPE_HEIGHT_HIERARCHY_REVISION,
+    LANDSCAPE_RELIEF_HIERARCHY_REVISION,
+    TERRAIN_TILE_RESIDENCY_REVISION,
+    ...snapshot.scene.terrain_fields.map((field) =>
+      [
+        field.field_set_id,
+        field.source_revision,
+        field.landscape_mosaic?.mosaic_id ?? "unbound-mosaic",
+        field.material.implementation_revision,
+      ].join(":"),
+    ),
     ...snapshot.scene.terrain_programs.map((program) => program.program_id),
   ]
     .sort((left, right) => left.localeCompare(right))
@@ -772,6 +794,14 @@ export function AcceleratedTerrainSurface({
         activeTerrain?.result.metrics.relief_hierarchy_levels ?? 0,
       landscape_relief_hierarchy_bytes:
         activeTerrain?.result.metrics.relief_hierarchy_bytes ?? 0,
+      landscape_relief_derived_bytes:
+        activeTerrain?.result.metrics.relief_derived_bytes ?? 0,
+      landscape_relief_halo_source_cells:
+        activeTerrain?.result.metrics.relief_halo_source_cells ?? 0,
+      landscape_selected_tile_cpu_bytes:
+        activeTerrain?.result.metrics.selected_tile_cpu_bytes ?? 0,
+      landscape_selected_tile_gpu_bytes:
+        activeTerrain?.result.metrics.selected_tile_gpu_bytes ?? 0,
       landscape_relief_derivation_tile_count:
         activeTerrain?.result.materialized_landscape_pyramids.reduce(
           (total, pyramid) =>

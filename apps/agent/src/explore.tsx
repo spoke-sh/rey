@@ -1087,6 +1087,18 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-landscape-relief-hierarchy-bytes={
             terrainRenderer.landscape_relief_hierarchy_bytes
           }
+          data-renderer-landscape-relief-derived-bytes={
+            terrainRenderer.landscape_relief_derived_bytes
+          }
+          data-renderer-landscape-relief-halo-source-cells={
+            terrainRenderer.landscape_relief_halo_source_cells
+          }
+          data-renderer-landscape-selected-tile-cpu-bytes={
+            terrainRenderer.landscape_selected_tile_cpu_bytes
+          }
+          data-renderer-landscape-selected-tile-gpu-bytes={
+            terrainRenderer.landscape_selected_tile_gpu_bytes
+          }
           data-renderer-landscape-relief-derivation-tiles={
             terrainRenderer.landscape_relief_derivation_tile_count
           }

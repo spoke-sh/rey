@@ -101,17 +101,22 @@ metric operator, derives from that halo, and then crops the interior. The
 assembled result must equal whole-level derivation within the named `1e-6`
 numeric tolerance; overlapping interiors and tolerance-canonicalized adjacent
 border digests must agree. The earlier one-level, zero-gutter fallback has
-been removed. The current `rey.terrain-tile-pyramid.v1` remains a separate
-camera-selection prototype over the finest field, so hierarchy LOD selection,
-residency accounting, and exact cache reuse remain open in 8.3.
+been removed. `rey.terrain.dataset-tiles@2` now projects camera tiles directly
+from those materialized levels instead of striding over the finest field.
+Selection uses conservative cumulative screen-space error and one uniform
+level per view, so adjacent support remains compatible without mixed-edge
+cracks.
 
 The application-side `rey.terrain.height-hierarchy@2` materializes
 conservative height and validity levels before camera tiling. It
 uses explicit bounded child windows for dyadic, non-dyadic, square, and
 rectangular grids, retains the canonical contributing source set for every
-sample, and reaches a 2×2 root within the declared level bound. Those arrays
-and their haloed relief levels now enter the shared envelope; camera LOD still
-selects only from the separate finest-field render-tile projection.
+sample, and reaches a 2×2 root within the declared level bound. Every level
+also carries renderer-neutral normals and presentation companions sampled
+without widening validity. Tile cache identities bind the exact mosaic,
+height level, relief field and operator, validity support, and border digest.
+Derived-channel bytes, halo source cells, and selected CPU/GPU bytes enter the
+worker measurements and retained browser diagnostics.
 
 Several admitted regional fields may first enter
 `rey.landscape-mosaic.v1`. The application-owned compiler requires a common
@@ -309,22 +314,24 @@ an imagery layer from elevation or styling.
 
 ## Tiling, Workers, And Residency
 
-`@rey/agent` projects admitted regional grids into
-`rey.terrain-tile-pyramid.v1`. Tile identities bind the source field and
-revision, level, row, and column. Every level shares exact edge samples and
+`@rey/agent` projects the admitted `rey.landscape-height-pyramid.v1` and
+`rey.landscape-relief-pyramid.v1` into `rey.terrain-tile-pyramid.v1`. Tile
+identities bind the mosaic, exact height and relief levels, operator revision,
+validity support, and border digest. Every level shares exact edge samples and
 validity borders. Coarse validity is conservative: a no-data source sample may
 remove coarse support but cannot become a valid coarse vertex. Camera
-selection chooses a uniform level from measured geometric error, preventing
+selection chooses a uniform level from cumulative hierarchy error, preventing
 mixed-level edge cracks while retaining screen-space control.
 
-`rey.terrain.compilation-worker@4` runs tile projection, complete-field relief
+`rey.terrain.compilation-worker@8` runs hierarchy projection, haloed relief
 derivation, exact relief sampling, procedural field evaluation, partition and
 border parity checking, and mesh preparation in a cancellable dedicated
 worker. The deterministic reference field remains visible while work is
 pending or after failure. A disclosed main-thread fallback exists where
-`Worker` is unavailable. `rey.terrain.tile-residency@1` retains compiled tiles
-under independent 48 MiB CPU and 64 MiB GPU budgets and evicts the oldest
-unrequested identity first.
+`Worker` is unavailable. `rey.terrain.tile-residency@2` retains compiled tiles
+under independent 48 MiB CPU and 64 MiB GPU budgets, rejects a tile whose
+compiled relief differs from its cache identity, and evicts the oldest
+unrequested exact identity first.
 
 When an Atlas contains exactly one admitted regional terrain field, the
 application may mount an invisible `rey.explorer.atlas-terrain-prewarm@1`

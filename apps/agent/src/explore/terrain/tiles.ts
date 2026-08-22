@@ -1,5 +1,6 @@
 import {
   createTerrainValidityClassification,
+  landscapeReliefFieldByteLength,
   sampleLandscapeReliefField,
   summarizeTerrainValidityClassification,
   TERRAIN_VALIDITY_NO_DATA,
@@ -21,18 +22,26 @@ import {
   type FieldBounds,
 } from "../engine/fields";
 import type { TerrainCameraView, TerrainFieldSet } from "./compile";
+import type { MaterializedLandscapePyramid } from "./relief-pyramid";
 
 export const TERRAIN_TILE_PYRAMID_SCHEMA =
   "rey.terrain-tile-pyramid.v1" as const;
 export const TERRAIN_TILE_PROJECTION_REVISION =
-  "rey.terrain.dataset-tiles@1" as const;
+  "rey.terrain.dataset-tiles@2" as const;
 export const DEFAULT_TERRAIN_TILE_INTERVALS = 32;
 export const DEFAULT_TERRAIN_SCREEN_ERROR_PIXELS = 1.5;
 
 export interface TerrainTileDescriptor {
   tile_id: string;
+  cache_key: string;
   field_set_id: string;
   source_revision: string;
+  mosaic_id: string;
+  height_level_id: string;
+  relief_field_id: string;
+  relief_operator_revision: string;
+  validity_support_id: string;
+  border_digest_id: string;
   level: number;
   column: number;
   row: number;
@@ -192,8 +201,18 @@ export function projectTerrainTilePyramid(
         tiles.push(
           Object.freeze({
             tile_id: tileId(level, column, row),
+            cache_key: tileId(level, column, row),
             field_set_id: field.field_set_id,
             source_revision: field.source_revision,
+            mosaic_id:
+              field.landscape_mosaic?.mosaic_id ??
+              field.landscape_reference?.reference_id ??
+              field.field_set_id,
+            height_level_id: field.field_set_id,
+            relief_field_id: `${field.field_set_id}:unbound-relief`,
+            relief_operator_revision: "unbound",
+            validity_support_id: `${field.field_set_id}:validity`,
+            border_digest_id: "unbound",
             level,
             column,
             row,
@@ -255,6 +274,169 @@ export function projectTerrainTilePyramid(
     maximum_level: maximumLevel,
     tile_intervals: tileIntervals,
     tiles: Object.freeze(tiles),
+  });
+}
+
+/**
+ * Projects render tiles from the already-derived height/relief hierarchy.
+ * Unlike the legacy field projector, this never strides over the finest field:
+ * every selected descriptor names one exact conservative hierarchy level.
+ */
+export function projectMaterializedLandscapeTilePyramid(
+  materialized: MaterializedLandscapePyramid,
+): TerrainTilePyramid {
+  const levels = materialized.relief_levels;
+  if (levels.length === 0)
+    throw new Error("materialized landscape pyramid has no relief levels");
+  const levelErrors = cumulativeHierarchyErrors(materialized);
+  const mutable = levels.flatMap((level) => {
+    const heightLevel = materialized.height_hierarchy.levels[level.level];
+    if (!heightLevel || heightLevel.level_id !== level.source_height_level_id)
+      throw new Error("landscape render level changed height identity");
+    const field = level.field;
+    const classification = verifyTerrainFieldValidityClassification(field);
+    return level.tiles.map((sourceTile) => {
+      const columnIndices = sampleIndices(
+        sourceTile.interior.column_start,
+        sourceTile.interior.column_end,
+        1,
+      );
+      const rowIndices = sampleIndices(
+        sourceTile.interior.row_start,
+        sourceTile.interior.row_end,
+        1,
+      );
+      const validity = sampleIndexedComponents(
+        field,
+        field.validity.values,
+        columnIndices,
+        rowIndices,
+        1,
+      ) as Uint8Array;
+      const validityClassification = sampleIndexedComponents(
+        field,
+        classification.values,
+        columnIndices,
+        rowIndices,
+        1,
+      ) as Uint8Array;
+      const validitySummary = summarizeTerrainValidityClassification(
+        createTerrainValidityClassification(
+          validityClassification,
+          `${TERRAIN_TILE_PROJECTION_REVISION}:${sourceTile.tile_id}:validity-classification`,
+        ),
+      );
+      const bounds = tileBounds(
+        field.grid.bounds,
+        field.grid.columns,
+        field.grid.rows,
+        sourceTile.interior.column_start,
+        sourceTile.interior.column_end,
+        sourceTile.interior.row_start,
+        sourceTile.interior.row_end,
+      );
+      const cells = columnIndices.length * rowIndices.length;
+      const triangles = terrainTriangleIndices({
+        grid: {
+          columns: columnIndices.length,
+          rows: rowIndices.length,
+          bounds,
+        },
+        validity: { values: validity },
+      });
+      const cacheKey = [
+        TERRAIN_TILE_PROJECTION_REVISION,
+        materialized.height_hierarchy.mosaic_id,
+        heightLevel.level_id,
+        sourceTile.tile_id,
+        level.relief.relief_field_id,
+        level.relief.implementation_revision,
+        heightLevel.validity_id,
+        level.border_digest_id,
+      ].join("|");
+      return {
+        tile_id: cacheKey,
+        cache_key: cacheKey,
+        field_set_id: field.field_set_id,
+        source_revision: field.source_revision,
+        mosaic_id: materialized.height_hierarchy.mosaic_id,
+        height_level_id: heightLevel.level_id,
+        relief_field_id: level.relief.relief_field_id,
+        relief_operator_revision: level.relief.implementation_revision,
+        validity_support_id: heightLevel.validity_id,
+        border_digest_id: level.border_digest_id,
+        level: level.level,
+        column: sourceTile.column,
+        row: sourceTile.row,
+        parent_id: null as string | null,
+        child_ids: [] as string[],
+        column_indices: Object.freeze(columnIndices),
+        row_indices: Object.freeze(rowIndices),
+        validity_values: validity,
+        validity_classification_values: validityClassification,
+        bounds,
+        geometric_error: levelErrors[level.level]!,
+        validity_border: Object.freeze(
+          validityBorder(validity, columnIndices.length, rowIndices.length),
+        ),
+        valid_vertices: validitySummary.valid_vertices,
+        no_data_vertices: validitySummary.no_data_vertices,
+        unsupported_vertices: validitySummary.unsupported_vertices,
+        field_cells: cells,
+        cpu_bytes: Math.ceil(
+          ((field.field_bytes + landscapeReliefFieldByteLength(level.relief)) /
+            field.field_cells) *
+            cells,
+        ),
+        gpu_bytes: cells * 56 + triangles.byteLength,
+      };
+    });
+  });
+  for (const tile of mutable) {
+    if (tile.level === 0) continue;
+    const parent = hierarchyParentTile(mutable, tile);
+    if (!parent) throw new Error("landscape render tile lost its parent");
+    tile.parent_id = parent.tile_id;
+    parent.child_ids.push(tile.tile_id);
+  }
+  const tiles = Object.freeze(
+    mutable.map((tile) =>
+      Object.freeze({
+        ...tile,
+        child_ids: Object.freeze(
+          [...tile.child_ids].sort((left, right) => left.localeCompare(right)),
+        ),
+      }),
+    ),
+  );
+  const maximumLevel = levels.length - 1;
+  const tileIntervals = levels.reduce(
+    (maximum, level) =>
+      Math.max(
+        maximum,
+        ...level.tiles.map((tile) =>
+          Math.max(
+            tile.interior.column_end - tile.interior.column_start,
+            tile.interior.row_end - tile.interior.row_start,
+          ),
+        ),
+      ),
+    0,
+  );
+  return Object.freeze({
+    schema: TERRAIN_TILE_PYRAMID_SCHEMA,
+    pyramid_id: [
+      TERRAIN_TILE_PYRAMID_SCHEMA,
+      TERRAIN_TILE_PROJECTION_REVISION,
+      materialized.envelope.envelope_id,
+      materialized.hierarchy_id,
+    ].join("|"),
+    field_set_id: materialized.height_hierarchy.field_set_id,
+    source_revision: materialized.height_hierarchy.source_revision,
+    compiler_revision: TERRAIN_TILE_PROJECTION_REVISION,
+    maximum_level: maximumLevel,
+    tile_intervals: tileIntervals,
+    tiles,
   });
 }
 
@@ -492,6 +674,112 @@ export function materializeTerrainTileRelief(
     tile.column_indices,
     tile.row_indices,
   );
+}
+
+function cumulativeHierarchyErrors(
+  materialized: MaterializedLandscapePyramid,
+): readonly number[] {
+  const levels = materialized.relief_levels;
+  const errors = new Array<number>(levels.length).fill(0);
+  for (let level = levels.length - 2; level >= 0; level -= 1)
+    errors[level] =
+      errors[level + 1]! +
+      adjacentHierarchyError(levels[level]!.field, levels[level + 1]!.field);
+  return Object.freeze(errors);
+}
+
+function adjacentHierarchyError(
+  coarse: TerrainFieldSet,
+  fine: TerrainFieldSet,
+): number {
+  let maximum = 0;
+  for (let row = 0; row < fine.grid.rows; row += 1) {
+    const coarseRow =
+      (row / Math.max(1, fine.grid.rows - 1)) * (coarse.grid.rows - 1);
+    const top = Math.floor(coarseRow);
+    const bottom = Math.ceil(coarseRow);
+    const rowProgress = coarseRow - top;
+    for (let column = 0; column < fine.grid.columns; column += 1) {
+      const fineIndex = row * fine.grid.columns + column;
+      if (fine.validity.values[fineIndex] === 0) continue;
+      const coarseColumn =
+        (column / Math.max(1, fine.grid.columns - 1)) *
+        (coarse.grid.columns - 1);
+      const left = Math.floor(coarseColumn);
+      const right = Math.ceil(coarseColumn);
+      const columnProgress = coarseColumn - left;
+      const cornerIndices = [
+        top * coarse.grid.columns + left,
+        top * coarse.grid.columns + right,
+        bottom * coarse.grid.columns + left,
+        bottom * coarse.grid.columns + right,
+      ] as const;
+      if (cornerIndices.some((index) => coarse.validity.values[index] === 0)) {
+        maximum = Math.max(maximum, fine.elevation_scale);
+        continue;
+      }
+      const upper = interpolate(
+        coarse.elevation.values[cornerIndices[0]]!,
+        coarse.elevation.values[cornerIndices[1]]!,
+        columnProgress,
+      );
+      const lower = interpolate(
+        coarse.elevation.values[cornerIndices[2]]!,
+        coarse.elevation.values[cornerIndices[3]]!,
+        columnProgress,
+      );
+      maximum = Math.max(
+        maximum,
+        Math.abs(
+          fine.elevation.values[fineIndex]! -
+            interpolate(upper, lower, rowProgress),
+        ) * fine.elevation_scale,
+      );
+    }
+  }
+  return maximum;
+}
+
+function hierarchyParentTile<T extends TerrainTileDescriptor>(
+  tiles: readonly T[],
+  child: Pick<TerrainTileDescriptor, "level" | "bounds">,
+): T | undefined {
+  const centerX = child.bounds.x + child.bounds.width / 2;
+  const centerY = child.bounds.y + child.bounds.height / 2;
+  return tiles
+    .filter(
+      (candidate) =>
+        candidate.level === child.level - 1 &&
+        centerX >= candidate.bounds.x - Number.EPSILON &&
+        centerX <=
+          candidate.bounds.x + candidate.bounds.width + Number.EPSILON &&
+        centerY >= candidate.bounds.y - Number.EPSILON &&
+        centerY <=
+          candidate.bounds.y + candidate.bounds.height + Number.EPSILON,
+    )
+    .sort(
+      (left, right) =>
+        left.row - right.row ||
+        left.column - right.column ||
+        left.tile_id.localeCompare(right.tile_id),
+    )[0];
+}
+
+function sampleIndexedComponents(
+  source: TerrainFieldSet,
+  values: Uint8Array,
+  columnIndices: readonly number[],
+  rowIndices: readonly number[],
+  components: 1,
+): Uint8Array {
+  const result = new Uint8Array(
+    columnIndices.length * rowIndices.length * components,
+  );
+  let output = 0;
+  for (const row of rowIndices)
+    for (const column of columnIndices)
+      result[output++] = values[row * source.grid.columns + column]!;
+  return result;
 }
 
 function sampleIndices(start: number, end: number, stride: number): number[] {

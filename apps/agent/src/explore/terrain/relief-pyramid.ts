@@ -1,4 +1,5 @@
 import {
+  createTerrainValidityClassification,
   deriveLandscapeReliefField,
   finalizeLandscapeHeightPyramid,
   finalizeLandscapePyramidEnvelope,
@@ -16,7 +17,14 @@ import {
   type LandscapeReliefPyramid,
   type TerrainFieldSetInput,
 } from "@rey/explorer";
-import { createFieldGrid, maskField, scalarField } from "../engine/fields";
+import {
+  createFieldGrid,
+  fieldByteLength,
+  maskField,
+  materialField,
+  scalarField,
+  vectorField,
+} from "../engine/fields";
 import type { TerrainFieldSet } from "./compile";
 import {
   compileLandscapeHeightHierarchy,
@@ -56,6 +64,7 @@ export interface MaterializedLandscapeReliefTile {
 export interface MaterializedLandscapeReliefLevel {
   level: number;
   source_height_level_id: string;
+  field: TerrainFieldSet;
   relief: LandscapeReliefField;
   tiles: readonly MaterializedLandscapeReliefTile[];
   maximum_gutter_radius_cells: number;
@@ -243,7 +252,7 @@ function sharedReliefPyramid(
           derivation_tile_count: level.tiles.length,
           maximum_gutter_radius_cells: level.maximum_gutter_radius_cells,
           border_digest_id: level.border_digest_id,
-          relief_bytes: level.byte_length,
+          relief_bytes: landscapeReliefFieldByteLength(relief),
           source_lineage: [
             ...lineage,
             {
@@ -270,7 +279,11 @@ function compileReliefLevel(
   heightLevel: MaterializedLandscapeHeightLevel,
   tileIntervals: number,
 ): MaterializedLandscapeReliefLevel {
-  const levelField = heightLevelTerrainInput(source, hierarchy, heightLevel);
+  const levelField = materializeHeightLevelField(
+    source,
+    hierarchy,
+    heightLevel,
+  );
   const reference = deriveLandscapeReliefField(levelField);
   const gutter = reference.maximum_support_radius_cells;
   const hillshade = new Float32Array(levelField.field_cells);
@@ -371,21 +384,36 @@ function compileReliefLevel(
   return Object.freeze({
     level: heightLevel.level,
     source_height_level_id: heightLevel.level_id,
+    field: levelField,
     relief,
     tiles: Object.freeze(tiles),
     maximum_gutter_radius_cells: gutter,
     border_digest_id: borderDigestId,
     border_mismatches: borderMismatches,
     partition_mismatches: partitionMismatches,
-    byte_length: landscapeReliefFieldByteLength(relief),
+    byte_length:
+      levelField.field_bytes + landscapeReliefFieldByteLength(relief),
   });
 }
 
-function heightLevelTerrainInput(
+function materializeHeightLevelField(
   source: TerrainFieldSet,
   hierarchy: MaterializedLandscapeHeightHierarchy,
   level: MaterializedLandscapeHeightLevel,
-): TerrainFieldSetInput {
+): TerrainFieldSet {
+  const elevationRange = supportedElevationRange(level);
+  const reliefMetrics = Object.freeze({
+    schema: "rey.terrain-relief-metrics.v1" as const,
+    sample_spacing_x_meters: level.sample_spacing_x_meters,
+    sample_spacing_y_meters: level.sample_spacing_y_meters,
+    elevation_range_meters: source.relief_metrics!.elevation_range_meters,
+    elevation_value_minimum: elevationRange.minimum,
+    elevation_value_maximum: elevationRange.maximum,
+    authority: `${source.relief_metrics!.authority}; conservative height hierarchy level ${level.level}`,
+  });
+  if (level.level === hierarchy.levels.length - 1)
+    return Object.freeze({ ...source, relief_metrics: reliefMetrics });
+
   const grid = createFieldGrid(level.columns, level.rows, level.bounds);
   const validityValues = Uint8Array.from(
     level.validity_classification,
@@ -413,49 +441,146 @@ function heightLevelTerrainInput(
     },
   );
   const cells = level.columns * level.rows;
-  const elevationRange = supportedElevationRange(level);
-  const tint = new Float32Array(cells * 3);
-  const occlusion = new Float32Array(cells).fill(1);
-  const roughness = new Float32Array(cells).fill(1);
+  const sampleFloat = (values: Float32Array, components: number) =>
+    sampleNearestLevelComponents(source, level, values, components);
+  const sampleScalar = (values: Float32Array) => sampleFloat(values, 1);
+  const sampleVector = (values: Float32Array | Int8Array, components: number) =>
+    sampleNearestLevelComponents(source, level, values, components);
+  const rainfall = scalarField(
+    source.rainfall.channel,
+    source.rainfall.implementation_revision,
+    grid,
+    sampleScalar(source.rainfall.values),
+  );
+  const flowDirection = vectorField(
+    source.flow_direction.channel,
+    source.flow_direction.implementation_revision,
+    grid,
+    source.flow_direction.components,
+    sampleVector(
+      source.flow_direction.values,
+      source.flow_direction.components,
+    ),
+  );
+  const flowAccumulation = scalarField(
+    source.flow_accumulation.channel,
+    source.flow_accumulation.implementation_revision,
+    grid,
+    sampleScalar(source.flow_accumulation.values),
+  );
+  const erosion = scalarField(
+    source.erosion.channel,
+    source.erosion.implementation_revision,
+    grid,
+    sampleScalar(source.erosion.values),
+  );
+  const material = materialField(
+    source.material.channel,
+    source.material.implementation_revision,
+    grid,
+    sampleFloat(source.material.tint, 3),
+    sampleScalar(source.material.occlusion),
+    sampleScalar(source.material.roughness),
+  );
+  const classification = createTerrainValidityClassification(
+    level.validity_classification.slice(),
+    `${hierarchy.implementation_revision}:${level.level_id}:validity-classification`,
+  );
+  const fields = [
+    validity,
+    elevation,
+    rainfall,
+    flowDirection,
+    flowAccumulation,
+    erosion,
+    derived.normal,
+    derived.curvature,
+    material,
+  ] as const;
   return Object.freeze({
-    field_set_id:
-      level.level === hierarchy.levels.length - 1
-        ? source.field_set_id
-        : level.level_id,
+    schema: source.schema,
+    field_set_id: level.level_id,
+    program_id: source.program_id,
+    working_set_id: level.level_id,
+    active_band_ids: source.active_band_ids,
+    detail_authority: `${source.detail_authority}; conservative height hierarchy level ${level.level}`,
     source_revision: source.source_revision,
+    source_summary: {
+      columns: level.columns,
+      rows: level.rows,
+      valid_vertices: level.valid_vertices,
+      no_data_vertices: level.no_data_vertices,
+      unsupported_vertices: level.unsupported_vertices,
+      elevation_minimum: elevationRange.minimum,
+      elevation_maximum: elevationRange.maximum,
+    },
     field_cells: cells,
-    field_bytes:
-      level.elevation.byteLength +
-      validityValues.byteLength +
-      derived.normal.values.byteLength +
-      derived.curvature.values.byteLength +
-      tint.byteLength +
-      occlusion.byteLength +
-      roughness.byteLength,
+    field_bytes: fields.reduce(
+      (total, field) => total + fieldByteLength(field),
+      classification.values.byteLength,
+    ),
     elevation_scale: source.elevation_scale,
     grid,
-    validity: { values: validityValues },
-    validity_classification: {
-      schema: "rey.terrain-validity-classification.v1" as const,
-      implementation_revision: hierarchy.implementation_revision,
-      values: level.validity_classification,
-    },
-    elevation: { values: level.elevation },
-    normal: { values: derived.normal.values },
-    curvature: { values: derived.curvature.values },
-    material: { tint, occlusion, roughness },
-    relief_metrics: {
-      schema: "rey.terrain-relief-metrics.v1" as const,
-      sample_spacing_x_meters: level.sample_spacing_x_meters,
-      sample_spacing_y_meters: level.sample_spacing_y_meters,
-      elevation_range_meters: source.relief_metrics!.elevation_range_meters,
-      elevation_value_minimum: elevationRange.minimum,
-      elevation_value_maximum: elevationRange.maximum,
-      authority: `${source.relief_metrics!.authority}; conservative height hierarchy level ${level.level}`,
-    },
+    validity,
+    validity_classification: classification,
+    elevation,
+    rainfall,
+    flow_direction: flowDirection,
+    flow_accumulation: flowAccumulation,
+    erosion,
+    normal: derived.normal,
+    curvature: derived.curvature,
+    material,
+    relief_metrics: reliefMetrics,
     landscape_reference: source.landscape_reference,
     landscape_mosaic: source.landscape_mosaic,
   });
+}
+
+function sampleNearestLevelComponents(
+  source: TerrainFieldSet,
+  level: MaterializedLandscapeHeightLevel,
+  values: Float32Array,
+  components: number,
+): Float32Array;
+function sampleNearestLevelComponents(
+  source: TerrainFieldSet,
+  level: MaterializedLandscapeHeightLevel,
+  values: Int8Array,
+  components: number,
+): Int8Array;
+function sampleNearestLevelComponents(
+  source: TerrainFieldSet,
+  level: MaterializedLandscapeHeightLevel,
+  values: Float32Array | Int8Array,
+  components: number,
+): Float32Array | Int8Array;
+function sampleNearestLevelComponents(
+  source: TerrainFieldSet,
+  level: MaterializedLandscapeHeightLevel,
+  values: Float32Array | Int8Array,
+  components: number,
+): Float32Array | Int8Array {
+  const result =
+    values instanceof Int8Array
+      ? new Int8Array(level.columns * level.rows * components)
+      : new Float32Array(level.columns * level.rows * components);
+  for (let row = 0; row < level.rows; row += 1) {
+    const sourceRow = Math.round(
+      (row / Math.max(1, level.rows - 1)) * (source.grid.rows - 1),
+    );
+    for (let column = 0; column < level.columns; column += 1) {
+      const sourceColumn = Math.round(
+        (column / Math.max(1, level.columns - 1)) * (source.grid.columns - 1),
+      );
+      const sourceIndex = sourceRow * source.grid.columns + sourceColumn;
+      const targetIndex = row * level.columns + column;
+      for (let component = 0; component < components; component += 1)
+        result[targetIndex * components + component] =
+          values[sourceIndex * components + component]!;
+    }
+  }
+  return result;
 }
 
 function cropTerrainInput(

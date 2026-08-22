@@ -13,7 +13,7 @@ describe("terrain tile residency", () => {
       fields: [admittedField()],
       programs: [],
       view: terrainTileView(4),
-      maximum_cpu_bytes: 8 * 1024 * 1024,
+      maximum_cpu_bytes: 16 * 1024 * 1024,
       maximum_gpu_bytes: 8 * 1024 * 1024,
     });
     const [first, second] = result.compiled_tiles;
@@ -55,7 +55,7 @@ describe("terrain tile residency", () => {
       fields: [admittedField()],
       programs: [],
       view: terrainTileView(4),
-      maximum_cpu_bytes: 8 * 1024 * 1024,
+      maximum_cpu_bytes: 16 * 1024 * 1024,
       maximum_gpu_bytes: 8 * 1024 * 1024,
     });
     const [first, second] = result.compiled_tiles;
@@ -69,5 +69,29 @@ describe("terrain tile residency", () => {
         [first.descriptor.tile_id, second.descriptor.tile_id],
       ),
     ).toThrow("active terrain tiles exceed");
+  });
+
+  it("rejects a tile whose cache identity no longer matches its relief", () => {
+    const result = executeTerrainCompilationJob({
+      job_id: "terrain-job:residency-identity",
+      workload_id: "landscape-residency-identity-fixture",
+      regime: "landscape",
+      fields: [admittedField()],
+      programs: [],
+      view: terrainTileView(4),
+      maximum_cpu_bytes: 16 * 1024 * 1024,
+      maximum_gpu_bytes: 8 * 1024 * 1024,
+    });
+    const tile = result.compiled_tiles[0]!;
+    const stale = {
+      ...tile,
+      descriptor: {
+        ...tile.descriptor,
+        relief_field_id: `${tile.descriptor.relief_field_id}:stale`,
+      },
+    };
+    expect(() =>
+      new TerrainTileResidency().admit([stale], [stale.descriptor.tile_id]),
+    ).toThrow("cache identity does not match compiled evidence");
   });
 });
