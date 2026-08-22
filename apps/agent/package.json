@@ -12,6 +12,7 @@
     "format": "prettier --write index.html scripts src vite.config.ts vitest.config.ts tsconfig.json package.json",
     "format:check": "prettier --check index.html scripts src vite.config.ts vitest.config.ts tsconfig.json package.json",
     "qualify:explorer": "node scripts/qualify-explorer.mjs",
+    "qualify:explorer-landscape": "node scripts/qualify-explorer-landscape.mjs",
     "qualify:explorer-parity": "node scripts/qualify-explorer-parity.mjs",
     "qualify:explorer-performance": "node scripts/qualify-explorer-performance.mjs",
     "test": "vitest run",

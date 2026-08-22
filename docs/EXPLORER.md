@@ -478,6 +478,13 @@ A rendering change is incomplete until its human journey is qualified.
   relief/border mismatches, and bounded CPU/GPU residency. Perceptual criteria
   are retained separately as explicit pass/minor/major judgments; numeric
   invariants cannot silently stand in for visual review.
+- `pnpm qualify:explorer-landscape -- --review REVIEW.json` binds each named
+  workload and target viewport to complete reference, WebGL2, and WebGPU voyage
+  manifests, their exact Landscape screenshots, a complete rendered-parity
+  manifest, and a digest-verified operator-supplied consumer-map reference.
+  The review must rate every suite criterion with a non-empty note. The command
+  retains missing rows and minor results, and cannot report `PASS` while a row
+  is absent, a digest or lineage differs, or any result is `major`.
 - WebGPU, WebGL2 compatibility, and the deterministic reference renderer keep
   semantic parity; unsupported visual fidelity is disclosed rather than
   hidden.

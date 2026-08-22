@@ -858,6 +858,14 @@ entry viewport.
 
 #### 8.7 Retain the qualification matrix and close the fidelity bar
 
+`rey.explorer-landscape-fidelity-assessment.v1` is the retained aggregation
+boundary for this gate. It binds every workload/viewport row to complete
+reference, WebGL2, and WebGPU voyages, exact screenshots, rendered parity, and
+a digest-verified operator-supplied consumer-map reference. Operator labels
+and pass/minor/major judgments remain explicitly self-asserted. Missing rows,
+changed lineage, failed workload assertions, incomplete parity, and any major
+judgment leave the assessment and this plan open.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
