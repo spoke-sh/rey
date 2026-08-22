@@ -459,6 +459,11 @@ A rendering change is incomplete until its human journey is qualified.
   navigation. Every sample must keep one source key, mosaic, composition,
   primary patch, height hierarchy, relief hierarchy, pyramid envelope,
   validity count, and Atlas fabric identity, with no empty terrain frame.
+- Atlas prewarm begins only after the World/Mercator projection morph is fully
+  settled. WebGPU prepares the exact CPU hierarchy and material inputs without
+  initializing a second hidden WebGPU renderer; its first visible Landscape
+  submission remains deferred behind the retained reference surface. The
+  diagnostic lifecycle calls this state `prepared`, not `submitted`.
 - Named Landscape captures separately qualify steep relief, low relief,
   coastline/water, dense vectors, explicit holes, stale data, and backend loss
   at both target viewports. A capture binds a real admitted fixture; the harness

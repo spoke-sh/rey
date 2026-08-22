@@ -1012,9 +1012,9 @@ async function waitForAtlasTerrainPrewarm(connection, timeoutMs) {
     `(() => {
       const state = document.querySelector('[data-atlas-terrain-prewarm]')
         ?.getAttribute('data-atlas-terrain-prewarm');
-      return state === 'submitted' || state === 'unavailable';
+      return state === 'prepared' || state === 'unavailable';
     })()`,
-    "idle Atlas terrain prewarm submission",
+    "idle Atlas terrain hierarchy preparation",
     timeoutMs,
   );
 }

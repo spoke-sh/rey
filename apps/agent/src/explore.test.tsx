@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
   atlasTerrainPredictedEntryView,
+  atlasTerrainPrewarmDelayMs,
   atlasTerrainPrewarmStatus,
   CanvasFooter,
   CanvasToolbar,
@@ -20,7 +21,9 @@ describe("Explorer canvas toolbar", () => {
     expect(atlasTerrainPrewarmStatus(false, false, false)).toBe("unavailable");
     expect(atlasTerrainPrewarmStatus(true, false, false)).toBe("scheduled");
     expect(atlasTerrainPrewarmStatus(true, true, false)).toBe("mounted");
-    expect(atlasTerrainPrewarmStatus(true, true, true)).toBe("submitted");
+    expect(atlasTerrainPrewarmStatus(true, true, true)).toBe("prepared");
+    expect(atlasTerrainPrewarmDelayMs("webgpu")).toBe(1_500);
+    expect(atlasTerrainPrewarmDelayMs("webgl2")).toBe(600);
   });
 
   it("prewarms admitted Atlas terrain without presenting it as a globe", () => {

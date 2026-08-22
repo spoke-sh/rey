@@ -333,6 +333,7 @@ export function AcceleratedTerrainSurface({
   projectionMorphProgress = 0,
   contentMode = "auto",
   canvasOpacity = 1,
+  prewarmOnly = false,
 }: {
   onReport: (report: AcceleratedTerrainReport) => void;
   snapshot: SceneSnapshot;
@@ -343,6 +344,7 @@ export function AcceleratedTerrainSurface({
   projectionMorphProgress?: number;
   contentMode?: "auto" | "globe" | "terrain";
   canvasOpacity?: number;
+  prewarmOnly?: boolean;
 }) {
   const workerClientRef = useRef<TerrainCompilationWorkerClient | null>(null);
   const residencyRef = useRef<TerrainTileResidency | null>(null);
@@ -1048,7 +1050,24 @@ export function AcceleratedTerrainSurface({
     });
   }, [content, snapshot.snapshot_id, terrainFailure]);
 
-  return content ? (
+  useEffect(() => {
+    if (!prewarmOnly || !terrainCompilation) return;
+    completeReport({
+      status: {
+        lifecycle: "ready",
+        backend: "reference",
+        renderer_revision: "rey.explorer.terrain-prewarm@1",
+        degraded: false,
+        detail:
+          "the exact terrain hierarchy and material inputs are prepared; accelerated submission is deferred until Landscape entry",
+      },
+      draw_calls: 0,
+      render_submission_ms: 0,
+      submitted_frame: null,
+    });
+  }, [prewarmOnly, terrainCompilation, activeTerrain?.job_id]);
+
+  return content && !prewarmOnly ? (
     <ExplorerCanvas
       className={sx(styles.acceleratedTerrainCanvas)}
       content={content}

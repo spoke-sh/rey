@@ -65,6 +65,7 @@ import { invertRegionalTerrainPosition } from "./explore/projection/regional-ter
 import {
   AcceleratedTerrainSurface,
   REFERENCE_TERRAIN_REPORT,
+  rendererPreference,
   terrainCompilationSourceKey,
   type AcceleratedTerrainReport,
 } from "./explore/renderers/accelerated-terrain";
@@ -281,7 +282,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     useState<AcceleratedTerrainReport>(REFERENCE_TERRAIN_REPORT);
   const [atlasTerrainPrewarmReady, setAtlasTerrainPrewarmReady] =
     useState(false);
-  const [atlasTerrainPrewarmSubmitted, setAtlasTerrainPrewarmSubmitted] =
+  const [atlasTerrainPrewarmPrepared, setAtlasTerrainPrewarmPrepared] =
     useState(false);
   const [footerState, dispatchFooter] = useReducer(
     explorerFooterReducer,
@@ -314,13 +315,20 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const sceneProjection = measuredSceneProjection.projection;
   const snapshot = sceneProjection.snapshot;
   const scene = snapshot.scene;
+  const projectionMorphProgress = worldAtlasMorphProgress(zoom);
+  const requestedRendererPreference = rendererPreference(
+    globalThis.location?.search ?? "",
+  );
   const atlasTerrainPrewarmKey = terrainCompilationSourceKey(scene);
   const atlasTerrainPrewarmEligible =
     scene.regime === "atlas" &&
     scene.atlas_landscape_transition === null &&
+    projectionMorphProgress >= 1 &&
     scene.terrain_fields.length > 0;
+  const terrainPrewarmWithoutSubmission =
+    atlasTerrainPrewarmEligible && requestedRendererPreference === "webgpu";
   useEffect(() => {
-    setAtlasTerrainPrewarmSubmitted(false);
+    setAtlasTerrainPrewarmPrepared(false);
     if (!atlasTerrainPrewarmEligible) {
       setAtlasTerrainPrewarmReady(false);
       return;
@@ -328,10 +336,15 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     setAtlasTerrainPrewarmReady(false);
     const timeout = window.setTimeout(
       () => setAtlasTerrainPrewarmReady(true),
-      600,
+      atlasTerrainPrewarmDelayMs(requestedRendererPreference),
     );
     return () => window.clearTimeout(timeout);
-  }, [atlasTerrainPrewarmEligible, atlasTerrainPrewarmKey, zoom]);
+  }, [
+    atlasTerrainPrewarmEligible,
+    atlasTerrainPrewarmKey,
+    requestedRendererPreference,
+    zoom,
+  ]);
   const atlasLandscapeProgress = atlasLandscapeProgressForZoom(scene, zoom);
   const terrainTargetFrame = scene.atlas_landscape_transition?.target_frame ??
     scene.terrain_fields[0]?.grid.bounds ?? {
@@ -374,7 +387,6 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         yaw_degrees: landscapePresentation.yaw_degrees,
         model_transform: landscapePresentation.model_transform,
       };
-  const projectionMorphProgress = worldAtlasMorphProgress(zoom);
   const projectionMorphActive =
     scene.world_atlas_transition !== null &&
     projectionMorphProgress > 0 &&
@@ -897,7 +909,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       data-atlas-terrain-prewarm={atlasTerrainPrewarmStatus(
         atlasTerrainPrewarmEligible,
         atlasTerrainPrewarmReady,
-        atlasTerrainPrewarmSubmitted,
+        atlasTerrainPrewarmPrepared,
       )}
       ref={shellRef}
     >
@@ -969,11 +981,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
                 report.status.lifecycle === "ready" &&
                 report.content_kind === "terrain"
               )
-                setAtlasTerrainPrewarmSubmitted(true);
+                setAtlasTerrainPrewarmPrepared(true);
             }}
             renderVisibility={renderVisibility}
             snapshot={snapshot}
             view={terrainSurfaceView}
+            prewarmOnly={terrainPrewarmWithoutSubmission}
             visible={
               landscapePresentation.terrain_opacity > 0 &&
               !projectionMorphActive
@@ -1419,11 +1432,17 @@ function renderedScaleForTerrainSurface(
 export function atlasTerrainPrewarmStatus(
   eligible: boolean,
   mounted: boolean,
-  submitted: boolean,
-): "unavailable" | "scheduled" | "mounted" | "submitted" {
+  prepared: boolean,
+): "unavailable" | "scheduled" | "mounted" | "prepared" {
   if (!eligible) return "unavailable";
-  if (submitted) return "submitted";
+  if (prepared) return "prepared";
   return mounted ? "mounted" : "scheduled";
+}
+
+export function atlasTerrainPrewarmDelayMs(
+  preference: ReturnType<typeof rendererPreference>,
+): number {
+  return preference === "webgpu" ? 1_500 : 600;
 }
 
 /**
