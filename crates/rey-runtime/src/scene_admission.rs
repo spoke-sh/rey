@@ -23,6 +23,8 @@ pub const SCENE_ADMISSION_WORKLOAD_ID: &str = "scene-admission";
 pub const SCENE_ADMISSION_OPERATION_ID: &str = "rey.scene-admission.validate";
 pub const RENDER_ADMITTED_REGIONAL_SCENE_OPERATION_ID: &str =
     "rey.admitted-regional-scene.render-lines";
+pub const SCENE_ADMISSION_LANDSCAPE_SUMMARY_SCHEMA: &str =
+    "rey.scene-admission-landscape-summary.v1";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -302,6 +304,83 @@ pub enum SceneAdmissionStatus {
     Rejected,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAdmissionLandscapePatchSetSummary {
+    pub schema: String,
+    pub patch_set_id: SemanticDigest,
+    pub patch_ids: Vec<SemanticDigest>,
+    pub overlap_pairs: Vec<[SemanticDigest; 2]>,
+    pub conflict_count: u64,
+    pub authority: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAdmissionLandscapeSourceResolution {
+    pub schema: String,
+    pub dataset_id: SemanticDigest,
+    pub columns: u64,
+    pub rows: u64,
+    pub nominal_spacing_x_micrometers: u64,
+    pub nominal_spacing_y_micrometers: u64,
+    pub elevation_minimum_micrometers: i64,
+    pub elevation_maximum_micrometers: i64,
+    pub valid_vertices: u64,
+    pub no_data_vertices: u64,
+    pub authority: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAdmissionLandscapeMosaicSummary {
+    pub schema: String,
+    pub status: String,
+    pub mosaic_id: Option<SemanticDigest>,
+    pub patch_count: u64,
+    pub overlap_count: u64,
+    pub conflict_count: u64,
+    pub gap_policy: String,
+    pub authority: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAdmissionLandscapePyramidSummary {
+    pub contract_schema: String,
+    pub status: String,
+    pub pyramid_id: Option<SemanticDigest>,
+    pub implementation_revision: Option<String>,
+    pub level_count: u64,
+    pub byte_length: u64,
+    pub omission: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAdmissionLandscapeRendererBudgetSummary {
+    pub schema: String,
+    pub status: String,
+    pub source_cells: Option<u64>,
+    pub cpu_budget_bytes: Option<u64>,
+    pub gpu_budget_bytes: Option<u64>,
+    pub authority: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAdmissionLandscapeSummary {
+    pub schema: String,
+    pub patch_set: SceneAdmissionLandscapePatchSetSummary,
+    pub source_resolution: Option<SceneAdmissionLandscapeSourceResolution>,
+    pub mosaic: SceneAdmissionLandscapeMosaicSummary,
+    pub height_pyramid: SceneAdmissionLandscapePyramidSummary,
+    pub relief_pyramid: SceneAdmissionLandscapePyramidSummary,
+    pub renderer_budget: SceneAdmissionLandscapeRendererBudgetSummary,
+    pub omissions: Vec<String>,
+    pub authority: String,
+}
+
 impl SceneAdmissionStatus {
     const fn as_str(self) -> &'static str {
         match self {
@@ -326,6 +405,7 @@ pub struct SceneAdmissionResult {
     pub code: String,
     pub detail: String,
     pub scene: Option<AdmittedRegionalScene>,
+    pub landscape: Option<SceneAdmissionLandscapeSummary>,
     pub limits: SceneAdmissionLimits,
     pub authority: String,
 }
@@ -335,17 +415,18 @@ impl SceneAdmissionResult {
         if self.schema != SCENE_ADMISSION_RESULT_SCHEMA {
             return Err(SceneAdmissionError::ResultSchema);
         }
-        match (self.status, self.scene.as_ref()) {
-            (SceneAdmissionStatus::Accepted, Some(scene)) => {
+        match (self.status, self.scene.as_ref(), self.landscape.as_ref()) {
+            (SceneAdmissionStatus::Accepted, Some(scene), Some(landscape)) => {
                 scene.verify()?;
                 if scene.admission.workload != self.workload
                     || scene.admission.graph != self.graph
                     || scene.admission.capability_snapshot_id != self.capability_snapshot_id
+                    || landscape != &scene_admission_landscape_summary(scene)?
                 {
                     return Err(SceneAdmissionError::ResultShape);
                 }
             }
-            (SceneAdmissionStatus::Rejected, None) => {}
+            (SceneAdmissionStatus::Rejected, None, None) => {}
             _ => return Err(SceneAdmissionError::ResultShape),
         }
         if self.code.is_empty()
@@ -434,6 +515,10 @@ pub fn execute_scene_admission(
             None,
         ),
     };
+    let landscape = scene
+        .as_ref()
+        .map(scene_admission_landscape_summary)
+        .transpose()?;
     let mut result = SceneAdmissionResult {
         schema: SCENE_ADMISSION_RESULT_SCHEMA.to_owned(),
         result_id: placeholder_digest(),
@@ -447,6 +532,7 @@ pub fn execute_scene_admission(
         code,
         detail,
         scene,
+        landscape,
         limits: context.input.limits.clone(),
         authority: "qualified workload result only; no editor mutation, browser admission, terrain inference, action, or proof authority".to_owned(),
     };
@@ -540,6 +626,181 @@ pub fn render_scene_admission_result(result: &SceneAdmissionResult) -> String {
     }
     lines.push(format!("AUTHORITY {}", result.authority));
     lines.join("\n")
+}
+
+fn scene_admission_landscape_summary(
+    scene: &AdmittedRegionalScene,
+) -> Result<SceneAdmissionLandscapeSummary, SceneAdmissionError> {
+    let terrain = scene.projection.terrain.as_ref();
+    let patch_ids = terrain
+        .map(|terrain| {
+            vec![terrain.grid.as_ref().map_or_else(
+                || terrain.program_id.clone(),
+                |grid| grid.dataset_id.clone(),
+            )]
+        })
+        .unwrap_or_default();
+    let patch_set_id = {
+        let mut hasher = SemanticHasher::new("rey.landscape-patch-set-summary.v1");
+        for patch_id in &patch_ids {
+            hasher.add_str(patch_id.as_str());
+        }
+        hasher.finish()
+    };
+    let source_resolution = terrain
+        .and_then(|terrain| terrain.grid.as_ref())
+        .map(landscape_source_resolution)
+        .transpose()?;
+    let source_cells = source_resolution
+        .as_ref()
+        .and_then(|resolution| resolution.columns.checked_mul(resolution.rows));
+    let mut omissions = vec![
+        "height_pyramid_not_materialized".to_owned(),
+        "multi_region_mosaic_not_composed".to_owned(),
+        "relief_pyramid_not_materialized".to_owned(),
+        "renderer_budget_not_evaluated".to_owned(),
+    ];
+    if source_resolution.is_none() {
+        omissions.push("gridded_terrain_source_resolution_unavailable".to_owned());
+    }
+    omissions.sort();
+    let patch_count = patch_ids.len() as u64;
+    Ok(SceneAdmissionLandscapeSummary {
+        schema: SCENE_ADMISSION_LANDSCAPE_SUMMARY_SCHEMA.to_owned(),
+        patch_set: SceneAdmissionLandscapePatchSetSummary {
+            schema: "rey.landscape-patch-set-summary.v1".to_owned(),
+            patch_set_id,
+            patch_ids,
+            overlap_pairs: Vec::new(),
+            conflict_count: 0,
+            authority: "exact terrain programs in this one scene-admission result; no cross-scene overlap or composition assessment".to_owned(),
+        },
+        source_resolution,
+        mosaic: SceneAdmissionLandscapeMosaicSummary {
+            schema: "rey.landscape-mosaic-summary.v1".to_owned(),
+            status: "not_composed_in_scene_admission".to_owned(),
+            mosaic_id: None,
+            patch_count,
+            overlap_count: 0,
+            conflict_count: 0,
+            gap_policy: "unbound_until_exact_multi_region_composition".to_owned(),
+            authority: "scene admission validates one package; it does not select neighboring regions, resolve overlap, or fill gaps".to_owned(),
+        },
+        height_pyramid: unavailable_pyramid_summary(
+            "rey.landscape-height-pyramid.v1",
+            "height pyramid contract is defined but no levels are materialized by scene admission",
+        ),
+        relief_pyramid: unavailable_pyramid_summary(
+            "rey.landscape-relief-pyramid.v1",
+            "relief pyramid contract is defined but no levels or operator support are materialized by scene admission",
+        ),
+        renderer_budget: SceneAdmissionLandscapeRendererBudgetSummary {
+            schema: "rey.landscape-renderer-budget-summary.v1".to_owned(),
+            status: "not_evaluated_in_scene_admission".to_owned(),
+            source_cells,
+            cpu_budget_bytes: None,
+            gpu_budget_bytes: None,
+            authority: "source cell count only; renderer residency, submission, backend, fallback, CPU, and GPU budgets require a separate qualified render execution".to_owned(),
+        },
+        omissions,
+        authority: "CLI and structured admission summary over exact retained scene evidence; unavailable composition, hierarchy, and renderer facts remain explicit and grant no browser or terrain-inference authority".to_owned(),
+    })
+}
+
+fn unavailable_pyramid_summary(
+    contract_schema: &str,
+    omission: &str,
+) -> SceneAdmissionLandscapePyramidSummary {
+    SceneAdmissionLandscapePyramidSummary {
+        contract_schema: contract_schema.to_owned(),
+        status: "contract_defined_not_materialized".to_owned(),
+        pyramid_id: None,
+        implementation_revision: None,
+        level_count: 0,
+        byte_length: 0,
+        omission: omission.to_owned(),
+    }
+}
+
+fn landscape_source_resolution(
+    grid: &RegionalTerrainGrid,
+) -> Result<SceneAdmissionLandscapeSourceResolution, SceneAdmissionError> {
+    let [spacing_x, spacing_y] = nominal_metric_spacing(grid)?;
+    let cells = grid.expanded_cells()?;
+    let mut elevation_minimum = i64::MAX;
+    let mut elevation_maximum = i64::MIN;
+    let mut valid_vertices = 0_u64;
+    let mut no_data_vertices = 0_u64;
+    for cell in cells.iter() {
+        match cell.validity {
+            RegionalValidityClass::Valid => {
+                let elevation = cell
+                    .elevation_micrometers
+                    .ok_or(SceneAdmissionError::TerrainSample)?;
+                elevation_minimum = elevation_minimum.min(elevation);
+                elevation_maximum = elevation_maximum.max(elevation);
+                valid_vertices = valid_vertices.saturating_add(1);
+            }
+            RegionalValidityClass::NoData => {
+                no_data_vertices = no_data_vertices.saturating_add(1);
+            }
+            RegionalValidityClass::Unknown | RegionalValidityClass::Unsupported => {
+                return Err(SceneAdmissionError::TerrainSample);
+            }
+        }
+    }
+    if valid_vertices == 0 {
+        return Err(SceneAdmissionError::TerrainSample);
+    }
+    Ok(SceneAdmissionLandscapeSourceResolution {
+        schema: "rey.landscape-source-resolution.v1".to_owned(),
+        dataset_id: grid.dataset_id.clone(),
+        columns: grid.columns,
+        rows: grid.rows,
+        nominal_spacing_x_micrometers: spacing_x,
+        nominal_spacing_y_micrometers: spacing_y,
+        elevation_minimum_micrometers: elevation_minimum,
+        elevation_maximum_micrometers: elevation_maximum,
+        valid_vertices,
+        no_data_vertices,
+        authority: "local nominal metric spacing derived from exact OGC:CRS84 bounds, dimensions, and center latitude; source resolution summary only, not a geodetic transform or inferred detail".to_owned(),
+    })
+}
+
+fn nominal_metric_spacing(grid: &RegionalTerrainGrid) -> Result<[u64; 2], SceneAdmissionError> {
+    if grid.columns < 2 || grid.rows < 2 {
+        return Err(SceneAdmissionError::TerrainSample);
+    }
+    let center_latitude_radians = ((grid.native_bounds.south_microdegrees
+        + grid.native_bounds.north_microdegrees) as f64
+        / 2_000_000.0)
+        .to_radians();
+    let longitude_span_microdegrees = if grid.native_bounds.crosses_antimeridian {
+        360_000_000 - grid.native_bounds.west_microdegrees + grid.native_bounds.east_microdegrees
+    } else {
+        grid.native_bounds.east_microdegrees - grid.native_bounds.west_microdegrees
+    };
+    let longitude_span_degrees = longitude_span_microdegrees as f64 / 1_000_000.0;
+    let latitude_span_degrees = (grid.native_bounds.north_microdegrees
+        - grid.native_bounds.south_microdegrees) as f64
+        / 1_000_000.0;
+    let spacing_x_meters =
+        longitude_span_degrees * 111_320.0 * center_latitude_radians.cos().max(0.01)
+            / (grid.columns - 1) as f64;
+    let spacing_y_meters = latitude_span_degrees * 110_574.0 / (grid.rows - 1) as f64;
+    if !spacing_x_meters.is_finite()
+        || spacing_x_meters <= 0.0
+        || !spacing_y_meters.is_finite()
+        || spacing_y_meters <= 0.0
+        || spacing_x_meters * 1_000_000.0 > u64::MAX as f64
+        || spacing_y_meters * 1_000_000.0 > u64::MAX as f64
+    {
+        return Err(SceneAdmissionError::TerrainSample);
+    }
+    Ok([
+        (spacing_x_meters * 1_000_000.0).round() as u64,
+        (spacing_y_meters * 1_000_000.0).round() as u64,
+    ])
 }
 
 pub fn scene_admission_fixture(
@@ -2992,6 +3253,30 @@ mod tests {
             result.code,
             result.detail
         );
+        let landscape = result.landscape.as_ref().expect("landscape summary");
+        assert_eq!(landscape.schema, "rey.scene-admission-landscape-summary.v1");
+        assert!(landscape.patch_set.patch_ids.is_empty());
+        assert!(landscape.patch_set.overlap_pairs.is_empty());
+        assert_eq!(landscape.patch_set.conflict_count, 0);
+        assert!(landscape.source_resolution.is_none());
+        assert!(
+            landscape
+                .omissions
+                .contains(&"gridded_terrain_source_resolution_unavailable".to_owned())
+        );
+        assert_eq!(landscape.mosaic.status, "not_composed_in_scene_admission");
+        assert_eq!(
+            landscape.height_pyramid.status,
+            "contract_defined_not_materialized"
+        );
+        assert_eq!(
+            landscape.relief_pyramid.status,
+            "contract_defined_not_materialized"
+        );
+        assert_eq!(
+            landscape.renderer_budget.status,
+            "not_evaluated_in_scene_admission"
+        );
         let scene = result.scene.unwrap();
         assert_eq!(scene.admission.implementation.revision, 2);
         assert_eq!(scene.projection.coordinate_bindings.len(), 5);
@@ -3115,6 +3400,21 @@ mod tests {
             result.code,
             result.detail
         );
+        let landscape = result.landscape.as_ref().expect("landscape summary");
+        assert_eq!(landscape.patch_set.patch_ids.len(), 1);
+        assert!(landscape.patch_set.overlap_pairs.is_empty());
+        assert_eq!(landscape.patch_set.conflict_count, 0);
+        let resolution = landscape
+            .source_resolution
+            .as_ref()
+            .expect("source resolution");
+        assert_eq!((resolution.columns, resolution.rows), (3, 3));
+        assert_eq!(
+            (resolution.valid_vertices, resolution.no_data_vertices),
+            (8, 1)
+        );
+        assert!(resolution.nominal_spacing_x_micrometers > 0);
+        assert!(resolution.nominal_spacing_y_micrometers > 0);
         let scene = result.scene.unwrap();
         let terrain = scene.projection.terrain.as_ref().expect("terrain program");
         assert!(terrain.samples.is_empty());

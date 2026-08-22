@@ -375,6 +375,18 @@ retains the complete `rey.scene-admission-result.v1`. Rejected validation
 scenarios are conclusive typed results; no run mutates editor state or admits a
 browser scene.
 
+An accepted result also retains
+`rey.scene-admission-landscape-summary.v1`. Human run evidence and structured
+JSON expose the exact in-result terrain patch set, zero or more admitted source
+grids, nominal metric x/y source spacing, elevation range, valid/no-data
+counts, and conflicts observed inside that one result. The same summary names
+the height- and relief-pyramid contract schemas. Scene admission does not
+compose neighboring scenes or execute a renderer, so mosaic identity, pyramid
+identity/levels/bytes, fallback state, backend submission, residency, and
+CPU/GPU budgets remain explicitly unavailable with typed omissions. Those
+fields may become populated only by later executions that bind the exact scene
+composition and renderer contracts.
+
 ### `rey git`
 
 ```text

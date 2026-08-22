@@ -373,6 +373,7 @@ export interface SceneAdmissionResult {
   code: string;
   detail: string;
   scene: AdmittedRegionalScene | null;
+  landscape: SceneAdmissionLandscapeSummary | null;
   limits: {
     max_sources: number;
     max_features: number;
@@ -382,6 +383,64 @@ export interface SceneAdmissionResult {
     max_omissions: number;
   };
   authority: string;
+}
+
+export interface SceneAdmissionLandscapeSummary {
+  schema: "rey.scene-admission-landscape-summary.v1";
+  patch_set: {
+    schema: "rey.landscape-patch-set-summary.v1";
+    patch_set_id: string;
+    patch_ids: string[];
+    overlap_pairs: [string, string][];
+    conflict_count: number;
+    authority: string;
+  };
+  source_resolution: {
+    schema: "rey.landscape-source-resolution.v1";
+    dataset_id: string;
+    columns: number;
+    rows: number;
+    nominal_spacing_x_micrometers: number;
+    nominal_spacing_y_micrometers: number;
+    elevation_minimum_micrometers: number;
+    elevation_maximum_micrometers: number;
+    valid_vertices: number;
+    no_data_vertices: number;
+    authority: string;
+  } | null;
+  mosaic: {
+    schema: "rey.landscape-mosaic-summary.v1";
+    status: "not_composed_in_scene_admission";
+    mosaic_id: string | null;
+    patch_count: number;
+    overlap_count: number;
+    conflict_count: number;
+    gap_policy: "unbound_until_exact_multi_region_composition";
+    authority: string;
+  };
+  height_pyramid: SceneAdmissionLandscapePyramidSummary;
+  relief_pyramid: SceneAdmissionLandscapePyramidSummary;
+  renderer_budget: {
+    schema: "rey.landscape-renderer-budget-summary.v1";
+    status: "not_evaluated_in_scene_admission";
+    source_cells: number | null;
+    cpu_budget_bytes: number | null;
+    gpu_budget_bytes: number | null;
+    authority: string;
+  };
+  omissions: string[];
+  authority: string;
+}
+
+export interface SceneAdmissionLandscapePyramidSummary {
+  contract_schema:
+    "rey.landscape-height-pyramid.v1" | "rey.landscape-relief-pyramid.v1";
+  status: "contract_defined_not_materialized";
+  pyramid_id: string | null;
+  implementation_revision: string | null;
+  level_count: number;
+  byte_length: number;
+  omission: string;
 }
 
 export type TopographyRegionState =

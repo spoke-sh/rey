@@ -10898,6 +10898,42 @@ fn write_scene_admission_evidence(
         admission.capability_snapshot_id,
     )?;
     writeln!(output, "{pad}LIMITS {}", json_io(&admission.limits)?)?;
+    if let Some(landscape) = &admission.landscape {
+        writeln!(
+            output,
+            "{pad}LANDSCAPE PATCH SET {}",
+            json_io(&landscape.patch_set)?
+        )?;
+        if let Some(resolution) = &landscape.source_resolution {
+            writeln!(output, "{pad}SOURCE RESOLUTION {}", json_io(resolution)?)?;
+        } else {
+            writeln!(output, "{pad}SOURCE RESOLUTION unavailable")?;
+        }
+        writeln!(
+            output,
+            "{pad}LANDSCAPE MOSAIC {}",
+            json_io(&landscape.mosaic)?
+        )?;
+        writeln!(
+            output,
+            "{pad}HEIGHT PYRAMID {}",
+            json_io(&landscape.height_pyramid)?
+        )?;
+        writeln!(
+            output,
+            "{pad}RELIEF PYRAMID {}",
+            json_io(&landscape.relief_pyramid)?
+        )?;
+        writeln!(
+            output,
+            "{pad}RENDERER BUDGET {}",
+            json_io(&landscape.renderer_budget)?
+        )?;
+        for omission in &landscape.omissions {
+            writeln!(output, "{pad}LANDSCAPE OMISSION {omission}")?;
+        }
+        writeln!(output, "{pad}LANDSCAPE AUTHORITY {}", landscape.authority)?;
+    }
     if let Some(scene) = &admission.scene {
         writeln!(
             output,

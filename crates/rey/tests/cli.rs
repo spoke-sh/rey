@@ -7404,6 +7404,12 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
         "TERRAIN {\"schema\":\"rey.regional-terrain-program.v2\"",
         "COORDINATE {\"space\":\"camera\"",
         "3x3 admitted terrain grid · 8 valid / 1 no-data vertices",
+        "LANDSCAPE PATCH SET {\"schema\":\"rey.landscape-patch-set-summary.v1\"",
+        "SOURCE RESOLUTION {\"schema\":\"rey.landscape-source-resolution.v1\"",
+        "LANDSCAPE MOSAIC {\"schema\":\"rey.landscape-mosaic-summary.v1\",\"status\":\"not_composed_in_scene_admission\"",
+        "HEIGHT PYRAMID {\"contract_schema\":\"rey.landscape-height-pyramid.v1\",\"status\":\"contract_defined_not_materialized\"",
+        "RELIEF PYRAMID {\"contract_schema\":\"rey.landscape-relief-pyramid.v1\",\"status\":\"contract_defined_not_materialized\"",
+        "RENDERER BUDGET {\"schema\":\"rey.landscape-renderer-budget-summary.v1\",\"status\":\"not_evaluated_in_scene_admission\"",
     ] {
         assert!(human.contains(evidence), "missing run evidence: {evidence}");
     }
@@ -7424,6 +7430,20 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert_eq!(structured.result.scene_admissions.len(), 1);
     let admission = &structured.result.scene_admissions[0];
     assert_eq!(admission.status, SceneAdmissionStatus::Accepted);
+    let landscape = admission.landscape.as_ref().unwrap();
+    assert_eq!(landscape.patch_set.patch_ids.len(), 1);
+    assert_eq!(landscape.patch_set.conflict_count, 0);
+    assert_eq!(landscape.mosaic.patch_count, 1);
+    assert_eq!(landscape.mosaic.mosaic_id, None);
+    assert_eq!(landscape.height_pyramid.level_count, 0);
+    assert_eq!(landscape.relief_pyramid.level_count, 0);
+    assert_eq!(landscape.renderer_budget.cpu_budget_bytes, None);
+    assert_eq!(landscape.renderer_budget.gpu_budget_bytes, None);
+    assert!(
+        landscape
+            .omissions
+            .contains(&"multi_region_mosaic_not_composed".to_owned())
+    );
     let scene = admission.scene.as_ref().unwrap();
     assert_eq!(scene.admission.editor_sequence, 1);
     assert_eq!(scene.projection.coordinate_bindings.len(), 5);

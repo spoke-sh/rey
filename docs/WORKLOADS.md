@@ -113,6 +113,12 @@ antimeridian crossing, and replay. An accepted run retains
 `rey.admitted-regional-scene.v1` with its embedded
 `rey.regional-projection-packet.v1`; it does not copy candidate-only terrain
 hints into observed height and does not change `/explore`.
+An accepted result additionally retains a
+`rey.scene-admission-landscape-summary.v1` projection. It exposes exact patch
+and source-resolution evidence owned by this single admission while explicitly
+leaving multi-region mosaic composition, materialized height/relief pyramids,
+renderer fallback, residency, and CPU/GPU budgets unevaluated. The human run
+view and structured JSON carry the same typed summary.
 
 ## Workload Creation Request
 

@@ -151,6 +151,7 @@ const regionalPortfolio = {
         workload: contract("scene-admission", "workload:1"),
         graph: contract("scene-admission.graph", "graph:1"),
         capability_snapshot_id: "capability:1",
+        landscape: null,
         scene: {
           schema: "rey.admitted-regional-scene.v1",
           scene_id: "scene:1",

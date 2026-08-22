@@ -648,7 +648,7 @@ and CLI evidence are complete.
 - [ ] Hard-cut the accelerated and reference paths to those shared contracts
       once parity is proved. Keep `rey.landscape-relief-field.v3` labeled as an
       enabling field-wide prototype until that cutover.
-- [ ] Extend the existing verbose `rey workloads run scene-admission` result
+- [x] Extend the existing verbose `rey workloads run scene-admission` result
       and structured JSON with patch-set, mosaic, pyramid, conflict, omission,
       source-resolution, and renderer-budget summaries before treating the
       browser engine as verifiable.
