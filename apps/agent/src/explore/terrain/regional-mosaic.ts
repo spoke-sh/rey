@@ -23,7 +23,7 @@ import { deriveTerrainNormals } from "./normals";
 export const REGIONAL_TERRAIN_MOSAIC_SCHEMA =
   "rey.landscape-mosaic.v1" as const;
 export const REGIONAL_TERRAIN_MOSAIC_REVISION =
-  "rey.terrain.regional-mosaic@6" as const;
+  "rey.terrain.regional-mosaic@7" as const;
 export const MAXIMUM_REGIONAL_TERRAIN_MOSAIC_CELLS = 2_000_000;
 
 export interface RegionalTerrainMosaicPatch {
@@ -542,31 +542,43 @@ export function compileRegionalTerrainMosaic(
     `companion-attribution:${landCoverId}:${heightId}:${validitySummary.validity_id}:height_cannot_mint_companion_authority`,
     [],
   );
-  const mosaicId = [
-    REGIONAL_TERRAIN_MOSAIC_SCHEMA,
-    REGIONAL_TERRAIN_MOSAIC_REVISION,
-    compositionRevision,
-    primaryPatchId,
-    ...ordered.flatMap(({ member_id, role, authority, field }) => [
-      member_id,
-      role,
-      authority.identity,
-      authority.revision,
-      `${authority.priority}`,
-      field.field_set_id,
-      field.source_revision,
-      `${field.relief_metrics!.sample_spacing_x_meters}`,
-      `${field.relief_metrics!.sample_spacing_y_meters}`,
-    ]),
-    heightId,
-    validitySummary.validity_id,
-    sourceContributionId,
-    conflictId,
-    featherId,
-    overviewCoverageId,
-    companionAttributionId,
-    `${columns}x${rows}`,
-  ].join("|");
+  const mosaicId = mosaicContentId(
+    [
+      REGIONAL_TERRAIN_MOSAIC_SCHEMA,
+      REGIONAL_TERRAIN_MOSAIC_REVISION,
+      compositionRevision,
+      primaryPatchId,
+      ...ordered.flatMap(({ member_id, role, authority, field }) => [
+        member_id,
+        role,
+        authority.identity,
+        authority.revision,
+        `${authority.priority}`,
+        field.field_set_id,
+        field.source_revision,
+        `${field.relief_metrics!.sample_spacing_x_meters}`,
+        `${field.relief_metrics!.sample_spacing_y_meters}`,
+      ]),
+      heightId,
+      validitySummary.validity_id,
+      sourceContributionId,
+      conflictId,
+      featherId,
+      overviewCoverageId,
+      companionAttributionId,
+      `${columns}x${rows}`,
+    ].join("|"),
+    [
+      validityValues,
+      validityClassificationValues,
+      elevationValues,
+      occupancy,
+      conflictValues,
+      featherSecondaryOwners,
+      featherPrimaryWeights,
+      overviewCoverageValues,
+    ],
+  );
   const {
     valid_vertices: validVertices,
     no_data_vertices: noDataVertices,

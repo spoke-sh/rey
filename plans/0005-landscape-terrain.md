@@ -515,8 +515,9 @@ source patch set, and covered count through the Atlas/Landscape transition and
 both renderer diagnostics. An absent, invalid, or incompatible overview source
 leaves the existing unsupported hole unchanged.
 
-`rey.terrain.regional-mosaic@6` closes companion attribution and rejects
-incompatible horizontal or vertical datum bindings without treating
+`rey.terrain.regional-mosaic@7` closes companion attribution, compacts the
+exact mosaic manifest and channel content into a bounded BLAKE3 identity, and
+rejects incompatible horizontal or vertical datum bindings without treating
 the height result as evidence for another layer. It retains land-cover owners
 in a separate BLAKE3-identified raster bound to every exact source and material
 channel revision. Contours explicitly name the composed height and validity

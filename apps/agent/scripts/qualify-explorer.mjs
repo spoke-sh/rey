@@ -294,6 +294,9 @@ async function launchChrome(browser, backend, route, fulfilledDocuments) {
       // A module worker cannot load from this file-origin bootstrap. Exercise
       // the engine's bounded fallback; direct transport owns worker coverage.
       globalThis.Worker = undefined;
+      // The retained-document transport has no streaming response authority.
+      // Direct transport owns scheduler-event revalidation coverage.
+      globalThis.EventSource = undefined;
       const appendChild = Node.prototype.appendChild;
       Node.prototype.appendChild = function (node) {
         if (
@@ -1016,6 +1019,206 @@ async function waitForAtlasTerrainPrewarm(connection, timeoutMs) {
   );
 }
 
+async function terrainContinuitySample(connection, label) {
+  return connection.evaluate(`(() => {
+    const diagnostics = document.querySelector('[data-renderer-diagnostics]');
+    const scene = document.querySelector('[data-scene-snapshot]');
+    const viewport = document.querySelector('[role="application"]');
+    const attribute = (name) => diagnostics?.getAttribute('data-renderer-' + name) ?? null;
+    const fabricHierarchies = [...document.querySelectorAll('[data-height-relief-hierarchy-id], [data-landscape-terrain-hierarchy]')]
+      .flatMap((element) => [
+        element.getAttribute('data-height-relief-hierarchy-id'),
+        element.getAttribute('data-landscape-terrain-hierarchy'),
+      ])
+      .filter(Boolean)
+      .sort();
+    const fabricRelief = [...document.querySelectorAll('[data-relief-field-id], [data-landscape-terrain-relief]')]
+      .flatMap((element) => [
+        element.getAttribute('data-relief-field-id'),
+        element.getAttribute('data-landscape-terrain-relief'),
+      ])
+      .filter(Boolean)
+      .sort();
+    return {
+      label: ${JSON.stringify(label)},
+      regime: document.querySelector('[data-lens-regime]')?.getAttribute('data-lens-regime') ?? null,
+      zoom: Number(viewport?.getAttribute('data-camera-zoom') ?? 'NaN'),
+      scene_snapshot_id: scene?.getAttribute('data-scene-snapshot') ?? null,
+      terrain_source_key: attribute('terrain-surface-source-key'),
+      mosaic_id: attribute('terrain-surface-mosaic-id'),
+      composition_revision: attribute('terrain-surface-composition-revision'),
+      primary_patch_id: attribute('terrain-surface-primary-patch-id'),
+      height_hierarchies: attribute('terrain-surface-height-hierarchies'),
+      relief_pyramids: attribute('terrain-surface-relief-pyramids'),
+      pyramid_envelopes: attribute('terrain-surface-pyramid-envelopes'),
+      relief_revision: attribute('terrain-surface-relief-revision'),
+      source_valid_vertices: Number(attribute('terrain-surface-valid-vertices') ?? 'NaN'),
+      source_no_data_vertices: Number(attribute('terrain-surface-no-data-vertices') ?? 'NaN'),
+      active_tile_count: Number(attribute('terrain-surface-active-tile-count') ?? 'NaN'),
+      renderer_backend: attribute('backend'),
+      renderer_lifecycle: attribute('terrain-surface-lifecycle'),
+      fabric_hierarchy_ids: [...new Set(fabricHierarchies)],
+      fabric_relief_ids: [...new Set(fabricRelief)],
+      reference_support_present: document.querySelector('[data-regional-terrain-reference]') !== null,
+    };
+  })()`);
+}
+
+async function verifyAtlasLandscapeContinuity(
+  connection,
+  backend,
+  loss,
+  timeoutMs,
+) {
+  const samples = [];
+  samples.push(await terrainContinuitySample(connection, "landscape-entry"));
+  await connection.evaluate(`history.pushState(
+    { reyQualificationLandscape: true },
+    '',
+    location.href + '#rey-landscape-continuity'
+  )`);
+
+  await dispatchClick(
+    connection,
+    `document.querySelector('[aria-label="Zoom out one semantic level"]')`,
+    "Landscape reverse control",
+    timeoutMs,
+  );
+  await waitFor(
+    connection,
+    regimeExpression("atlas"),
+    "reverse Atlas projection",
+    timeoutMs,
+  );
+  samples.push(await terrainContinuitySample(connection, "reverse-atlas"));
+
+  const canonicalRegion = `document.querySelector('[role="button"][data-chart-wrap-index="0"][data-semantic-identity]')`;
+  await dispatchClick(
+    connection,
+    canonicalRegion,
+    "interrupted Atlas region entry",
+    timeoutMs,
+  );
+  await waitFor(
+    connection,
+    `(() => {
+      const zoom = Number(document.querySelector('[role="application"]')?.getAttribute('data-camera-zoom'));
+      return zoom > 0.36 && zoom < 0.56;
+    })()`,
+    "intermediate Atlas-to-Landscape frame",
+    timeoutMs,
+  );
+  samples.push(
+    await terrainContinuitySample(connection, "interrupted-entry-frame"),
+  );
+  await connection.evaluate(`(() => {
+    const viewport = document.querySelector('[role="application"]');
+    if (!viewport) return false;
+    for (let index = 0; index < 5; index += 1) {
+      viewport.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: innerWidth / 2,
+        clientY: innerHeight / 2,
+        deltaY: 100,
+        view: window,
+      }));
+    }
+    return true;
+  })()`);
+  await waitFor(
+    connection,
+    `${regimeExpression("atlas")} && Number(document.querySelector('[role="application"]')?.getAttribute('data-camera-zoom')) < 0.37`,
+    "wheel-interrupted Atlas return",
+    timeoutMs,
+  );
+  samples.push(
+    await terrainContinuitySample(connection, "wheel-interrupted-atlas"),
+  );
+
+  await dispatchClick(
+    connection,
+    canonicalRegion,
+    "Atlas region re-entry",
+    timeoutMs,
+  );
+  await waitFor(
+    connection,
+    regimeExpression("landscape"),
+    "Landscape re-entry",
+    timeoutMs,
+  );
+  if (backend !== "reference" && loss === "none")
+    await waitForSubmittedTerrainFrame(connection, timeoutMs);
+  samples.push(await terrainContinuitySample(connection, "landscape-reentry"));
+
+  await connection.evaluate(`new Promise((resolve) => {
+    const finish = () => resolve(location.hash === '');
+    addEventListener('popstate', finish, { once: true });
+    history.back();
+    setTimeout(finish, 1000);
+  })`);
+  samples.push(
+    await terrainContinuitySample(connection, "same-document-back-navigation"),
+  );
+
+  const exactIdentityKeys = [
+    "terrain_source_key",
+    "mosaic_id",
+    "composition_revision",
+    "primary_patch_id",
+    "height_hierarchies",
+    "relief_pyramids",
+    "pyramid_envelopes",
+    "relief_revision",
+  ];
+  const identitiesStable = exactIdentityKeys.every((key) => {
+    const values = samples.map((sample) => sample[key]);
+    return (
+      values.every(
+        (value) =>
+          typeof value === "string" &&
+          value.length > 0 &&
+          value !== "unbound" &&
+          value !== "unbound-mosaic",
+      ) && new Set(values).size === 1
+    );
+  });
+  const validityStable =
+    new Set(samples.map(({ source_valid_vertices }) => source_valid_vertices))
+      .size === 1 &&
+    new Set(
+      samples.map(({ source_no_data_vertices }) => source_no_data_vertices),
+    ).size === 1;
+  const noEmptyTerrain = samples.every(
+    ({ active_tile_count, reference_support_present, source_valid_vertices }) =>
+      source_valid_vertices > 0 &&
+      (active_tile_count > 0 || reference_support_present),
+  );
+  const entryHierarchy = samples[0]?.fabric_hierarchy_ids ?? [];
+  const entryRelief = samples[0]?.fabric_relief_ids ?? [];
+  const fabricStable =
+    entryHierarchy.length > 0 &&
+    entryRelief.length > 0 &&
+    samples.every(
+      ({ fabric_hierarchy_ids, fabric_relief_ids }) =>
+        JSON.stringify(fabric_hierarchy_ids) ===
+          JSON.stringify(entryHierarchy) &&
+        JSON.stringify(fabric_relief_ids) === JSON.stringify(entryRelief),
+    );
+  return {
+    authority:
+      "same-page browser continuity sampling over exact renderer diagnostics and retained reference hierarchy identities",
+    observed:
+      identitiesStable && validityStable && noEmptyTerrain && fabricStable,
+    identities_stable: identitiesStable,
+    validity_stable: validityStable,
+    no_empty_terrain: noEmptyTerrain,
+    fabric_stable: fabricStable,
+    samples,
+  };
+}
+
 async function waitForSettledExplorerCommunicationLayout(connection) {
   await waitFor(
     connection,
@@ -1100,6 +1303,11 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
         text: geographicCoordinate.textContent?.replace(/\s+/g, " ").trim() ?? null,
       } : null,
       communication_layout: {
+        diagnostics_above_footer: diagnosticsBounds && footerBounds
+          ? footer?.getAttribute("data-visible") === "true"
+            ? diagnosticsBounds.bottom <= footerBounds.top + 1
+            : footerBounds.height <= 1.5
+          : false,
         diagnostics_bottom_gap_px: diagnosticsBounds ? innerHeight - diagnosticsBounds.bottom : null,
         footer_height_px: footerBounds?.height ?? null,
         footer_visible: footer?.getAttribute("data-visible") === "true",
@@ -1334,6 +1542,7 @@ async function runVoyage(options) {
   let outsideGlobePan = null;
   let rotatedWorldAtlasUnfurl = null;
   let smoothWorldWheel = null;
+  let atlasLandscapeContinuity = null;
   const startedAt = performance.now();
   const startedAtUnixMs = Date.now();
   try {
@@ -1599,6 +1808,22 @@ async function runVoyage(options) {
     captures.push(
       await captureStage(connection, voyageDirectory, "landscape", startedAt),
     );
+    await measureInteraction(
+      interactions,
+      "atlas_landscape_reverse_interrupt_back",
+      async () => {
+        atlasLandscapeContinuity = await verifyAtlasLandscapeContinuity(
+          connection,
+          options.backend,
+          options.loss,
+          options.timeoutMs,
+        );
+      },
+    );
+    if (!atlasLandscapeContinuity?.observed)
+      throw new Error(
+        "Atlas/Landscape reverse, interrupted, or back-navigation continuity changed terrain identity or flashed empty support",
+      );
 
     const firstProjectionButton = `document.querySelector('[data-lens-regime] [role="button"][aria-label]')`;
     await measureInteraction(
@@ -1810,22 +2035,9 @@ async function runVoyage(options) {
     .every(
       (capture) => capture.geographic_coordinate?.authority === "native_crs84",
     );
-  const hiddenWorldLayout = captures.find(
-    (capture) => capture.stage === "world",
-  )?.communication_layout;
-  const visibleMapNoticeLayout = captures.find(
-    (capture) =>
-      ["landscape", "objects", "evidence"].includes(capture.stage) &&
-      capture.communication_layout.footer_visible &&
-      capture.communication_layout.footer_height_px > 24,
-  )?.communication_layout;
-  const diagnosticsFollowFooter =
-    hiddenWorldLayout?.footer_visible === false &&
-    visibleMapNoticeLayout?.footer_visible === true &&
-    Number.isFinite(hiddenWorldLayout.diagnostics_bottom_gap_px) &&
-    Number.isFinite(visibleMapNoticeLayout.diagnostics_bottom_gap_px) &&
-    visibleMapNoticeLayout.diagnostics_bottom_gap_px >
-      hiddenWorldLayout.diagnostics_bottom_gap_px + 24;
+  const diagnosticsFollowFooter = captures.every(
+    (capture) => capture.communication_layout.diagnostics_above_footer,
+  );
   const expectedLossConsoleEntries = consoleEntries.filter((entry) =>
     expectedLossConsoleEntry(entry, options.loss),
   );
@@ -1850,6 +2062,7 @@ async function runVoyage(options) {
     smoothWorldWheel?.observed === true &&
     outsideGlobePan?.observed === true &&
     rotatedWorldAtlasUnfurl?.observed === true &&
+    atlasLandscapeContinuity?.observed === true &&
     landscapeWorkloadEvaluation?.passed !== false &&
     lossFallbackObserved !== false &&
     passiveRevalidationObserved !== false &&
@@ -1960,6 +2173,8 @@ async function runVoyage(options) {
       outside_globe_pan_observed: outsideGlobePan?.observed ?? false,
       rotated_world_atlas_unfurl_observed:
         rotatedWorldAtlasUnfurl?.observed ?? false,
+      atlas_landscape_continuity_observed:
+        atlasLandscapeContinuity?.observed ?? false,
       landscape_workload_passed: landscapeWorkloadEvaluation?.passed ?? null,
       passive_revalidation_observed: passiveRevalidationObserved,
       scene_snapshot_changed_with_each_semantic_stage: sceneIdentityRetained,
@@ -1968,6 +2183,7 @@ async function runVoyage(options) {
     interactions,
     world_wheel_zoom: smoothWorldWheel,
     rotated_world_atlas_unfurl: rotatedWorldAtlasUnfurl,
+    atlas_landscape_continuity: atlasLandscapeContinuity,
     world_drag_partition: outsideGlobePan,
     landscape_workload: landscapeWorkloadEvaluation,
     revalidation:

@@ -1271,6 +1271,42 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-terrain-worker-revision={
             terrainRenderer.terrain_worker_revision
           }
+          data-renderer-terrain-surface-active-tile-count={
+            terrainSurfaceRenderer.active_tile_count
+          }
+          data-renderer-terrain-surface-composition-revision={
+            terrainSurfaceRenderer.landscape_composition_revision
+          }
+          data-renderer-terrain-surface-height-hierarchies={terrainSurfaceRenderer.landscape_height_hierarchy_ids.join(
+            ",",
+          )}
+          data-renderer-terrain-surface-lifecycle={
+            terrainSurfaceRenderer.status.lifecycle
+          }
+          data-renderer-terrain-surface-mosaic-id={
+            terrainSurfaceRenderer.landscape_mosaic_id
+          }
+          data-renderer-terrain-surface-no-data-vertices={
+            terrainSurfaceRenderer.source_no_data_vertices
+          }
+          data-renderer-terrain-surface-primary-patch-id={
+            terrainSurfaceRenderer.landscape_primary_patch_id
+          }
+          data-renderer-terrain-surface-pyramid-envelopes={terrainSurfaceRenderer.landscape_pyramid_envelope_ids.join(
+            ",",
+          )}
+          data-renderer-terrain-surface-relief-pyramids={terrainSurfaceRenderer.landscape_relief_pyramid_ids.join(
+            ",",
+          )}
+          data-renderer-terrain-surface-relief-revision={
+            terrainSurfaceRenderer.landscape_relief_revision
+          }
+          data-renderer-terrain-surface-source-key={
+            terrainSurfaceRenderer.terrain_source_key
+          }
+          data-renderer-terrain-surface-valid-vertices={
+            terrainSurfaceRenderer.source_valid_vertices
+          }
           data-renderer-triangles={terrainRenderer.triangles}
           data-renderer-working-set-limit-bytes={
             terrainRenderer.working_set_limit_bytes

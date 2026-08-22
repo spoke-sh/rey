@@ -27,7 +27,10 @@ import {
   type TerrainTileResidencyStats,
 } from "../terrain/residency";
 import { TerrainCompilationWorkerClient } from "../terrain/worker-client";
-import type { TerrainCompilationResult } from "../terrain/worker";
+import {
+  MAX_TERRAIN_COMPILATION_OUTPUT_BYTES,
+  type TerrainCompilationResult,
+} from "../terrain/worker";
 import { LANDSCAPE_HEIGHT_HIERARCHY_REVISION } from "../terrain/height-pyramid";
 import { LANDSCAPE_RELIEF_HIERARCHY_REVISION } from "../terrain/relief-pyramid";
 import { exploreStyles as styles } from "../../stylex/explore.stylex";
@@ -576,7 +579,7 @@ export function AcceleratedTerrainSurface({
             requests: workingSetRequests[index]!,
           })),
           view: terrainCompilationView,
-          maximum_cpu_bytes: MAX_TERRAIN_TILE_CPU_BYTES,
+          maximum_cpu_bytes: MAX_TERRAIN_COMPILATION_OUTPUT_BYTES,
           maximum_gpu_bytes: MAX_TERRAIN_TILE_GPU_BYTES,
         },
         abort.signal,

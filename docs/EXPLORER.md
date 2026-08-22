@@ -454,6 +454,11 @@ A rendering change is incomplete until its human journey is qualified.
   fallback, and loss behavior.
 - Transition checks sample intermediate frames, not only globe and map
   endpoints, and retain exact backend, revision, limits, and omissions.
+- The Atlas/Landscape voyage reverses a completed entry, interrupts a second
+  entry with wheel input, re-enters, and invokes same-document browser back
+  navigation. Every sample must keep one source key, mosaic, composition,
+  primary patch, height hierarchy, relief hierarchy, pyramid envelope,
+  validity count, and Atlas fabric identity, with no empty terrain frame.
 - Named Landscape captures separately qualify steep relief, low relief,
   coastline/water, dense vectors, explicit holes, stale data, and backend loss
   at both target viewports. A capture binds a real admitted fixture; the harness

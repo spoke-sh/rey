@@ -345,7 +345,9 @@ mixed-level edge cracks while retaining screen-space control.
 `rey.terrain.compilation-worker@9` runs hierarchy projection, haloed relief
 derivation, exact relief sampling, procedural field evaluation, partition and
 border parity checking, and mesh preparation in a cancellable dedicated
-worker. The deterministic reference field remains visible while work is
+worker. Its complete hierarchy plus selected-tile output has a separate
+96 MiB bound; that transient compilation-output bound is not the 48 MiB
+resident-tile budget. The deterministic reference field remains visible while work is
 pending or after failure. A disclosed main-thread fallback exists where
 `Worker` is unavailable. `rey.terrain.tile-residency@2` retains compiled tiles
 under independent 48 MiB CPU and 64 MiB GPU budgets, rejects a tile whose

@@ -70,6 +70,8 @@ describe("regional terrain mosaic", () => {
     expect(compiled.field.landscape_mosaic?.mosaic_id).toBe(
       compiled.manifest.mosaic_id,
     );
+    expect(compiled.manifest.mosaic_id).toMatch(/^blake3:[0-9a-f]{64}$/);
+    expect(compiled.field.field_set_id.length).toBeLessThan(128);
     expect(compiled.manifest.companion_attribution).toMatchObject({
       policy: "height_cannot_mint_companion_authority",
       land_cover: {
