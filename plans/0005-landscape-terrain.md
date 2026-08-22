@@ -866,6 +866,20 @@ and pass/minor/major judgments remain explicitly self-asserted. Missing rows,
 changed lineage, failed workload assertions, incomplete parity, and any major
 judgment leave the assessment and this plan open.
 
+The first retained steep-relief triad exposed a composition defect after
+semantic and rendered parity passed: chromatic composition calculated SVF,
+signed openness, local contrast, and material occlusion, then normalized the
+candidate color back to `base luminance × hillshade`. That erased most of
+their luminance contribution and produced the assessed flat, pale read.
+`rey.landscape.chromatic-relief@2` retains those terms in one bounded linear
+tone target shared byte-for-byte by the reference, WebGL2, and WebGPU upload
+paths. A fulfilled-transport 1920×1080 WebGPU steep-relief voyage passed with
+manifest `sha256:80b83f666670a4d07736a5c2b6932bfe9f90b8af84ed54c89ed36f0ff031263b`.
+Its Landscape capture has measurably deeper enclosed terrain and less pale
+linear-color wash, but broad tonal bands and insufficient local form remain a
+major perceptual gap. The directed correction therefore does not close a
+perceptual item.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

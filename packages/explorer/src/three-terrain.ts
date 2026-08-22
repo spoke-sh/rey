@@ -29,7 +29,7 @@ import {
 } from "./cartographic-terrain";
 
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
-  "rey.terrain.tsl-cartographic-relief@5";
+  "rey.terrain.tsl-cartographic-relief@6";
 const CONTINUOUS_RELIEF_MATERIAL_STAGES = Object.freeze([
   "base_terrain",
   "height_normals_hillshade",

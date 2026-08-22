@@ -227,10 +227,13 @@ index touching invalid support. The current parity identity is
 
 `createContinuousReliefMaterial` produces a `MeshBasicNodeMaterial` with TSL.
 The renderer-neutral relief engine and
-`rey.landscape.chromatic-relief@1` own illumination and final linear color; the
+`rey.landscape.chromatic-relief@2` own illumination and final linear color; the
 material therefore does not apply a second physical light response. Warm
-direct light and cool sky ambient remain chromatic while final luminance stays
-bound to the tone-mapped relief. Its separately revisioned pass inputs gate:
+direct light and cool sky ambient remain chromatic. The final luminance target
+retains hillshade, local contrast, sky-view factor, signed openness, and
+material occlusion instead of normalizing those operators back out of the
+result. A bounded linear power curve keeps the display encoding from turning
+the terrain into a pale wash. Its separately revisioned pass inputs gate:
 
 - source tint;
 - field-wide multidirectional hillshade;
