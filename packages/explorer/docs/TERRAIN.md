@@ -9,7 +9,7 @@ geometry, or application cards into terrain.
 ```text
 TerrainFieldSetInput[]
   → complete-field cartographic relief derivation
-  → verified incomplete height/relief pyramid envelope
+  → verified haloed height/relief pyramid envelope
   → camera-qualified tile descriptors + bounded worker
   → exact row/column sampling of height and relief into render tiles
   → buildTerrainMeshData(fields, sampled relief)
@@ -60,10 +60,11 @@ is retained through mosaic composition, validity-safe refinement, conservative
 tile projection, and tile materialization. A BLAKE3 validity identity binds
 the exact classification bytes and implementation revision for pyramid use.
 
-This field-wide metric relief is an enabling prototype, not the accepted
-relief hierarchy. It does not yet provide haloed height/relief pyramids,
-slope-adaptive MDOW, SVF/openness, high-pass curvature, or the qualified linear
-tone and chromatic composition required by Plan 0005.
+This metric relief operator is still an enabling prototype inside the
+materialized hierarchy. The hierarchy now supplies haloed levels and border
+proof, but the operator does not yet provide slope-adaptive MDOW,
+SVF/openness, high-pass curvature, or the qualified linear tone and chromatic
+composition required by Plan 0005.
 
 ## Height And Relief Pyramid Contracts
 
@@ -85,33 +86,32 @@ validity policy, and derived channel set. A supported operator is invalid when
 its gutter is narrower than its kernel support. Relief geometry and validity
 must match the bound height level exactly.
 
-`rey.landscape-pyramid-envelope.v1` now binds one complete admitted field and
-its relief prototype to those schemas. The envelope content-identifies exact
-height, validity-class, hillshade, salience, and tangent bytes. Both the
-accelerated compiler and deterministic reference path verify the envelope
-before sampling camera tiles; accelerated diagnostics retain its envelope,
-height-pyramid, relief-pyramid, completion, and omission values.
+`rey.landscape-pyramid-envelope.v1` binds the complete admitted mosaic and its
+materialized height/relief hierarchy to those schemas. The envelope
+content-identifies exact height, validity-class, hillshade, salience, tangent,
+derivation-tile, maximum-gutter, and border-digest content at every level. Both
+the accelerated compiler and deterministic reference path verify the same
+envelope before sampling camera tiles; diagnostics retain its identities,
+completion, level/byte counts, gutters, border digests, and zero-mismatch
+results.
 
-This is a renderer-contract cutover, not a claim that the hierarchy is built.
-Each current fallback envelope has one finest level and `complete: false`;
-every relief operator reports zero retained gutter and therefore cannot claim
-halo-safe pyramid support. Its digest binds the complete-field fallback rather
-than claiming adjacent derivation borders. The current
-`rey.terrain-tile-pyramid.v1` remains a
-camera-selection prototype and `rey.landscape-relief-field.v3` remains a
-complete-field relief prototype inside the envelope. Haloed multilevel data,
-border digests, residency accounting, and hierarchy qualification remain open
-in 8.3. The scene-admission CLI continues to report the truthful earlier
-boundary: contracts are defined but runtime pyramids are not materialized by
-scene admission itself.
+`rey.terrain.relief-hierarchy@1` partitions every level into bounded
+32-interval interiors, expands each source window by the largest supported
+metric operator, derives from that halo, and then crops the interior. The
+assembled result must equal whole-level derivation within the named `1e-6`
+numeric tolerance; overlapping interiors and tolerance-canonicalized adjacent
+border digests must agree. The earlier one-level, zero-gutter fallback has
+been removed. The current `rey.terrain-tile-pyramid.v1` remains a separate
+camera-selection prototype over the finest field, so hierarchy LOD selection,
+residency accounting, and exact cache reuse remain open in 8.3.
 
-The application-side `rey.terrain.height-hierarchy@2` prototype does
-materialize conservative height and validity levels before camera tiling. It
+The application-side `rey.terrain.height-hierarchy@2` materializes
+conservative height and validity levels before camera tiling. It
 uses explicit bounded child windows for dyadic, non-dyadic, square, and
 rectangular grids, retains the canonical contributing source set for every
 sample, and reaches a 2×2 root within the declared level bound. Those arrays
-remain outside the shared envelope and renderer selection until the haloed
-relief hierarchy is complete, so their existence does not yet close 8.3.
+and their haloed relief levels now enter the shared envelope; camera LOD still
+selects only from the separate finest-field render-tile projection.
 
 Several admitted regional fields may first enter
 `rey.landscape-mosaic.v1`. The application-owned compiler requires a common

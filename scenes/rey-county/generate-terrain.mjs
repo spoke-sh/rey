@@ -252,7 +252,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
         type: "Feature",
         id: "rey-county-packed-terrain-v7",
         properties: {
-          title: "Rey County packed authored terrain",
+          title: "Rey County admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
         },
         terrain_grid: {

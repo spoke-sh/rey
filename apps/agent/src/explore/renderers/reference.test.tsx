@@ -647,8 +647,12 @@ describe("reference renderer", () => {
     // It must still be present and carrying the fade here.
     expect(markup).toContain('data-atlas-feature-layer="atlas:1"');
     expect(markup).toContain("data-landscape-pyramid-envelopes=");
+    expect(markup).toContain("data-landscape-relief-hierarchy-levels=");
     expect(markup).toContain(
-      'data-regional-terrain-reference="rey.reference-regional-terrain@3"',
+      'data-landscape-relief-border-digest-mismatches="0"',
+    );
+    expect(markup).toContain(
+      'data-regional-terrain-reference="rey.reference-regional-terrain@4"',
     );
     expect(markup).toContain('data-semantic-identity="atlas-sector:1"');
     expect(markup).toContain('style="opacity:' + presentation.atlas_opacity);

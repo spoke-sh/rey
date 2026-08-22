@@ -71,8 +71,7 @@ import {
 } from "../terrain/tiles";
 import { refineRegionalTerrainField } from "../terrain/refinement";
 import { deriveRegionalTerrainGeography } from "../terrain/regional-geography";
-import { compileCurrentLandscapePyramidEnvelope } from "../terrain/pyramid-contracts";
-import { compileLandscapeHeightHierarchy } from "../terrain/height-pyramid";
+import { compileMaterializedLandscapePyramid } from "../terrain/relief-pyramid";
 
 export interface FocusableTopologyObject {
   focus_id: string;
@@ -464,20 +463,14 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
     () =>
       scene.terrain_fields
         .filter((field) => field.active_band_ids.includes("admitted_dem"))
-        .map((field) => ({
-          field: refineRegionalTerrainField(field),
-          heightHierarchy: compileLandscapeHeightHierarchy(field),
-        }))
-        .map(({ field, heightHierarchy }) => ({
-          field: deriveRegionalTerrainGeography(field),
-          heightHierarchy,
-        }))
-        .flatMap(({ field, heightHierarchy }) => {
-          const relief = deriveLandscapeReliefField(field);
-          const envelope = compileCurrentLandscapePyramidEnvelope(
-            field,
-            relief,
-          );
+        .map((field) => refineRegionalTerrainField(field))
+        .map((field) => deriveRegionalTerrainGeography(field))
+        .flatMap((field) => {
+          const materializedPyramid =
+            compileMaterializedLandscapePyramid(field);
+          const relief = materializedPyramid.relief_levels.at(-1)!.relief;
+          const envelope = materializedPyramid.envelope;
+          const heightHierarchy = materializedPyramid.height_hierarchy;
           const pyramid = projectTerrainTilePyramid(field);
           return pyramid.tiles
             .filter(({ level }) => level === 0)
@@ -486,6 +479,7 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
               relief: materializeTerrainTileRelief(field, relief, tile),
               envelope,
               heightHierarchy,
+              materializedPyramid,
             }));
         }),
     [scene.terrain_fields],
@@ -514,7 +508,29 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
           ]),
         ).values(),
       ].reduce((total, hierarchy) => total + hierarchy.levels.length, 0)}
-      data-regional-terrain-reference="rey.reference-regional-terrain@3"
+      data-landscape-relief-hierarchy-levels={[
+        ...new Map(
+          renderedFields.map(({ materializedPyramid }) => [
+            materializedPyramid.hierarchy_id,
+            materializedPyramid,
+          ]),
+        ).values(),
+      ].reduce((total, pyramid) => total + pyramid.relief_levels.length, 0)}
+      data-landscape-relief-border-digests={[
+        ...new Set(
+          renderedFields.flatMap(({ materializedPyramid }) =>
+            materializedPyramid.relief_levels.map(
+              ({ border_digest_id }) => border_digest_id,
+            ),
+          ),
+        ),
+      ].join(",")}
+      data-landscape-relief-border-digest-mismatches={renderedFields.reduce(
+        (total, { materializedPyramid }) =>
+          total + materializedPyramid.border_mismatches,
+        0,
+      )}
+      data-regional-terrain-reference="rey.reference-regional-terrain@4"
       role="img"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >

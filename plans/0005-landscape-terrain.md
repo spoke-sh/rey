@@ -434,19 +434,17 @@ budgets now include those sampled derived arrays. This is seam-safe for one
 complete regional field. The following regional-mosaic slice now supplies the
 shared horizontal frame; a metric relief pyramid remains open below.
 
-`rey.terrain.compilation-worker@5` and reference renderer revision 3 now hard-
-cut admitted terrain through `rey.landscape-pyramid-envelope.v1`. The envelope
-binds exact BLAKE3 height, validity-class, hillshade, salience, and tangent
-content to the one-level height/relief contracts before camera tile sampling.
-Contract revision 2 additionally makes derivation-tile count, maximum source
-gutter, and border-digest identity mandatory on every relief level; the
-current complete-field fallback reports one tile and zero gutter rather than
-claiming halo-safe support.
-Both pyramids remain explicitly incomplete: current envelopes retain only the
-complete finest field, report zero source gutter for every relief operator,
-and list absent coarse levels, halos, border digests, MDOW, and SVF as
-omissions. This closes the shared renderer contract boundary without claiming
-the 8.3 hierarchy.
+`rey.terrain.compilation-worker@7` and reference renderer revision 4 now hard-
+cut admitted terrain through the materialized
+`rey.landscape-pyramid-envelope.v1`. The envelope binds exact BLAKE3 height,
+validity-class, hillshade, salience, tangent, derivation-tile, maximum-gutter,
+and border-digest content at every conservative height/relief level before
+camera tile sampling. Every relief tile derives from a source window at least
+as wide as the largest supported metric operator, crops only its render
+interior, and must equal whole-level derivation within the named `1e-6`
+tolerance. Adjacent canonical border digests and overlapping interiors must
+match after tolerance quantization. The earlier one-level zero-gutter fallback
+contract has been removed rather than retained as a compatibility path.
 
 `rey.terrain.height-hierarchy@2` and
 `rey.terrain.compilation-worker@6` add the first materialized 8.3 slice before
@@ -458,9 +456,9 @@ bytes now participate in the worker CPU limit and both renderer paths expose
 hierarchy identity and level counts. Revision 2 removes the accidental
 odd-dimension requirement: non-dyadic and rectangular source grids now reach a
 bounded 2×2 root through explicit conservative child windows without gaining
-support. This remains enabling work: the shared
-`rey.landscape-height-pyramid.v1` envelope and camera selection still use the
-finest refined field until haloed relief levels are materialized.
+support. The shared height and relief envelopes now carry those levels; camera
+tile selection still uses the separate finest-field tile prototype until the
+remaining LOD/residency cutover lands.
 
 `rey.landscape-relief-engine@3` extends that prototype with
 `rey.terrain-relief-metrics.v1` source-spacing and elevation-range metadata.
@@ -469,8 +467,7 @@ marks scales that the admitted grid cannot support, excludes unsupported
 scales from composition, and exposes the exact scale basis and support through
 renderer diagnostics. Its multi-azimuth light and validity-bounded local tone
 are still a prototype: they are not the slope-adaptive MDOW, SVF/openness,
-curvature, haloed relief-pyramid, or linear composition contracts required by
-8.3–8.5.
+high-pass curvature, or linear composition contracts required by 8.4–8.5.
 
 `rey.terrain.regional-mosaic@1` now establishes and executes the next
 renderer-neutral contract. It compiles integer-aligned, common-scale regional fields
@@ -753,10 +750,10 @@ admitted overview source produce deterministic mosaics with no validity gain.
 
 #### 8.3 Build the height pyramid before camera tile materialization
 
-- [ ] Construct the multiresolution height/validity hierarchy over the shared
+- [x] Construct the multiresolution height/validity hierarchy over the shared
       mosaic. Downsampling must be conservative at validity boundaries and must
       retain the contributing source set for each parent sample.
-- [ ] Give every derivation tile a source gutter at least as wide as the
+- [x] Give every derivation tile a source gutter at least as wide as the
       largest active relief operator (`gutter_radius >= max(operator_support_radius_meters / sample_spacing_meters)`).
       Derive channels from the halo, crop only the render interior, and retain
       border digests for adjacent-tile proof.

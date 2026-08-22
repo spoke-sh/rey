@@ -51,6 +51,12 @@ export interface AcceleratedTerrainReport {
   landscape_height_hierarchy_complete: boolean;
   landscape_height_hierarchy_omissions: readonly string[];
   landscape_relief_pyramid_ids: readonly string[];
+  landscape_relief_hierarchy_levels: number;
+  landscape_relief_hierarchy_bytes: number;
+  landscape_relief_derivation_tile_count: number;
+  landscape_relief_maximum_gutter_cells: number;
+  landscape_relief_border_digest_ids: readonly string[];
+  landscape_relief_border_digest_mismatches: number;
   landscape_pyramid_complete: boolean;
   landscape_pyramid_omissions: readonly string[];
   landscape_patch_set_id: string;
@@ -150,6 +156,12 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     landscape_height_hierarchy_complete: false,
     landscape_height_hierarchy_omissions: Object.freeze([]),
     landscape_relief_pyramid_ids: Object.freeze([]),
+    landscape_relief_hierarchy_levels: 0,
+    landscape_relief_hierarchy_bytes: 0,
+    landscape_relief_derivation_tile_count: 0,
+    landscape_relief_maximum_gutter_cells: 0,
+    landscape_relief_border_digest_ids: Object.freeze([]),
+    landscape_relief_border_digest_mismatches: 0,
     landscape_pyramid_complete: false,
     landscape_pyramid_omissions: Object.freeze([]),
     landscape_patch_set_id: "unbound",
@@ -756,6 +768,42 @@ export function AcceleratedTerrainSurface({
           ({ relief_pyramid }) => relief_pyramid.pyramid_id,
         ) ?? [],
       ),
+      landscape_relief_hierarchy_levels:
+        activeTerrain?.result.metrics.relief_hierarchy_levels ?? 0,
+      landscape_relief_hierarchy_bytes:
+        activeTerrain?.result.metrics.relief_hierarchy_bytes ?? 0,
+      landscape_relief_derivation_tile_count:
+        activeTerrain?.result.materialized_landscape_pyramids.reduce(
+          (total, pyramid) =>
+            total +
+            pyramid.relief_levels.reduce(
+              (levelTotal, level) => levelTotal + level.tiles.length,
+              0,
+            ),
+          0,
+        ) ?? 0,
+      landscape_relief_maximum_gutter_cells:
+        activeTerrain?.result.materialized_landscape_pyramids.reduce(
+          (maximum, pyramid) =>
+            Math.max(
+              maximum,
+              ...pyramid.relief_levels.map(
+                ({ maximum_gutter_radius_cells }) =>
+                  maximum_gutter_radius_cells,
+              ),
+            ),
+          0,
+        ) ?? 0,
+      landscape_relief_border_digest_ids: Object.freeze(
+        activeTerrain?.result.materialized_landscape_pyramids.flatMap(
+          (pyramid) =>
+            pyramid.relief_levels.map(
+              ({ border_digest_id }) => border_digest_id,
+            ),
+        ) ?? [],
+      ),
+      landscape_relief_border_digest_mismatches:
+        activeTerrain?.result.metrics.relief_border_digest_mismatches ?? 0,
       landscape_pyramid_complete:
         (terrainCompilation?.pyramid_envelopes.length ?? 0) > 0 &&
         terrainCompilation!.pyramid_envelopes.every(

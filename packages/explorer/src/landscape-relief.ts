@@ -199,8 +199,12 @@ export function deriveLandscapeReliefField(
   );
   const elevationSpan = Math.max(
     0.000_001,
-    maximumSupported(field.elevation.values, field.validity.values) -
-      minimumSupported(field.elevation.values, field.validity.values),
+    field.relief_metrics?.elevation_value_minimum !== undefined &&
+      field.relief_metrics.elevation_value_maximum !== undefined
+      ? field.relief_metrics.elevation_value_maximum -
+          field.relief_metrics.elevation_value_minimum
+      : maximumSupported(field.elevation.values, field.validity.values) -
+          minimumSupported(field.elevation.values, field.validity.values),
   );
   const hillshade = new Float32Array(cells);
   const salience = new Float32Array(cells);
@@ -666,6 +670,14 @@ function verifyTerrainFieldShape(field: TerrainFieldSetInput): void {
         metrics.sample_spacing_y_meters <= 0 ||
         !Number.isFinite(metrics.elevation_range_meters) ||
         metrics.elevation_range_meters <= 0 ||
+        (metrics.elevation_value_minimum !== undefined &&
+          !Number.isFinite(metrics.elevation_value_minimum)) ||
+        (metrics.elevation_value_maximum !== undefined &&
+          !Number.isFinite(metrics.elevation_value_maximum)) ||
+        (metrics.elevation_value_minimum === undefined) !==
+          (metrics.elevation_value_maximum === undefined) ||
+        (metrics.elevation_value_minimum !== undefined &&
+          metrics.elevation_value_maximum! < metrics.elevation_value_minimum) ||
         !metrics.authority))
   )
     throw new Error("landscape relief input shape is invalid");

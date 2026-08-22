@@ -352,8 +352,12 @@ normals, drainage, and relief see both sides of every admitted seam. Stable
 tiles retain source revision, parentage, shared edge samples, conservative
 validity, geometric error, and byte cost. A camera may select and retain tiles
 under explicit budgets, but coarse detail can only remove valid support; it
-cannot bridge a hole. Relief is derived over the complete field before camera
-tile cropping, and partitioned results must equal that complete-field result.
+cannot bridge a hole. Height and relief are materialized over conservative
+shared-mosaic levels before camera tile cropping. Each relief derivation tile
+reads a source gutter at least as wide as its largest supported metric
+operator, crops only its interior, and retains adjacent border digests.
+Partitioned results must equal whole-level derivation within the named numeric
+tolerance.
 When source metric spacing is bound, renderer diagnostics disclose which
 local, midslope, and regional target radii are supported; unsupported scales
 do not silently fall back to screen-grid detail.

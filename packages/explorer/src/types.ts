@@ -112,6 +112,12 @@ export interface TerrainFieldSetInput {
     sample_spacing_x_meters: number;
     sample_spacing_y_meters: number;
     elevation_range_meters: number;
+    /**
+     * Optional exact value-domain range used to keep haloed partitions on the
+     * same normalization basis as their complete source level.
+     */
+    elevation_value_minimum?: number;
+    elevation_value_maximum?: number;
     authority: string;
   };
   landscape_reference?: {

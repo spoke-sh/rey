@@ -16,11 +16,11 @@ import {
   type TerrainWorkingSetRequest,
 } from "./compile";
 import type { CompiledTerrainTile } from "./residency";
+import type { MaterializedLandscapeHeightHierarchy } from "./height-pyramid";
 import {
-  compileLandscapeHeightHierarchy,
-  type MaterializedLandscapeHeightHierarchy,
-} from "./height-pyramid";
-import { compileCurrentLandscapePyramidEnvelope } from "./pyramid-contracts";
+  compileMaterializedLandscapePyramid,
+  type MaterializedLandscapePyramid,
+} from "./relief-pyramid";
 import { refineRegionalTerrainField } from "./refinement";
 import {
   deriveRegionalTerrainGeography,
@@ -39,7 +39,7 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@6" as const;
+  "rey.terrain.compilation-worker@7" as const;
 
 export interface TerrainProgramWorkerRequest {
   program: TerrainProgram;
@@ -71,6 +71,9 @@ export interface TerrainCompilationMetrics {
   no_data_leak_triangles: number;
   height_hierarchy_levels: number;
   height_hierarchy_bytes: number;
+  relief_hierarchy_levels: number;
+  relief_hierarchy_bytes: number;
+  relief_border_digest_mismatches: number;
   gpu_timing_ms: null;
   gpu_timing_authority: "unavailable_without_capable_gpu_timer";
 }
@@ -81,6 +84,7 @@ export interface TerrainCompilationResult {
   execution: "dedicated_worker" | "main_thread_fallback";
   pyramids: readonly TerrainTilePyramid[];
   landscape_pyramids: readonly LandscapePyramidEnvelope[];
+  materialized_landscape_pyramids: readonly MaterializedLandscapePyramid[];
   height_hierarchies: readonly MaterializedLandscapeHeightHierarchy[];
   selections: readonly TerrainTileSelection[];
   active_tile_ids: readonly string[];
@@ -110,12 +114,15 @@ export function executeTerrainCompilationJob(
   const admittedSourceFields = job.fields.filter((field) =>
     field.active_band_ids.includes("admitted_dem"),
   );
-  const heightHierarchies = admittedSourceFields.map(
-    compileLandscapeHeightHierarchy,
-  );
   const admittedFields = admittedSourceFields
     .map((field) => refineRegionalTerrainField(field))
     .map(deriveRegionalTerrainGeography);
+  const materializedLandscapePyramids = admittedFields.map((field) =>
+    compileMaterializedLandscapePyramid(field),
+  );
+  const heightHierarchies = materializedLandscapePyramids.map(
+    ({ height_hierarchy }) => height_hierarchy,
+  );
   const passthroughFields = job.fields.filter(
     (field) => !field.active_band_ids.includes("admitted_dem"),
   );
@@ -132,16 +139,13 @@ export function executeTerrainCompilationJob(
     admittedFields.map((field) => [field.field_set_id, field]),
   );
   const reliefById = new Map(
-    admittedFields.map((field) => [
+    admittedFields.map((field, index) => [
       field.field_set_id,
-      deriveLandscapeReliefField(field),
+      materializedLandscapePyramids[index]!.relief_levels.at(-1)!.relief,
     ]),
   );
-  const landscapePyramids = admittedFields.map((field) =>
-    compileCurrentLandscapePyramidEnvelope(
-      field,
-      reliefById.get(field.field_set_id)!,
-    ),
+  const landscapePyramids = materializedLandscapePyramids.map(
+    ({ envelope }) => envelope,
   );
   const compiledTiles = selections.flatMap((selection, pyramidIndex) => {
     const pyramid = pyramids[pyramidIndex]!;
@@ -183,8 +187,8 @@ export function executeTerrainCompilationJob(
   ];
   const cpuBytes =
     fields.reduce((total, field) => total + field.field_bytes, 0) +
-    heightHierarchies.reduce(
-      (total, hierarchy) => total + hierarchy.byte_length,
+    materializedLandscapePyramids.reduce(
+      (total, pyramid) => total + pyramid.byte_length,
       0,
     ) +
     reliefFields.reduce(
@@ -227,6 +231,9 @@ export function executeTerrainCompilationJob(
     execution,
     pyramids: Object.freeze(pyramids),
     landscape_pyramids: Object.freeze(landscapePyramids),
+    materialized_landscape_pyramids: Object.freeze(
+      materializedLandscapePyramids,
+    ),
     height_hierarchies: Object.freeze(heightHierarchies),
     selections: Object.freeze(selections),
     active_tile_ids: Object.freeze(
@@ -272,6 +279,23 @@ export function executeTerrainCompilationJob(
       ),
       height_hierarchy_bytes: heightHierarchies.reduce(
         (total, hierarchy) => total + hierarchy.byte_length,
+        0,
+      ),
+      relief_hierarchy_levels: materializedLandscapePyramids.reduce(
+        (total, pyramid) => total + pyramid.relief_levels.length,
+        0,
+      ),
+      relief_hierarchy_bytes: materializedLandscapePyramids.reduce(
+        (total, pyramid) =>
+          total +
+          pyramid.relief_levels.reduce(
+            (levelTotal, level) => levelTotal + level.byte_length,
+            0,
+          ),
+        0,
+      ),
+      relief_border_digest_mismatches: materializedLandscapePyramids.reduce(
+        (total, pyramid) => total + pyramid.border_mismatches,
         0,
       ),
       gpu_timing_ms: null,

@@ -47,8 +47,12 @@ describe("bounded terrain compilation worker", () => {
       result.landscape_pyramids,
     );
     expect(result.landscape_pyramids[0]).toMatchObject({
-      height_pyramid: { complete: false },
-      relief_pyramid: { complete: false },
+      height_pyramid: { complete: true },
+      relief_pyramid: { complete: true },
+    });
+    expect(result.materialized_landscape_pyramids[0]).toMatchObject({
+      border_mismatches: 0,
+      partition_mismatches: 0,
     });
     expect(result.metrics).toMatchObject({
       workload_id: "landscape-seam-fixture",
@@ -60,6 +64,10 @@ describe("bounded terrain compilation worker", () => {
       no_data_leak_triangles: 0,
       height_hierarchy_levels: result.height_hierarchies[0]!.levels.length,
       height_hierarchy_bytes: result.height_hierarchies[0]!.byte_length,
+      relief_hierarchy_levels:
+        result.materialized_landscape_pyramids[0]!.relief_levels.length,
+      relief_hierarchy_bytes: expect.any(Number),
+      relief_border_digest_mismatches: 0,
       gpu_timing_ms: null,
       gpu_timing_authority: "unavailable_without_capable_gpu_timer",
     });
@@ -77,7 +85,8 @@ describe("bounded terrain compilation worker", () => {
     const completeField = deriveRegionalTerrainGeography(
       refineRegionalTerrainField(source),
     );
-    const completeRelief = deriveLandscapeReliefField(completeField);
+    const completeRelief =
+      result.materialized_landscape_pyramids[0]!.relief_levels.at(-1)!.relief;
     let independentlyDerivedTileDiffers = false;
     for (const tile of result.compiled_tiles) {
       expect(tile.fields.normal.implementation_revision).toContain(
