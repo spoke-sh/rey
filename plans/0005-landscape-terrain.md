@@ -456,13 +456,16 @@ the preceding editor package whenever `scene-admission` runs. Every scene keeps
 its exact original atlas back-reference while the current atlas inventories all
 active scene/package/packet memberships, and the browser validates both the
 historical admission binding and current membership before projecting it.
-`rey.regional-geography-composition.v1` now evaluates every bounded native
+`rey.regional-geography-composition.v2` now evaluates every bounded native
 package pair and retains gaps, corner contact, shared edges, overlaps, terrain
 sample alignment, validity, elevation, and material conflicts under one exact
 atlas revision. The human workload list exposes its package, pair, qualified
-seam, conflict, and stitch-readiness counts. This assessment grants no source
-merge or synthesis authority. Explorer may project its connected qualified
-edge component into a renderer-neutral validity-safe mosaic, but that derived
+seam, conflict, and stitch-readiness counts. Version 2 additionally retains a
+stable identity and canonical member/seam set for every focus-selectable
+terrain component; the human workload list prints each component and its
+source-level exclusions, and `/explore` consumes the same server-owned set.
+This assessment grants no source merge or synthesis authority. Explorer may
+project its connected qualified edge component into a renderer-neutral validity-safe mosaic, but that derived
 field is not an admitted source dataset and cannot resolve an overlap, fill a
 gap, or change a seam decision. Qualified geography-compiler output,
 raster-native field storage, and deeper vector density remain subsequent slices
@@ -618,7 +621,7 @@ and which implementation revisions produced each derived channel.
 #### 8.2 Compile a validity-safe multi-region mosaic
 
 - [x] Select only a connected terrain-qualified subset from
-      `rey.regional-geography-composition.v1`; reject or omit coordinate,
+      `rey.regional-geography-composition.v2`; reject or omit coordinate,
       vertical-reference, unit, and seam relationships that are not qualified.
 - [x] Transform qualified patches into one declared horizontal frame and
       vertical reference before resampling. A missing transform or datum

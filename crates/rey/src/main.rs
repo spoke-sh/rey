@@ -7,7 +7,7 @@ mod ui;
 mod version;
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     ffi::OsString,
     fs::{self, File, OpenOptions},
     io::{self, BufRead, IsTerminal, Read, Write},
@@ -8092,7 +8092,7 @@ fn write_workload_list(
                 output,
                 "Regional composition",
                 &format!(
-                    "{} · {status} · {} package{} · {} pair{} evaluated · exact native boundaries",
+                    "{} · {status} · {} package{} · {} pair{} evaluated · {} focus-selectable terrain component{} · exact native boundaries",
                     composition.composition_id,
                     composition.members.len(),
                     if composition.members.len() == 1 {
@@ -8102,6 +8102,12 @@ fn write_workload_list(
                     },
                     composition.seams.len(),
                     if composition.seams.len() == 1 {
+                        ""
+                    } else {
+                        "s"
+                    },
+                    composition.terrain_components.len(),
+                    if composition.terrain_components.len() == 1 {
                         ""
                     } else {
                         "s"
@@ -8116,6 +8122,47 @@ fn write_workload_list(
                     composition.conflicts.len(),
                 ),
             )?;
+            let terrain_members = composition
+                .members
+                .iter()
+                .filter(|member| member.terrain_dataset_id.is_some())
+                .count();
+            for component in &composition.terrain_components {
+                let member_ids = component.member_ids.iter().collect::<BTreeSet<_>>();
+                let boundary_conflicts = composition
+                    .conflicts
+                    .iter()
+                    .filter(|conflict| {
+                        conflict
+                            .member_ids
+                            .iter()
+                            .any(|member_id| member_ids.contains(member_id))
+                    })
+                    .count();
+                let excluded = terrain_members.saturating_sub(component.member_ids.len());
+                write_portfolio_field(
+                    output,
+                    "Terrain component",
+                    &format!(
+                        "{} · {} package{} · {} qualified seam{} · {excluded} other terrain package{} excluded at this focus · {boundary_conflicts} retained boundary conflict{} · renderer alignment qualifies separately",
+                        component.component_id,
+                        component.member_ids.len(),
+                        if component.member_ids.len() == 1 {
+                            ""
+                        } else {
+                            "s"
+                        },
+                        component.qualified_seam_ids.len(),
+                        if component.qualified_seam_ids.len() == 1 {
+                            ""
+                        } else {
+                            "s"
+                        },
+                        if excluded == 1 { "" } else { "s" },
+                        if boundary_conflicts == 1 { "" } else { "s" },
+                    ),
+                )?;
+            }
         }
         write_portfolio_field(
             output,

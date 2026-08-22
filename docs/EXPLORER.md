@@ -200,11 +200,16 @@ touching edge is not a stitch. Only a connected set of exact, conflict-free,
 terrain-qualified seams may become an input to a later geography-compiler
 output, and even that output must return through editor review and admission.
 Explorer may also form a transient renderer-neutral mosaic from the connected
-qualified edge component without claiming a new source dataset: all members
-use one declared horizontal frame and component-wide elevation normalization,
-shared samples must agree exactly, and unsupported cells remain invalid. That
-projection cannot resolve overlap, fill gaps, or replace the admitted
-geography-compiler path.
+qualified edge component without claiming a new source dataset. The
+server-owned composition gives every focus-selectable component a stable exact
+identity plus canonical member and qualified-seam identities; the human
+`rey workloads list` and structured response expose that same selection.
+All members use one declared horizontal frame and component-wide elevation
+normalization, shared samples must agree exactly, and unsupported cells remain
+invalid. That projection cannot resolve overlap, fill gaps, or replace the
+admitted geography-compiler path. Renderer alignment remains a later check and
+falls back to the focused patch with an explicit omission rather than changing
+component membership.
 
 ## One Continuous Spatial Journey
 

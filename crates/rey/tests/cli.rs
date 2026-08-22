@@ -7479,6 +7479,14 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     composition.verify().unwrap();
     assert_eq!(composition.members.len(), 1);
     assert!(composition.seams.is_empty());
+    assert_eq!(composition.terrain_components.len(), 1);
+    assert_eq!(
+        composition.terrain_components[0].member_ids,
+        [composition.members[0].member_id.clone()]
+    );
+    assert!(composition.terrain_components[0]
+        .qualified_seam_ids
+        .is_empty());
     assert_eq!(
         composition.stitch_status,
         rey_mining::RegionalGeographyStitchStatus::SinglePackage
@@ -7613,6 +7621,8 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert!(response.contains("\"regional_sources\""));
     assert!(response.contains("\"regional_regions\""));
     assert!(response.contains("\"regional_geography\""));
+    assert!(response.contains("\"schema\":\"rey.regional-geography-composition.v2\""));
+    assert!(response.contains("\"terrain_components\""));
     assert!(response.contains("\"stitch_status\":\"single_package\""));
     assert!(response.contains(atlas.atlas_revision.as_str()));
     assert!(response.contains(atlas_region.region_id.as_str()));
@@ -7770,6 +7780,11 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
         rey_mining::RegionalGeographyTerrainStatus::Unsupported
     );
     assert_eq!(composition.conflicts.len(), 1);
+    assert_eq!(composition.terrain_components.len(), 1);
+    assert_eq!(composition.terrain_components[0].member_ids.len(), 1);
+    assert!(composition.terrain_components[0]
+        .qualified_seam_ids
+        .is_empty());
     assert_eq!(
         composition.conflicts[0].kind,
         rey_mining::RegionalGeographyConflictKind::SeamTerrainUnsupported
@@ -7805,8 +7820,13 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert!(listed_table.contains("0 survey + 2 admitted regional regions"));
     assert!(listed_table.contains("2 exact scene/package/packet memberships"));
     assert!(listed_table.contains("BLOCKED · 2 packages · 1 pair evaluated"));
+    assert!(listed_table.contains("1 focus-selectable terrain component"));
     assert!(listed_table.contains("1 edge-adjacent · 0 terrain-qualified"));
     assert!(listed_table.contains("0 disjoint · 1 explicit conflicts"));
+    assert!(listed_table.contains("Terrain component"));
+    assert!(listed_table.contains("1 package · 0 qualified seams"));
+    assert!(listed_table.contains("1 retained boundary conflict"));
+    assert!(listed_table.contains("renderer alignment qualifies separately"));
 }
 
 #[test]

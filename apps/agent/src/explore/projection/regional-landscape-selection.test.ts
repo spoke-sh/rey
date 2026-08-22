@@ -13,13 +13,16 @@ describe("regional landscape composition selection", () => {
     const isolated = projection("isolated");
     const composition = compositionFixture();
 
-    expect(
-      regionalLandscapeMembers(
-        [west, east, isolated],
-        west,
-        composition,
-      ).members.map(({ member_id }) => member_id),
-    ).toEqual(["member:east", "member:west"]);
+    const selected = regionalLandscapeMembers(
+      [west, east, isolated],
+      west,
+      composition,
+    );
+    expect(selected.composition_revision).toBe("component:west-east");
+    expect(selected.members.map(({ member_id }) => member_id)).toEqual([
+      "member:east",
+      "member:west",
+    ]);
 
     composition.conflicts.push({
       conflict_id: "conflict:edge",
@@ -35,7 +38,7 @@ describe("regional landscape composition selection", () => {
         west,
         composition,
       ).members.map(({ member_id }) => member_id),
-    ).toEqual(["member:west"]);
+    ).toEqual(["single:scene:west"]);
   });
 });
 
@@ -79,11 +82,11 @@ function compositionFixture(): RegionalGeographyComposition {
     terrain_no_data_vertices: 0,
   });
   return {
-    schema: "rey.regional-geography-composition.v1",
+    schema: "rey.regional-geography-composition.v2",
     composition_id: "composition:selection",
     compiler: {
       id: "rey.regional-geography-composition",
-      revision: 1,
+      revision: 2,
       semantic_digest: "compiler:selection",
     },
     atlas_revision: "atlas:selection",
@@ -128,6 +131,18 @@ function compositionFixture(): RegionalGeographyComposition {
       },
     ],
     conflicts: [],
+    terrain_components: [
+      {
+        component_id: "component:west-east",
+        member_ids: ["member:east", "member:west"],
+        qualified_seam_ids: ["seam:west-east"],
+      },
+      {
+        component_id: "component:isolated",
+        member_ids: ["member:isolated"],
+        qualified_seam_ids: [],
+      },
+    ],
     stitch_status: "ready",
     limits: { max_members: 8, max_pairs: 28, max_conflicts: 32 },
     complete: true,

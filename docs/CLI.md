@@ -495,6 +495,14 @@ identity, completeness, evidence/action counts, and surface limits when one
 row is selected. Progress and proof remain explicitly absent until a prior
 frontier and evaluated transition exist. JSON retains the full verified
 frontier/scheduling/surface envelope rather than the human summary.
+When admitted regional scenes exist, `list` also prints the exact
+`rey.regional-geography-composition.v2` identity and every focus-selectable
+terrain-component identity with its package count, qualified seams, excluded
+terrain packages, and retained boundary conflicts. The component is the same
+server-owned member set consumed by `/explore`; renderer alignment remains a
+separate qualification step and cannot silently widen it. JSON retains the
+exact component member and seam identities.
+
 `admit-activation` resolves only a proposal retained in acknowledged Git
 history and requires it to match the current cursor, admitted workload HEAD,
 graph, scenario selection, admitted environment snapshot, automatic intrinsic

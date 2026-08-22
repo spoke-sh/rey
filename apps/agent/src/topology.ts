@@ -876,42 +876,37 @@ export function regionalLandscapeMembers(
     }),
   );
   if (!memberById.has(selectedMember.member_id)) return single();
-  const connected = new Set([selectedMember.member_id]);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const seam of composition.seams) {
-      if (
+  const component = composition.terrain_components.find(({ member_ids }) =>
+    member_ids.includes(selectedMember.member_id),
+  );
+  if (
+    !component ||
+    component.member_ids.some((memberId) => !memberById.has(memberId)) ||
+    composition.conflicts.some((conflict) =>
+      conflict.member_ids.every((memberId) =>
+        component.member_ids.includes(memberId),
+      ),
+    ) ||
+    component.qualified_seam_ids.some((seamId) => {
+      const seam = composition.seams.find(
+        (candidate) => candidate.seam_id === seamId,
+      );
+      return (
+        !seam ||
         seam.relationship !== "edge_adjacent" ||
         seam.terrain_status !== "qualified" ||
-        composition.conflicts.some(
-          (conflict) => conflict.seam_id === seam.seam_id,
-        )
-      )
-        continue;
-      const [left, right] = seam.member_ids;
-      if (
-        connected.has(left) &&
-        !connected.has(right) &&
-        memberById.has(right)
-      ) {
-        connected.add(right);
-        changed = true;
-      }
-      if (
-        connected.has(right) &&
-        !connected.has(left) &&
-        memberById.has(left)
-      ) {
-        connected.add(left);
-        changed = true;
-      }
-    }
-  }
+        seam.member_ids.some(
+          (memberId) => !component.member_ids.includes(memberId),
+        ) ||
+        composition.conflicts.some((conflict) => conflict.seam_id === seamId)
+      );
+    })
+  )
+    return single();
   return {
-    composition_revision: composition.composition_id,
+    composition_revision: component.component_id,
     members: Object.freeze(
-      [...connected]
+      [...component.member_ids]
         .sort((left, right) => left.localeCompare(right))
         .map((memberId) => memberById.get(memberId)!),
     ),

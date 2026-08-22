@@ -683,7 +683,7 @@ export interface SemanticAtlas {
 }
 
 export interface RegionalGeographyComposition {
-  schema: "rey.regional-geography-composition.v1";
+  schema: "rey.regional-geography-composition.v2";
   composition_id: string;
   compiler: ContractIdentity;
   atlas_revision: string;
@@ -740,6 +740,11 @@ export interface RegionalGeographyComposition {
       | "seam_terrain_unsupported";
     count: number;
     detail: string;
+  }>;
+  terrain_components: Array<{
+    component_id: string;
+    member_ids: string[];
+    qualified_seam_ids: string[];
   }>;
   stitch_status: "single_package" | "ready" | "blocked";
   limits: {

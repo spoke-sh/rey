@@ -9,7 +9,7 @@ use crate::{
     RegionalValidityClass, SemanticAtlas, SemanticAtlasError, SemanticAtlasRegionalSource,
 };
 
-pub const REGIONAL_GEOGRAPHY_COMPOSITION_SCHEMA: &str = "rey.regional-geography-composition.v1";
+pub const REGIONAL_GEOGRAPHY_COMPOSITION_SCHEMA: &str = "rey.regional-geography-composition.v2";
 const COMPOSITION_AUTHORITY: &str = "deterministic exact-boundary assessment only; no merge, interpolation, synthesis, rendered coverage, or geographic truth authority";
 const MAX_COMPOSITION_MEMBERS: usize = 128;
 const MAX_COMPOSITION_PAIRS: usize = 8_128;
@@ -140,6 +140,14 @@ pub struct RegionalGeographyConflict {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct RegionalGeographyTerrainComponent {
+    pub component_id: SemanticDigest,
+    pub member_ids: Vec<SemanticDigest>,
+    pub qualified_seam_ids: Vec<SemanticDigest>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RegionalGeographyComposition {
     pub schema: String,
     pub composition_id: SemanticDigest,
@@ -148,6 +156,7 @@ pub struct RegionalGeographyComposition {
     pub members: Vec<RegionalGeographyMember>,
     pub seams: Vec<RegionalGeographySeam>,
     pub conflicts: Vec<RegionalGeographyConflict>,
+    pub terrain_components: Vec<RegionalGeographyTerrainComponent>,
     pub stitch_status: RegionalGeographyStitchStatus,
     pub limits: RegionalGeographyCompositionLimits,
     pub complete: bool,
@@ -221,6 +230,8 @@ impl RegionalGeographyComposition {
             .into_iter()
             .map(|(member, _)| member)
             .collect::<Vec<_>>();
+        let terrain_components =
+            terrain_components(&atlas.atlas_revision, &members, &seams, &conflicts);
         let stitch_status = stitch_status(&members, &seams, &conflicts);
         let mut composition = Self {
             schema: REGIONAL_GEOGRAPHY_COMPOSITION_SCHEMA.to_owned(),
@@ -230,6 +241,7 @@ impl RegionalGeographyComposition {
             members,
             seams,
             conflicts,
+            terrain_components,
             stitch_status,
             limits: RegionalGeographyCompositionLimits::default(),
             complete: true,
@@ -263,6 +275,11 @@ impl RegionalGeographyComposition {
         canonical_unique(self.members.iter().map(|member| &member.member_id))?;
         canonical_unique(self.seams.iter().map(|seam| &seam.seam_id))?;
         canonical_unique(self.conflicts.iter().map(|conflict| &conflict.conflict_id))?;
+        canonical_unique(
+            self.terrain_components
+                .iter()
+                .map(|component| &component.component_id),
+        )?;
         let member_ids = self
             .members
             .iter()
@@ -312,6 +329,16 @@ impl RegionalGeographyComposition {
                 return Err(RegionalGeographyCompositionError::Shape);
             }
         }
+        if self.terrain_components
+            != terrain_components(
+                &self.atlas_revision,
+                &self.members,
+                &self.seams,
+                &self.conflicts,
+            )
+        {
+            return Err(RegionalGeographyCompositionError::Shape);
+        }
         if self.stitch_status != stitch_status(&self.members, &self.seams, &self.conflicts)
             || self.composition_id != composition_digest(self)?
         {
@@ -319,6 +346,108 @@ impl RegionalGeographyComposition {
         }
         Ok(())
     }
+}
+
+fn terrain_components(
+    atlas_revision: &SemanticDigest,
+    members: &[RegionalGeographyMember],
+    seams: &[RegionalGeographySeam],
+    conflicts: &[RegionalGeographyConflict],
+) -> Vec<RegionalGeographyTerrainComponent> {
+    let terrain_member_ids = members
+        .iter()
+        .filter(|member| member.terrain_dataset_id.is_some())
+        .map(|member| member.member_id.clone())
+        .collect::<BTreeSet<_>>();
+    let qualified_seams = seams
+        .iter()
+        .filter(|seam| {
+            seam.relationship == RegionalGeographyRelationship::EdgeAdjacent
+                && seam.terrain_status == RegionalGeographyTerrainStatus::Qualified
+                && seam
+                    .member_ids
+                    .iter()
+                    .all(|member_id| terrain_member_ids.contains(member_id))
+                && !conflicts
+                    .iter()
+                    .any(|conflict| conflict.seam_id == seam.seam_id)
+        })
+        .collect::<Vec<_>>();
+    let mut remaining = terrain_member_ids;
+    let mut components = Vec::new();
+    while let Some(seed) = remaining.iter().next().cloned() {
+        let mut connected = BTreeSet::from([seed]);
+        loop {
+            let before = connected.len();
+            for seam in &qualified_seams {
+                if connected.contains(&seam.member_ids[0]) {
+                    connected.insert(seam.member_ids[1].clone());
+                }
+                if connected.contains(&seam.member_ids[1]) {
+                    connected.insert(seam.member_ids[0].clone());
+                }
+            }
+            if connected.len() == before {
+                break;
+            }
+        }
+        for member_id in &connected {
+            remaining.remove(member_id);
+        }
+        if conflicts.iter().any(|conflict| {
+            conflict
+                .member_ids
+                .iter()
+                .all(|member_id| connected.contains(member_id))
+        }) {
+            for member_id in connected {
+                let member_ids = vec![member_id];
+                let component_id =
+                    terrain_component_digest(atlas_revision, member_ids.iter(), std::iter::empty());
+                components.push(RegionalGeographyTerrainComponent {
+                    component_id,
+                    member_ids,
+                    qualified_seam_ids: Vec::new(),
+                });
+            }
+            continue;
+        }
+        let member_ids = connected.into_iter().collect::<Vec<_>>();
+        let qualified_seam_ids = qualified_seams
+            .iter()
+            .filter(|seam| {
+                seam.member_ids
+                    .iter()
+                    .all(|member_id| member_ids.binary_search(member_id).is_ok())
+            })
+            .map(|seam| seam.seam_id.clone())
+            .collect::<Vec<_>>();
+        let component_id =
+            terrain_component_digest(atlas_revision, member_ids.iter(), qualified_seam_ids.iter());
+        components.push(RegionalGeographyTerrainComponent {
+            component_id,
+            member_ids,
+            qualified_seam_ids,
+        });
+    }
+    components.sort_by(|left, right| left.component_id.cmp(&right.component_id));
+    components
+}
+
+fn terrain_component_digest<'a>(
+    atlas_revision: &SemanticDigest,
+    member_ids: impl Iterator<Item = &'a SemanticDigest>,
+    seam_ids: impl Iterator<Item = &'a SemanticDigest>,
+) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new("rey.regional-geography-terrain-component.v1");
+    hasher.add_str(atlas_revision.as_str());
+    for member_id in member_ids {
+        hasher.add_str(member_id.as_str());
+    }
+    for seam_id in seam_ids {
+        hasher.add_str(seam_id.as_str());
+    }
+    hasher.finish()
 }
 
 fn member(
@@ -764,8 +893,8 @@ fn composition_digest(
 fn composition_compiler() -> ContractIdentity {
     ContractIdentity::new(
         "rey.regional-geography.composer",
-        1,
-        "exact native-boundary relationship and terrain-seam assessment; no implicit merge or synthesis",
+        2,
+        "exact native-boundary relationship, terrain-seam assessment, and qualified connected-component identity; no implicit merge or synthesis",
     )
 }
 
@@ -867,7 +996,7 @@ mod tests {
             package_revision: placeholder(&format!("{id}.revision")),
             projection_packet_id: placeholder(&format!("{id}.packet")),
             terrain_program_id: None,
-            terrain_dataset_id: None,
+            terrain_dataset_id: Some(placeholder(&format!("{id}.dataset"))),
             native_bounds: bounds(0, 0, 10, 10),
             terrain_valid_vertices: 0,
             terrain_no_data_vertices: 0,
@@ -877,7 +1006,7 @@ mod tests {
         let ids = [members[0].member_id.clone(), members[1].member_id.clone()];
         let seam = RegionalGeographySeam {
             seam_id: seam_digest(&ids),
-            member_ids: ids,
+            member_ids: ids.clone(),
             relationship: RegionalGeographyRelationship::EdgeAdjacent,
             shared_boundary: Some(RegionalGeographySharedBoundary {
                 axis: RegionalGeographyBoundaryAxis::Longitude,
@@ -900,6 +1029,33 @@ mod tests {
             stitch_status(&members, std::slice::from_ref(&seam), &[]),
             RegionalGeographyStitchStatus::Ready
         );
+        let components = terrain_components(
+            &placeholder("atlas"),
+            &members,
+            std::slice::from_ref(&seam),
+            &[],
+        );
+        assert_eq!(components.len(), 1);
+        assert_eq!(components[0].member_ids, ids);
+        assert_eq!(components[0].qualified_seam_ids, [seam.seam_id.clone()]);
+        let internal_conflict = RegionalGeographyConflict {
+            conflict_id: placeholder("internal-conflict"),
+            seam_id: placeholder("other-pair"),
+            member_ids: seam.member_ids.clone(),
+            kind: RegionalGeographyConflictKind::NativeOverlap,
+            count: 1,
+            detail: "a retained conflict within the qualified graph".to_owned(),
+        };
+        let components = terrain_components(
+            &placeholder("atlas"),
+            &members,
+            std::slice::from_ref(&seam),
+            std::slice::from_ref(&internal_conflict),
+        );
+        assert_eq!(components.len(), 2);
+        assert!(components.iter().all(|component| {
+            component.member_ids.len() == 1 && component.qualified_seam_ids.is_empty()
+        }));
         let conflict = conflict(
             &seam,
             RegionalGeographyConflictKind::SeamElevation,
@@ -907,8 +1063,22 @@ mod tests {
             "test conflict",
         );
         assert_eq!(
-            stitch_status(&members, &[seam], &[conflict]),
+            stitch_status(
+                &members,
+                std::slice::from_ref(&seam),
+                std::slice::from_ref(&conflict),
+            ),
             RegionalGeographyStitchStatus::Blocked
         );
+        let components = terrain_components(
+            &placeholder("atlas"),
+            &members,
+            std::slice::from_ref(&seam),
+            std::slice::from_ref(&conflict),
+        );
+        assert_eq!(components.len(), 2);
+        assert!(components.iter().all(|component| {
+            component.member_ids.len() == 1 && component.qualified_seam_ids.is_empty()
+        }));
     }
 }
