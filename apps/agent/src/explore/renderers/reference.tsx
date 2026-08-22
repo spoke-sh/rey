@@ -29,6 +29,7 @@ import {
   type PlanarPresentationSample,
 } from "@rey/explorer/globe-samples";
 import {
+  deriveLandscapeReliefField,
   GLOBE_ATLAS_REPEAT_DISSOLVE_START,
   globeAtlasRegionMarkerSceneRadius,
   globeAtlasRepeatOpacity,
@@ -38,6 +39,10 @@ import {
   globeAtmosphereShellScale,
   globeProjectionMorphRemaining,
   globeSurfaceOpacity,
+  LANDSCAPE_RELIEF_ENGINE_REVISION,
+  LANDSCAPE_TERRAIN_FABRIC_REVISION,
+  landscapeTerrainFabricSamples,
+  type LandscapeTerrainFabricSample,
 } from "@rey/explorer";
 import { terrainTriangleIndices } from "@rey/explorer";
 import {
@@ -92,6 +97,7 @@ export function globeCaption(globe: TopologyGlobe): string {
 
 export function ReferenceRenderer({
   accelerated = false,
+  terrainAccelerated = accelerated,
   layers,
   onFocus,
   scene,
@@ -103,6 +109,7 @@ export function ReferenceRenderer({
   atlasLandscapePresentation,
 }: {
   accelerated?: boolean;
+  terrainAccelerated?: boolean;
   layers: ReferenceLayerVisibility;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
@@ -195,6 +202,8 @@ export function ReferenceRenderer({
       data-render-passes={activeRenderPasses.map(({ id }) => id).join(",")}
       data-renderer={accelerated ? "reference-overlays" : "reference"}
       data-atlas-landscape-progress={atlasLandscapeMorphProgress}
+      data-landscape-gap-policy={scene.atlas_landscape_transition?.gap_policy}
+      data-landscape-patch-set={scene.atlas_landscape_transition?.patch_set_id}
     >
       {!globeWorld &&
         !morphActive &&
@@ -255,8 +264,14 @@ export function ReferenceRenderer({
         }
       >
         <CountyFootprintLayer accelerated={accelerated} scene={scene} />
-        {!accelerated && scene.terrain ? (
+        {!terrainAccelerated && scene.terrain ? (
           <AdmittedTerrainFieldLayer scene={scene} />
+        ) : null}
+        {scene.atlas_landscape_transition ? (
+          <TerrainMorphFabricLayer
+            progress={atlasLandscapeMorphProgress}
+            scene={scene}
+          />
         ) : null}
         <CountyFeatureLayer
           accelerated={accelerated}
@@ -363,25 +378,6 @@ const REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT = 2_600;
  * globe's contextGlobeSamples — so the abstraction reads as the same visual
  * language, not a coincidentally similar one.
  */
-function regionalTerrainStipplePath(field: TerrainFieldSet): string {
-  return planarStipplePathSegments(
-    field.source_revision,
-    REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT,
-    field.grid.bounds,
-    (u, v) => {
-      const column = Math.min(
-        field.grid.columns - 1,
-        Math.round(u * (field.grid.columns - 1)),
-      );
-      const row = Math.min(
-        field.grid.rows - 1,
-        Math.round(v * (field.grid.rows - 1)),
-      );
-      return field.validity.values[row * field.grid.columns + column] === 1;
-    },
-  );
-}
-
 function planarStipplePathSegments(
   sourceRevision: string,
   candidateCount: number,
@@ -404,17 +400,27 @@ function planarStipplePathSegments(
  * scratch every frame.
  */
 function stipplePathFromSamples(
-  samples: readonly PlanarPresentationSample[],
+  samples: readonly (PlanarPresentationSample | LandscapeTerrainFabricSample)[],
   bounds: { x: number; y: number; width: number; height: number },
   includeSample: (u: number, v: number) => boolean = () => true,
 ): string {
   const segments: string[] = [];
   for (const sample of samples) {
     if (!includeSample(sample.u, sample.v)) continue;
-    const x = bounds.x + sample.u * bounds.width;
-    const y = bounds.y + sample.v * bounds.height;
-    const length = Math.max(0.5, 0.7 + sample.brightness * 0.9);
-    segments.push(`M${x.toFixed(1)} ${y.toFixed(1)}h${length.toFixed(1)}`);
+    const centerX = bounds.x + sample.u * bounds.width;
+    const centerY = bounds.y + sample.v * bounds.height;
+    const terrainSample = "relief" in sample ? sample : null;
+    const length = Math.max(
+      0.5,
+      terrainSample?.length ?? 0.7 + sample.brightness * 0.9,
+    );
+    const tangentU = terrainSample?.tangent_u ?? 1;
+    const tangentV = terrainSample?.tangent_v ?? 0;
+    const x = centerX - (tangentU * length) / 2;
+    const y = centerY - (tangentV * length) / 2;
+    segments.push(
+      `M${x.toFixed(1)} ${y.toFixed(1)}l${(tangentU * length).toFixed(1)} ${(tangentV * length).toFixed(1)}`,
+    );
   }
   return segments.join("");
 }
@@ -432,8 +438,12 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
         }),
     [scene.terrain_fields],
   );
-  const stipplePath = useMemo(
-    () => fields.map(regionalTerrainStipplePath).join(""),
+  const renderedFields = useMemo(
+    () =>
+      fields.map((field) => ({
+        field,
+        relief: deriveLandscapeReliefField(field),
+      })),
     [fields],
   );
   if (fields.length === 0) return null;
@@ -441,7 +451,8 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
     <svg
       aria-label={`${fields.length} admitted regional terrain field${fields.length === 1 ? "" : "s"}`}
       className={sx(styles.worldGeometryLayer)}
-      data-regional-terrain-reference="rey.reference-regional-terrain@1"
+      data-landscape-relief-engine={LANDSCAPE_RELIEF_ENGINE_REVISION}
+      data-regional-terrain-reference="rey.reference-regional-terrain@2"
       role="img"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
@@ -449,7 +460,7 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
         Triangles exist only where three admitted source vertices are valid.
         Explicit no-data vertices remain holes.
       </desc>
-      {fields.flatMap((field) => {
+      {renderedFields.flatMap(({ field, relief }) => {
         const indices = terrainTriangleIndices(field);
         const point = (index: number) => {
           const column = index % field.grid.columns;
@@ -478,7 +489,34 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
                 0,
               ) / 3,
           );
-          const fill = `rgb(${tint.map((value) => Math.round(Math.max(0, Math.min(1, value)) * 255)).join(" ")})`;
+          const shade =
+            vertexIndexes.reduce(
+              (total, index) => total + relief.hillshade[index]!,
+              0,
+            ) / 3;
+          const ambient =
+            0.76 +
+            (vertexIndexes.reduce(
+              (total, index) => total + field.material.occlusion[index]!,
+              0,
+            ) /
+              3) *
+              0.24;
+          const luminance =
+            tint[0]! * 0.2126 + tint[1]! * 0.7152 + tint[2]! * 0.0722;
+          const fill = `rgb(${tint
+            .map((value) =>
+              Math.round(
+                Math.max(
+                  0,
+                  Math.min(
+                    1,
+                    (value * 0.72 + luminance * 0.28) * shade * ambient,
+                  ),
+                ) * 255,
+              ),
+            )
+            .join(" ")})`;
           return (
             <polygon
               data-field-set-id={field.field_set_id}
@@ -486,19 +524,87 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
               fill={fill}
               key={`${field.field_set_id}:${triangle}`}
               points={vertices.map(({ x, y }) => `${x},${y}`).join(" ")}
-              stroke="rgba(247, 232, 184, 0.14)"
-              strokeWidth={0.45}
+              stroke="none"
             />
           );
         });
       })}
-      {stipplePath ? (
-        <path
-          aria-hidden="true"
-          className={sx(styles.regionalTerrainStipple)}
-          d={stipplePath}
-        />
-      ) : null}
+    </svg>
+  );
+}
+
+function TerrainMorphFabricLayer({
+  progress,
+  scene,
+}: {
+  progress: number;
+  scene: TopologyScene;
+}) {
+  const fields = useMemo(
+    () =>
+      scene.terrain_fields.filter((candidate) =>
+        candidate.active_band_ids.includes("admitted_dem"),
+      ),
+    [scene.terrain_fields],
+  );
+  const fabrics = useMemo(
+    () =>
+      fields.map((field) => ({
+        field,
+        samples: landscapeTerrainFabricSamples(
+          field,
+          REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT,
+        ),
+      })),
+    [fields],
+  );
+  const roundedProgress =
+    Math.round(Math.max(0, Math.min(1, progress)) * 50) / 50;
+  const paths = useMemo(() => {
+    const totalSampleCount = Math.round(
+      ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT +
+        (REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT -
+          ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT) *
+          roundedProgress,
+    );
+    const samplesPerField = Math.max(
+      80,
+      Math.floor(totalSampleCount / Math.max(1, fabrics.length)),
+    );
+    return fabrics.map(({ field, samples }) => ({
+      field_set_id: field.field_set_id,
+      path: stipplePathFromSamples(
+        samples.slice(0, samplesPerField),
+        field.grid.bounds,
+      ),
+    }));
+  }, [fabrics, roundedProgress]);
+  if (
+    fields.length === 0 ||
+    paths.every(({ path }) => !path) ||
+    progress <= 0 ||
+    progress >= 1
+  )
+    return null;
+  return (
+    <svg
+      aria-hidden="true"
+      className={sx(styles.worldGeometryLayer)}
+      data-landscape-terrain-fabric={LANDSCAPE_TERRAIN_FABRIC_REVISION}
+      data-landscape-terrain-patches={fields.length}
+      style={{ opacity: 1 - progress }}
+      viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
+    >
+      {paths.map(({ field_set_id: fieldSetId, path }) =>
+        path ? (
+          <path
+            className={sx(styles.regionalTerrainStipple)}
+            d={path}
+            data-field-set-id={fieldSetId}
+            key={fieldSetId}
+          />
+        ) : null,
+      )}
     </svg>
   );
 }
@@ -547,9 +653,10 @@ function AtlasFeatureLayer({
   // depend only on index, not candidate count) — the sector's own stipple
   // visibly resolves into the landscape's, instead of one pattern swapping
   // for an unrelated one at the handoff.
-  const focusedTerrainRevision = scene.terrain_fields.find((field) =>
-    field.active_band_ids.includes("admitted_dem"),
-  )?.source_revision;
+  const focusedTerrain = scene.terrain_fields.find(
+    (field) =>
+      field.field_set_id === scene.atlas_landscape_transition?.terrain_field_id,
+  );
   // TopologyRegion (sector rects) carries no focus_id of its own — sectors
   // are synthetic membership partitions, not single regions — so the
   // focused sector is whichever one geometrically contains the selected
@@ -594,13 +701,13 @@ function AtlasFeatureLayer({
   // Atlas-to-Landscape morph before this fix.
   const focusedFullSamples = useMemo(
     () =>
-      focusedTerrainRevision
-        ? planarPresentationSamples(
-            focusedTerrainRevision,
+      focusedTerrain
+        ? landscapeTerrainFabricSamples(
+            focusedTerrain,
             REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT,
           )
         : null,
-    [focusedTerrainRevision],
+    [focusedTerrain],
   );
   const roundedLandscapeMorphProgress =
     Math.round(landscapeMorphProgress * 50) / 50;
@@ -618,13 +725,16 @@ function AtlasFeatureLayer({
     );
   }, [focusedFullSamples, focusedRegion, roundedLandscapeMorphProgress]);
   const atlasStipplePath = accelerated
-    ? ""
+    ? focusedStipplePath
     : [...baselineStipplePaths.values(), focusedStipplePath].join("");
   return (
     <svg
       aria-label={`${scene.nodes.length} admitted regional identities on the semantic Mercator atlas`}
       className={sx(styles.worldGeometryLayer, styles.atlasFeatureLayer)}
       data-atlas-feature-layer={scene.world_atlas_transition?.atlas_revision}
+      data-landscape-terrain-fabric={
+        focusedTerrain ? LANDSCAPE_TERRAIN_FABRIC_REVISION : undefined
+      }
       role="group"
       style={landscapeOpacity < 1 ? { opacity: landscapeOpacity } : undefined}
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}

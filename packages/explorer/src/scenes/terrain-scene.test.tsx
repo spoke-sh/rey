@@ -1,5 +1,5 @@
 import { create } from "@react-three/test-renderer";
-import { Color, DirectionalLight, type Mesh } from "three/src/Three.WebGPU.js";
+import { type Material, type Mesh } from "three/src/Three.WebGPU.js";
 import { describe, expect, it } from "vitest";
 import { ContinuousReliefScene } from "./terrain-scene";
 import {
@@ -13,7 +13,7 @@ import { compileContinuousRelief } from "../three-terrain";
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("terrain scene", () => {
-  it("materializes valid terrain buffers, lighting, and the bounded camera", async () => {
+  it("materializes cartographic relief buffers and the bounded camera", async () => {
     const fields = terrainFieldFixture();
     const compiled = compileContinuousRelief([fields]);
     const renderer = await create(
@@ -42,13 +42,17 @@ describe("terrain scene", () => {
     expect(meshInstance.geometry.getAttribute("reyTint").count).toBe(
       fields.field_cells,
     );
+    expect(meshInstance.geometry.getAttribute("reyHillshade").count).toBe(
+      fields.field_cells,
+    );
+    expect(meshInstance.geometry.getAttribute("reySalience").count).toBe(
+      fields.field_cells,
+    );
     expect(meshInstance.geometry.index?.count).toBeGreaterThan(0);
-    const lights = renderer.scene.findAllByType("DirectionalLight");
-    expect(lights).toHaveLength(2);
-    const keyLight = lights[0]?.instance as DirectionalLight;
-    expect(keyLight).toBeInstanceOf(DirectionalLight);
-    expect(keyLight.color).toBeInstanceOf(Color);
-    expect(keyLight.color.getHex()).toBe(0xfff4d4);
+    expect((meshInstance.material as Material).type).toBe(
+      "MeshBasicNodeMaterial",
+    );
+    expect(renderer.scene.findAllByType("DirectionalLight")).toHaveLength(0);
     const camera = renderer.scene.findByType("OrthographicCamera").instance;
     expect(camera.position.toArray()).toEqual([700, 2625, 520]);
     expect(camera.rotation.x).toBeCloseTo(-Math.PI / 2);

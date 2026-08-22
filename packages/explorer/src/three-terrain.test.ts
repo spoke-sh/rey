@@ -28,9 +28,8 @@ describe("accelerated continuous terrain compiler", () => {
   it("constructs one TSL material graph and a bounded compiled scene", () => {
     const fieldSet = terrainFieldFixture();
     const material = createContinuousReliefMaterial();
-    expect(material.isMeshStandardNodeMaterial).toBe(true);
+    expect(material.isMeshBasicNodeMaterial).toBe(true);
     expect(material.colorNode).not.toBeNull();
-    expect(material.roughnessNode).not.toBeNull();
     material.dispose();
 
     const compiled = compileContinuousRelief([fieldSet]);
@@ -143,7 +142,9 @@ describe("accelerated continuous terrain compiler", () => {
     const fieldSet = terrainFieldFixture();
     const passes = terrainRenderPassFixture();
     const material = createContinuousReliefMaterial(passes);
-    expect(material.name).toBe("rey.terrain.tsl-continuous-relief@3");
+    expect(material.name).toBe(
+      "rey.terrain.tsl-cartographic-relief@4:rey.landscape-relief-engine@1",
+    );
     expect(material.colorNode).not.toBeNull();
     material.dispose();
 

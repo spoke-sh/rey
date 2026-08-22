@@ -79,6 +79,7 @@ export interface ExplorerGlobe {
 
 export interface TerrainFieldSetInput {
   field_set_id: string;
+  source_revision?: string;
   field_cells: number;
   field_bytes: number;
   elevation_scale: number;

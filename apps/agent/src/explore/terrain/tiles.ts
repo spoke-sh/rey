@@ -204,7 +204,7 @@ export function projectTerrainTilePyramid(
             cpu_bytes: Math.ceil(
               (field.field_bytes / field.field_cells) * fieldCells,
             ),
-            gpu_bytes: fieldCells * 48 + triangles.byteLength,
+            gpu_bytes: fieldCells * 56 + triangles.byteLength,
           }),
         );
       }

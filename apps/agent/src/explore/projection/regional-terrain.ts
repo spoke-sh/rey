@@ -21,12 +21,11 @@ import type {
 import { nativePositionToCountyLocal } from "./county-frame";
 
 export const REGIONAL_TERRAIN_SCENE_COMPILER_REVISION =
-  "rey.explorer.regional-terrain-grid@1";
+  "rey.explorer.regional-terrain-grid@2";
 
 const TERRAIN_CANVAS_INSET_X = 96;
 const TERRAIN_CANVAS_INSET_Y = 72;
 const REGIONAL_ELEVATION_HEIGHT_RATIO = 0.24;
-const TERRAIN_ELEVATION_BAND_COUNT = 4;
 
 /**
  * Pads the admitted region's shown geographic span before it's projected
@@ -295,12 +294,10 @@ export function projectRegionalTerrainPosition(
   return Object.freeze({
     x:
       frame.x +
-      ((position[0] - padded.west_microdegrees) / longitudeSpan) *
-        frame.width,
+      ((position[0] - padded.west_microdegrees) / longitudeSpan) * frame.width,
     y:
       frame.y +
-      ((padded.north_microdegrees - position[1]) / latitudeSpan) *
-        frame.height,
+      ((padded.north_microdegrees - position[1]) / latitudeSpan) * frame.height,
   });
 }
 
@@ -396,11 +393,9 @@ export function regionalTerrainCanvasFrame(world: {
 }
 
 /**
- * Flat, banded tint instead of a continuous per-cell elevation lift — quantizing
- * elevation into a handful of steps before lifting is what gives the landscape
- * a Google-Maps-style abstract read (discrete color bands) rather than a
- * continuously shaded, lit-relief one. Material hue still varies by admitted
- * ground cover; only the elevation contribution is banded.
+ * Keeps material hue and hypsometric context continuous. Quantized elevation
+ * exposed the source triangulation as broad color plates and fought the
+ * relief engine's illumination instead of reading as cartographic terrain.
  */
 function terrainMaterialTint(
   material: string | null,
@@ -409,19 +404,14 @@ function terrainMaterialTint(
 ): readonly [number, number, number] {
   if (!valid) return [0, 0, 0];
   const palettes: Record<string, readonly [number, number, number]> = {
-    granite: [0.56, 0.55, 0.5],
-    rock: [0.49, 0.5, 0.46],
-    sand: [0.68, 0.63, 0.46],
-    soil: [0.5, 0.46, 0.34],
-    vegetation: [0.28, 0.49, 0.31],
+    granite: [0.66, 0.66, 0.61],
+    rock: [0.64, 0.64, 0.59],
+    sand: [0.76, 0.72, 0.58],
+    soil: [0.69, 0.62, 0.48],
+    vegetation: [0.53, 0.65, 0.47],
   };
-  const base = palettes[material ?? ""] ?? [0.42, 0.49, 0.38];
-  const bandedElevation =
-    Math.round(
-      Math.max(0, Math.min(1, elevation)) * (TERRAIN_ELEVATION_BAND_COUNT - 1),
-    ) /
-    (TERRAIN_ELEVATION_BAND_COUNT - 1);
-  const lift = bandedElevation * 0.11;
+  const base = palettes[material ?? ""] ?? [0.61, 0.67, 0.55];
+  const lift = (Math.max(0, Math.min(1, elevation)) - 0.5) * 0.055;
   return [
     Math.min(1, base[0] + lift),
     Math.min(1, base[1] + lift),

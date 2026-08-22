@@ -11,6 +11,19 @@ export {
 } from "./globe-samples";
 export type { GlobePole, GlobePolePattern } from "./globe-samples";
 export {
+  compileLandscapePatchSet,
+  deriveLandscapeReliefField,
+  LANDSCAPE_PATCH_SET_REVISION,
+  LANDSCAPE_RELIEF_ENGINE_REVISION,
+  LANDSCAPE_TERRAIN_FABRIC_REVISION,
+  landscapeTerrainFabricSamples,
+} from "./landscape-relief";
+export type {
+  LandscapePatchSet,
+  LandscapeReliefField,
+  LandscapeTerrainFabricSample,
+} from "./landscape-relief";
+export {
   GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES,
   GLOBE_ATLAS_EXTENT_RATIO,
   GLOBE_ATLAS_REGION_MARKER_RADIUS,

@@ -1,9 +1,10 @@
 # Plan 0005: Deliver Geographic Landscape Terrain
 
 - Status: Active
-- Owns: admitted regional elevation datasets, validity-safe Landscape fields,
-  terrain tiling and residency, bounded 3D County camera, Atlas-to-Landscape
-  continuity, geographic render passes, and fidelity/performance voyages
+- Owns: admitted regional elevation datasets, validity-safe multi-region
+  mosaics and relief pyramids, terrain tiling and residency, bounded 3D County
+  camera, Atlas-to-Landscape continuity, geographic render passes, and
+  fidelity/performance voyages
 
 ## Outcome
 
@@ -17,7 +18,9 @@ and accelerated rendering.
 native regional elevation + explicit no-data
   → editor INDEX + immutable SCENE@n
   → qualified terrain dataset manifest
-  → renderer-neutral fields and tiles
+  → shared-datum validity-bounded mosaic
+  → haloed renderer-neutral height and relief pyramids
+  → camera-selected render tiles
   → reference + WebGPU/WebGL2 terrain
   → Atlas ↔ Landscape continuity
   → vectors, water, materials, labels, and exact evidence
@@ -77,8 +80,9 @@ main-thread fallback. Deterministic residency retains compiled tiles under
 separate 48 MiB CPU and 64 MiB GPU budgets.
 
 A selected regional Atlas member now retains one
-`rey.atlas-landscape-transition.v1` binding from its exact synthetic sector
-fragment to its exact regional terrain field. One reversible projector drives
+`rey.atlas-landscape-transition.v2` binding from its exact synthetic sector
+fragment to its exact primary terrain patch and ordered Landscape patch set.
+One reversible projector drives
 the accelerated terrain model, reference/vector plane, terrain opacity,
 elevation rise, and bounded camera pitch/yaw. Atlas and terrain overlap through
 the transition instead of swapping at the semantic lens threshold. Click
@@ -361,6 +365,34 @@ cold-compile, wire, resident, and submission budgets. Interpolating or shading
 the current 501×501 field more aggressively is not an acceptable substitute for
 the next admitted multi-resolution source.
 
+### Relief-engine rebaseline — 2026-08-21
+
+The operator-supplied Google Maps comparison and the 7:13 PM Rey capture show
+that the latest prototype has recognizable shaded relief but does not yet meet
+the plan's cartographic acceptance bar. The Rey image contains regular
+horizontal and vertical tonal discontinuities, soft local ridges, a broad
+gray-green wash, and a few low-frequency valleys that dominate the frame. The
+comparison is a visual target only; it is neither admitted terrain evidence nor
+an asset that Rey may redistribute.
+
+The first discontinuity has a concrete implementation cause. The worker
+currently refines the complete field, selects and materializes camera tiles,
+and then runs the multi-scale relief kernels independently on each materialized
+tile. Kernels near a tile boundary therefore lose neighboring samples and
+renormalize differently from the same point in an untiled field. Shared height
+vertices alone cannot prevent these derived-channel seams. Relief must be
+compiled over a shared mosaic or over tiles with sufficient source halos, then
+cropped to render interiors.
+
+`rey.landscape-relief-engine@1` and `rey.landscape-patch-set@1` are enabling
+prototypes, not the completed engine. The former establishes renderer-neutral
+relief channels and a cartographic material path; the latter carries ordered
+patch metadata and deterministic overlap depth. Neither yet provides a
+shared-datum multi-region mosaic, haloed derivation, deterministic evidence-
+aware overlap resolution, or an admitted overview source for terrain between
+regional patches. The rendering engine must close those contracts before
+additional contrast tuning can count as fidelity progress.
+
 ## Geographic Synthesis Boundary
 
 Rey County is fictional semantic geography that an agent may generate and
@@ -519,6 +551,189 @@ density remain subsequent slices of the same boundary.
 - [ ] Feed only a connected conflict-free set of terrain-qualified seams into a
       revisioned geography compiler, retain every explicit resolution, and
       admit its stitched multi-resolution output before rendering it.
+
+### 8. Formalize the seam-safe multi-region Landscape engine
+
+Implement this slice in dependency order. A later milestone may prototype
+against an earlier contract, but it cannot be accepted until its prerequisites
+and CLI evidence are complete.
+
+#### 8.1 Freeze the renderer-neutral engine contracts
+
+- [ ] Replace patch ordering as composition authority with a versioned mosaic
+      request/result contract. Bind every patch's dataset and implementation
+      revisions, native coordinate identity, horizontal units, vertical
+      reference, nominal source spacing, validity, authority, bounds, and
+      material/vector companions.
+- [ ] Define `rey.landscape-mosaic.v1` as a content-identified height,
+      validity, source-contribution, conflict, and omission field. Keep the
+      selected Atlas member as the focus anchor, not an implicit winner for all
+      overlapping terrain.
+- [ ] Define `rey.landscape-height-pyramid.v1` and
+      `rey.landscape-relief-pyramid.v1`. Each level must retain metric sample
+      spacing, dimensions, bounds, validity, source lineage, operator support,
+      implementation revision, and exact parent/child identity.
+- [ ] Hard-cut the accelerated and reference paths to those shared contracts
+      once parity is proved. Keep `rey.landscape-relief-field.v1` labeled as an
+      enabling single-tile prototype until that cutover.
+- [ ] Extend the existing verbose `rey workloads run scene-admission` result
+      and structured JSON with patch-set, mosaic, pyramid, conflict, omission,
+      source-resolution, and renderer-budget summaries before treating the
+      browser engine as verifiable.
+
+Acceptance: the CLI can explain which exact sources contribute to every
+Landscape field, why an overlap winner was selected, which gaps remain unknown,
+and which implementation revisions produced each derived channel.
+
+#### 8.2 Compile a validity-safe multi-region mosaic
+
+- [ ] Select only a connected terrain-qualified subset from
+      `rey.regional-geography-composition.v1`; reject or omit coordinate,
+      vertical-reference, unit, and seam relationships that are not qualified.
+- [ ] Transform qualified patches into one declared horizontal frame and
+      vertical reference before resampling. A missing transform or datum
+      relationship remains a typed omission and cannot be hidden by visual
+      alignment.
+- [ ] Resolve overlaps deterministically from declared authority, validity,
+      nominal source spacing, and stable source identity. Retain both inputs,
+      the decision map, conflicts, and limits; input array order must not decide
+      source truth.
+- [ ] Feather height or presentation channels only inside mutually valid
+      overlap support. Never extend either patch's validity or blend across a
+      no-data boundary.
+- [ ] Fill space between detailed patches only when a separately admitted,
+      compatible overview DEM covers that space. Without that evidence, retain
+      an explicit hole through the mosaic, pyramid, mesh, and shading paths.
+- [ ] Keep land cover, water, contours, and vectors as independently
+      attributed companions. A height mosaic cannot manufacture their source
+      authority.
+
+Acceptance: fixtures for adjacent patches, partial overlap, nested resolutions,
+datum conflict, invalid overlap, corner contact, and gaps with and without an
+admitted overview source produce deterministic mosaics with no validity gain.
+
+#### 8.3 Build the height pyramid before camera tile materialization
+
+- [ ] Construct the multiresolution height/validity hierarchy over the shared
+      mosaic. Downsampling must be conservative at validity boundaries and must
+      retain the contributing source set for each parent sample.
+- [ ] Give every derivation tile a source gutter at least as wide as the
+      largest active relief operator. Derive channels from the halo, crop only
+      the render interior, and retain border digests for adjacent-tile proof.
+- [ ] Make whole-field and partitioned compilation equivalent within one named
+      numeric tolerance. Moving the camera or changing the active tile
+      partition must not change a sample's height, normal, or illumination.
+- [ ] Select pyramid levels with stable screen-space error and compatible
+      neighboring support. Preserve current cancellation and CPU/GPU residency
+      bounds; add derived-channel bytes and halo work to those measurements.
+- [ ] Cache by mosaic revision, pyramid level, tile identity, operator revision,
+      and validity support so an Atlas prewarm can be reused without admitting
+      stale or differently composed terrain.
+
+Acceptance: an untiled reference field and every legal tiling of it have
+identical valid interiors, zero no-data triangle leakage, and no internal-edge
+discontinuity attributable to kernel truncation.
+
+#### 8.4 Derive cartographic relief at explicit metric scales
+
+- [ ] Derive metric slope, aspect, and normals from source spacing rather than
+      cell count. Produce separately revisioned local, midslope, and regional
+      channels whose support radii are declared in meters.
+- [ ] Add a deterministic multidirectional hillshade, sky-view/openness term,
+      and bounded horizon or cast-shadow term. Every operator must stop at
+      invalid support and report when the source is too coarse for its target
+      scale.
+- [ ] Apply local contrast and cartographic tone mapping as presentation
+      channels in linear color space. Keep one lighting owner so a pre-lit
+      relief scalar is not lit again by a physical material.
+- [ ] Share exact derived arrays, masks, parameters, and implementation identity
+      between the deterministic reference and WebGPU/WebGL2 paths. Renderer
+      backends may execute the math differently only under retained parity
+      tolerances.
+- [ ] Treat finer terrain content as source work. Any synthesized landform must
+      be generated, reviewed, and admitted before rendering with explicit
+      lineage; shader noise and renderer-side microrelief cannot substitute for
+      absent elevation evidence.
+
+Acceptance: named steep- and low-relief fixtures preserve fine ridges without
+muddy faceting, avoid broad tonal domination, and disclose when the admitted
+spacing cannot support the comparison scale.
+
+#### 8.5 Compose a coherent terrain map
+
+- [ ] Compose relief, admitted material/land cover, and water with a restrained
+      scale-aware palette; prevent elevation bands or procedural classes from
+      reading as muddy triangles or imagery claims.
+- [ ] Drive contour interval, weight, and opacity from semantic LOD and metric
+      elevation range. Contours remain subordinate to relief and do not conceal
+      hillshade defects.
+- [ ] Add terrain-bound water, roads, rail, structures, boundaries, and labels
+      only from their exact admitted companions, with independent visibility
+      and invalidation revisions.
+- [ ] Keep selection and evidence overlays readable without changing the base
+      relief assessment. Preserve the deterministic accessible reference path
+      under backend loss.
+
+Acceptance: the base map reads first as continuous geography, then as relief,
+water, land cover, and semantic detail; no layer gains evidence or coverage
+from visual composition.
+
+#### 8.6 Make Atlas and Landscape sample the same terrain hierarchy
+
+- [ ] Generate Atlas stipple position, density, salience, and reveal order from
+      the exact mosaic and relief-pyramid samples that Landscape renders. Do not
+      run an independent raw-field relief calculation for Atlas.
+- [ ] Retain source-native sample identity and deterministic seed/order through
+      every transition frame so stipples can expand into the corresponding
+      Landscape support instead of dissolving into unrelated geometry.
+- [ ] Use the selected Atlas member as the camera/focus anchor while allowing
+      qualified neighboring and overview patches to reveal from the common
+      mosaic. A primary patch is not the boundary of the visible world.
+- [ ] Prewarm the exact mosaic, pyramid levels, relief revision, and material
+      revision required by the predicted entry view. Keep the last compatible
+      submitted terrain until its successor submits; never flash an empty or
+      differently compiled field during handoff.
+- [ ] Prove wheel, click, back-navigation, interrupted traversal, and backend
+      loss in both directions without a semantic field swap, tile flash, or
+      validity expansion.
+
+Acceptance: Atlas ↔ Landscape is one reversible content-derived morph over
+one source lineage, including when several regional patches contribute to the
+entry viewport.
+
+#### 8.7 Retain the qualification matrix and close the fidelity bar
+
+- [ ] Add deterministic fixtures for one patch with holes, touching patches,
+      partial overlap, nested resolutions, a rejected datum, a gap, an admitted
+      overview gap fill, steep relief, low relief, water/coastline, dense
+      vectors, stale input, and backend loss.
+- [ ] Assert no validity gain, whole-field/tile derivation equivalence, border
+      digest agreement, deterministic overlap decisions, zero unsupported
+      triangles, bounded resident/working bytes, stable picking, and exact
+      revision lineage in unit and integration tests.
+- [ ] Retain reference, WebGL2, and WebGPU captures at 1920×1080 and 3840×2160
+      for every required row. Compare against the untiled derived-field
+      reference numerically and against the operator-supplied consumer-map
+      reference perceptually; do not require or claim pixel equivalence.
+- [ ] Record composition, multi-scale relief, hillshade continuity, land-cover
+      coherence, terrain-bound hydrology, contours, and vector hierarchy with
+      explicit pass/minor/major results. Any major result leaves this plan open.
+- [ ] Repeat World → Atlas → Landscape → Object → Evidence through
+      direct browser transport on one exact machine and retain source, mosaic,
+      pyramid, operator, backend, omission, limit, performance, and capture
+      lineage.
+
+The delivery gates are therefore:
+
+1. seam correctness on one admitted region;
+2. deterministic validity-safe composition across multiple regions;
+3. source-resolution-aware multi-scale relief;
+4. one shared Atlas/Landscape field and reversible handoff;
+5. cartographic composition and the complete retained qualification matrix.
+
+Do not advance a gate by tuning color around a known seam, hiding unknown
+terrain beneath a skirt, choosing an overlap by draw order, or synthesizing
+detail in the renderer.
 
 ## Open Choices
 

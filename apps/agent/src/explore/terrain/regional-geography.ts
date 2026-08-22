@@ -13,7 +13,7 @@ import { regionalTerrainContourThresholds } from "./contours";
 import { deriveTerrainNormals } from "./normals";
 
 export const REGIONAL_TERRAIN_GEOGRAPHY_REVISION =
-  "rey.terrain.regional-geography@4" as const;
+  "rey.terrain.regional-geography@5" as const;
 export const REGIONAL_TERRAIN_LINEWORK_REVISION =
   "rey.terrain.regional-linework@2" as const;
 
@@ -369,11 +369,11 @@ function deriveRegionalLandCover(
   const roughness = new Float32Array(cells);
   const topographicTone = deriveMultiscaleTopographicTone(source, elevation);
   const palette = {
-    dry: [0.61, 0.55, 0.38] as const,
-    grass: [0.4, 0.56, 0.33] as const,
-    forest: [0.16, 0.36, 0.21] as const,
-    alpine: [0.63, 0.61, 0.53] as const,
-    rock: [0.5, 0.49, 0.44] as const,
+    dry: [0.73, 0.7, 0.57] as const,
+    grass: [0.62, 0.7, 0.52] as const,
+    forest: [0.4, 0.56, 0.39] as const,
+    alpine: [0.73, 0.72, 0.67] as const,
+    rock: [0.64, 0.63, 0.59] as const,
   };
   for (let row = 0; row < source.grid.rows; row += 1) {
     for (let column = 0; column < source.grid.columns; column += 1) {
@@ -415,11 +415,12 @@ function deriveRegionalLandCover(
       const vegetated = mixColor(lowCover, palette.forest, forest);
       const upland = mixColor(vegetated, palette.alpine, alpine);
       const color = mixColor(upland, palette.rock, exposedRock);
-      const localTone = 0.96 + fineCoverNoise * 0.08 + topographicTone[index]!;
+      const localTone =
+        0.985 + fineCoverNoise * 0.03 + topographicTone[index]! * 0.22;
       for (let component = 0; component < 3; component += 1) {
         const sourceColor = source.material.tint[index * 3 + component]!;
         tint[index * 3 + component] =
-          (color[component]! * 0.58 + sourceColor * 0.42) * localTone;
+          (color[component]! * 0.82 + sourceColor * 0.18) * localTone;
       }
       const valley = Math.max(0, curvature.values[index]!);
       occlusion[index] = clamp(
@@ -427,8 +428,8 @@ function deriveRegionalLandCover(
           valley * 6.4 -
           accumulation.values[index]! * 0.1 -
           slope * 0.12 +
-          topographicTone[index]! * 0.72,
-        0.38,
+          topographicTone[index]! * 0.34,
+        0.58,
         0.98,
       );
       roughness[index] = clamp(

@@ -1,16 +1,17 @@
-import { MeshStandardNodeMaterial } from "three/src/Three.WebGPU.js";
+import { MeshBasicNodeMaterial } from "three/src/Three.WebGPU.js";
 import {
   add,
   attribute,
   clamp,
   float,
-  max,
   mul,
-  negate,
-  normalWorld,
-  sub,
   vec3,
 } from "three/src/nodes/TSL.js";
+import {
+  compileLandscapePatchSet,
+  deriveLandscapeReliefField,
+  LANDSCAPE_RELIEF_ENGINE_REVISION,
+} from "./landscape-relief";
 import type {
   TerrainCameraView,
   TerrainFieldSetInput,
@@ -18,7 +19,7 @@ import type {
 } from "./types";
 
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
-  "rey.terrain.tsl-continuous-relief@3";
+  "rey.terrain.tsl-cartographic-relief@4";
 const CONTINUOUS_RELIEF_MATERIAL_STAGES = Object.freeze([
   "base_terrain",
   "height_normals_hillshade",
@@ -30,6 +31,7 @@ export const TERRAIN_MESH_PARITY_REVISION =
 
 export interface CompiledContinuousRelief {
   material_revision: string;
+  patch_set: ReturnType<typeof compileLandscapePatchSet>;
   render_passes?: TerrainRenderPassSetInput;
   meshes: readonly {
     field_set_id: string;
@@ -68,6 +70,8 @@ export interface TerrainMeshData {
   occlusion: Float32Array;
   roughness: Float32Array;
   curvature: Float32Array;
+  hillshade: Float32Array;
+  salience: Float32Array;
   indices: Uint32Array;
 }
 
@@ -79,6 +83,8 @@ export function terrainMeshByteLength(mesh: TerrainMeshData): number {
     mesh.occlusion.byteLength +
     mesh.roughness.byteLength +
     mesh.curvature.byteLength +
+    mesh.hillshade.byteLength +
+    mesh.salience.byteLength +
     mesh.indices.byteLength
   );
 }
@@ -93,9 +99,14 @@ export function verifyTerrainMeshParity(
     mesh.tint.length !== fields.field_cells * 3 ||
     mesh.occlusion.length !== fields.field_cells ||
     mesh.roughness.length !== fields.field_cells ||
-    mesh.curvature.length !== fields.field_cells
+    mesh.curvature.length !== fields.field_cells ||
+    mesh.hillshade.length !== fields.field_cells ||
+    mesh.salience.length !== fields.field_cells
   )
     throw new Error("accelerated terrain mesh shape diverges from CPU fields");
+  if (terrainNoDataLeakTriangleCount(fields, mesh) > 0)
+    throw new Error("accelerated terrain mesh indexes invalid CPU support");
+  const relief = deriveLandscapeReliefField(fields);
   for (let row = 0; row < fields.grid.rows; row += 1) {
     for (let column = 0; column < fields.grid.columns; column += 1) {
       const index = row * fields.grid.columns + column;
@@ -114,6 +125,8 @@ export function verifyTerrainMeshParity(
         fields.material.occlusion[index]!,
         fields.material.roughness[index]!,
         fields.curvature.values[index]!,
+        relief.hillshade[index]!,
+        relief.salience[index]!,
       ].map(Math.fround);
       const actual = [
         mesh.positions[offset],
@@ -128,6 +141,8 @@ export function verifyTerrainMeshParity(
         mesh.occlusion[index],
         mesh.roughness[index],
         mesh.curvature[index],
+        mesh.hillshade[index],
+        mesh.salience[index],
       ];
       if (actual.some((value, component) => value !== expected[component]))
         throw new Error(
@@ -135,8 +150,6 @@ export function verifyTerrainMeshParity(
         );
     }
   }
-  if (terrainNoDataLeakTriangleCount(fields, mesh) > 0)
-    throw new Error("accelerated terrain mesh indexes invalid CPU support");
   return fields.field_cells;
 }
 
@@ -178,6 +191,7 @@ export function buildTerrainMeshData(
   }
 
   const indices = terrainTriangleIndices(fields);
+  const relief = deriveLandscapeReliefField(fields);
   return {
     positions,
     normals,
@@ -185,6 +199,8 @@ export function buildTerrainMeshData(
     occlusion: fields.material.occlusion.slice(),
     roughness: fields.material.roughness.slice(),
     curvature: fields.curvature.values.slice(),
+    hillshade: relief.hillshade,
+    salience: relief.salience,
     indices,
   };
 }
@@ -271,6 +287,7 @@ export function compileContinuousRelief(
 
   return {
     material_revision: continuousReliefMaterialRevision(renderPasses),
+    patch_set: compileLandscapePatchSet(fields),
     render_passes: renderPasses,
     meshes: Object.freeze(
       fields.map((fieldSet, index) =>
@@ -406,60 +423,40 @@ export function projectTerrainCoordinate(
 
 export function createContinuousReliefMaterial(
   renderPasses?: TerrainRenderPassSetInput,
-): MeshStandardNodeMaterial {
-  const material = new MeshStandardNodeMaterial();
+): MeshBasicNodeMaterial {
+  const material = new MeshBasicNodeMaterial();
   material.name = continuousReliefMaterialRevision(renderPasses);
-  material.metalness = 0;
   const tint = attribute<"vec3">("reyTint", "vec3");
   const occlusion = attribute<"float">("reyOcclusion", "float");
-  const roughness = attribute<"float">("reyRoughness", "float");
-  const curvature = attribute<"float">("reyCurvature", "float");
-  const northwest = normalWorld
-    .dot(vec3(-0.42, 0.84, -0.34).normalize())
-    .max(0);
-  const southeast = normalWorld.dot(vec3(0.5, 0.72, 0.48).normalize()).max(0);
+  const hillshade = attribute<"float">("reyHillshade", "float");
   const enabled = (id: TerrainRenderPassSetInput["passes"][number]["id"]) =>
     renderPasses?.passes.some((pass) => pass.id === id) ?? true;
-  const multidirectionalHillshade = enabled("height_normals_hillshade")
-    ? northwest
-        .mul(0.9)
-        .add(southeast.mul(0.1))
-        .add(float(0.16))
-        .clamp(0.16, 1.12)
-    : float(1);
-  const ridge = enabled("ambient_valley_occlusion")
-    ? mul(max(negate(curvature), 0), 0.72)
-    : float(0);
-  const valley = enabled("ambient_valley_occlusion")
-    ? mul(max(curvature, 0), 0.56)
-    : float(0);
   const baseTint = enabled("base_terrain") ? tint : vec3(0.32, 0.33, 0.31);
+  const luminance = baseTint.dot(vec3(0.2126, 0.7152, 0.0722));
+  const cartographicTint = add(mul(baseTint, 0.72), mul(vec3(luminance), 0.28));
+  const multidirectionalHillshade = enabled("height_normals_hillshade")
+    ? hillshade
+    : float(1);
   const ambientOcclusion = enabled("ambient_valley_occlusion")
-    ? occlusion
+    ? add(float(0.76), mul(occlusion, 0.24))
     : float(1);
   material.colorNode = clamp(
-    sub(
-      add(
-        mul(mul(baseTint, multidirectionalHillshade), ambientOcclusion),
-        ridge,
-      ),
-      valley,
-    ),
+    mul(mul(cartographicTint, multidirectionalHillshade), ambientOcclusion),
     0,
     1,
   );
-  material.roughnessNode = clamp(roughness, 0.62, 1);
   return material;
 }
 
 export function continuousReliefMaterialRevision(
   renderPasses?: TerrainRenderPassSetInput,
 ): string {
-  if (!renderPasses) return CONTINUOUS_RELIEF_MATERIAL_REVISION;
+  if (!renderPasses)
+    return `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${LANDSCAPE_RELIEF_ENGINE_REVISION}`;
   const disabled = CONTINUOUS_RELIEF_MATERIAL_STAGES.filter(
     (id) => !renderPasses.passes.some((pass) => pass.id === id),
   );
   return disabled.length === 0
-    ? CONTINUOUS_RELIEF_MATERIAL_REVISION
-    : `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:without=${disabled.join(",")}`;
+    ? `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${LANDSCAPE_RELIEF_ENGINE_REVISION}`
+    : `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${LANDSCAPE_RELIEF_ENGINE_REVISION}:without=${disabled.join(",")}`;
 }

@@ -1,6 +1,7 @@
 import {
   compileContextGlobe,
   ExplorerCanvas,
+  LANDSCAPE_RELIEF_ENGINE_REVISION,
   type ExplorerCanvasContent,
   type ExplorerCanvasReport,
   type RendererPreference,
@@ -36,6 +37,13 @@ export interface AcceleratedTerrainReport {
   status: RendererStatus;
   submitted_frame: ExplorerCanvasReport["submitted_frame"];
   preference: RendererPreference;
+  content_kind: "globe" | "terrain" | "none";
+  terrain_source_key: string;
+  landscape_relief_revision: string;
+  landscape_patch_set_id: string;
+  landscape_patch_count: number;
+  landscape_overlap_count: number;
+  landscape_gap_policy: "unsupported_remains_transparent" | "unbound";
   active_band_ids: readonly string[];
   field_sets: number;
   field_cells: number;
@@ -101,6 +109,13 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     },
     submitted_frame: null,
     preference: "auto",
+    content_kind: "none",
+    terrain_source_key: "unbound",
+    landscape_relief_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
+    landscape_patch_set_id: "unbound",
+    landscape_patch_count: 0,
+    landscape_overlap_count: 0,
+    landscape_gap_policy: "unbound",
     active_band_ids: Object.freeze([]),
     field_sets: 0,
     field_cells: 0,
@@ -401,7 +416,7 @@ export function AcceleratedTerrainSurface({
     ],
   );
   const terrainJobId = [
-    snapshot.snapshot_id,
+    terrainSourceKey,
     workingSetRevision,
     `${terrainCompilationView.viewport_width}x${terrainCompilationView.viewport_height}`,
     terrainCompilationView.rendered_scale,
@@ -416,13 +431,6 @@ export function AcceleratedTerrainSurface({
   useEffect(() => {
     if (
       semanticGlobe ||
-      // The landscape tier renders the flat/stippled reference layer only —
-      // no lit mesh, so there's nothing worth a worker round-trip for. This
-      // also removes the two-renderer seam that made landing on a region
-      // feel like a pop/settle rather than a continuous zoom: only one
-      // layer (the cheap synchronous one) is ever active through the
-      // Atlas<->Landscape transition and the landscape tier itself.
-      snapshot.scene.regime === "landscape" ||
       (snapshot.scene.terrain_fields.length === 0 &&
         snapshot.scene.terrain_programs.length === 0)
     ) {
@@ -496,9 +504,7 @@ export function AcceleratedTerrainSurface({
     return () => abort.abort();
   }, [semanticGlobe, snapshot.snapshot_id, terrainJobId, workingSetRevision]);
   const activeTerrain =
-    !semanticGlobe &&
-    resolvedTerrain?.source_key === terrainSourceKey &&
-    resolvedTerrain.job_id === terrainJobId
+    !semanticGlobe && resolvedTerrain?.source_key === terrainSourceKey
       ? resolvedTerrain
       : null;
   const fieldProjection = useMemo(() => {
@@ -620,6 +626,21 @@ export function AcceleratedTerrainSurface({
       status: canvasReport.status as RendererStatus,
       submitted_frame: canvasReport.submitted_frame,
       preference,
+      content_kind: globeCompilation
+        ? "globe"
+        : terrainCompilation
+          ? "terrain"
+          : "none",
+      terrain_source_key: terrainSourceKey || "unbound",
+      landscape_relief_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
+      landscape_patch_set_id:
+        terrainCompilation?.patch_set.patch_set_id ?? "unbound",
+      landscape_patch_count:
+        terrainCompilation?.patch_set.patch_ids.length ?? 0,
+      landscape_overlap_count:
+        terrainCompilation?.patch_set.overlap_pairs.length ?? 0,
+      landscape_gap_policy:
+        terrainCompilation?.patch_set.gap_policy ?? "unbound",
       active_band_ids: fieldProjection.active_band_ids,
       field_sets: statistics.field_sets,
       field_cells: fieldProjection.cells,

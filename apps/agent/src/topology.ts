@@ -5,7 +5,10 @@ import type {
   SemanticAtlasDelta,
   WorkloadList,
 } from "./domain";
-import { GLOBE_ATLAS_EXTENT_RATIO } from "@rey/explorer";
+import {
+  compileLandscapePatchSet,
+  GLOBE_ATLAS_EXTENT_RATIO,
+} from "@rey/explorer";
 import {
   DEFAULT_LENS_ZOOM,
   lensRegimeForZoom,
@@ -312,11 +315,15 @@ export interface TopologyWorldAtlasTransition {
 }
 
 export interface TopologyAtlasLandscapeTransition {
-  schema: "rey.atlas-landscape-transition.v1";
+  schema: "rey.atlas-landscape-transition.v2";
   transition_id: string;
   atlas_revision: string;
   scene_id: string;
   terrain_field_id: string;
+  terrain_field_ids: readonly string[];
+  patch_set_id: string;
+  overlap_policy: "later_patch_wins_with_deterministic_depth_bias";
+  gap_policy: "unsupported_remains_transparent";
   projection_revision: typeof ATLAS_LANDSCAPE_PROJECTION_REVISION;
   source_frame: { x: number; y: number; width: number; height: number };
   target_frame: { x: number; y: number; width: number; height: number };
@@ -643,11 +650,12 @@ function buildAtlasLandscapeTransition(
     height: Math.max(1, source.height),
   });
   const targetFrame = Object.freeze({ ...terrainField.grid.bounds });
+  const patchSet = compileLandscapePatchSet([terrainField]);
   return Object.freeze({
     transition: Object.freeze({
-      schema: "rey.atlas-landscape-transition.v1",
+      schema: "rey.atlas-landscape-transition.v2",
       transition_id: [
-        "rey.atlas-landscape-transition.v1",
+        "rey.atlas-landscape-transition.v2",
         atlasRevision,
         selected.scene.scene_id,
         terrainField.field_set_id,
@@ -658,11 +666,15 @@ function buildAtlasLandscapeTransition(
       atlas_revision: atlasRevision,
       scene_id: selected.scene.scene_id,
       terrain_field_id: terrainField.field_set_id,
+      terrain_field_ids: patchSet.patch_ids,
+      patch_set_id: patchSet.patch_set_id,
+      overlap_policy: patchSet.overlap_policy,
+      gap_policy: patchSet.gap_policy,
       projection_revision: ATLAS_LANDSCAPE_PROJECTION_REVISION,
       source_frame: sourceFrame,
       target_frame: targetFrame,
       authority:
-        "reversible presentation mapping from one exact admitted synthetic Atlas sector to one exact admitted regional terrain field; it grants no geographic relationship between the coordinate spaces",
+        "reversible presentation mapping from one exact admitted synthetic Atlas sector to the primary patch in an ordered validity-bounded landscape patch set; intersecting patches retain deterministic precedence, unsupported gaps remain transparent, and the mapping grants no geographic relationship between coordinate spaces",
     }),
     terrain_field: terrainField,
   });

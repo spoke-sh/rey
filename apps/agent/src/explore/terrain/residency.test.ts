@@ -28,6 +28,8 @@ describe("terrain tile residency", () => {
       tile.mesh.occlusion.byteLength +
       tile.mesh.roughness.byteLength +
       tile.mesh.curvature.byteLength +
+      tile.mesh.hillshade.byteLength +
+      tile.mesh.salience.byteLength +
       tile.mesh.indices.byteLength;
     const residency = new TerrainTileResidency(
       cpuBudget,

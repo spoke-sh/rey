@@ -276,6 +276,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [terrainRenderer, setTerrainRenderer] =
     useState<AcceleratedTerrainReport>(REFERENCE_TERRAIN_REPORT);
+  const [terrainSurfaceRenderer, setTerrainSurfaceRenderer] =
+    useState<AcceleratedTerrainReport>(REFERENCE_TERRAIN_REPORT);
   const [atlasTerrainPrewarmReady, setAtlasTerrainPrewarmReady] =
     useState(false);
   const [atlasTerrainPrewarmSubmitted, setAtlasTerrainPrewarmSubmitted] =
@@ -369,6 +371,13 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     terrainRenderer.status.lifecycle === "ready" &&
     (terrainRenderer.status.backend === "webgpu" ||
       terrainRenderer.status.backend === "webgl2");
+  const terrainAcceleratedReady =
+    terrainSurfaceRenderer.content_kind === "terrain" &&
+    terrainSurfaceRenderer.terrain_source_key ===
+      (atlasTerrainPrewarmKey || "unbound") &&
+    terrainSurfaceRenderer.status.lifecycle === "ready" &&
+    (terrainSurfaceRenderer.status.backend === "webgpu" ||
+      terrainSurfaceRenderer.status.backend === "webgl2");
   const renderVisibility = {
     contours: layers.relief,
     water: layers.water,
@@ -930,18 +939,16 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           <AcceleratedTerrainSurface
             canvasOpacity={landscapePresentation.terrain_opacity}
             contentMode="terrain"
-            onReport={
-              landscapePresentation.terrain_opacity > 0
-                ? setTerrainRenderer
-                : (report) => {
-                    if (
-                      report.status.lifecycle === "ready" &&
-                      report.submitted_frame?.snapshot_id ===
-                        snapshot.snapshot_id
-                    )
-                      setAtlasTerrainPrewarmSubmitted(true);
-                  }
-            }
+            onReport={(report) => {
+              setTerrainSurfaceRenderer(report);
+              if (landscapePresentation.terrain_opacity > 0)
+                setTerrainRenderer(report);
+              if (
+                report.status.lifecycle === "ready" &&
+                report.content_kind === "terrain"
+              )
+                setAtlasTerrainPrewarmSubmitted(true);
+            }}
             renderVisibility={renderVisibility}
             snapshot={snapshot}
             view={{
@@ -996,6 +1003,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           ) : null}
           <ReferenceRenderer
             accelerated={acceleratedReady}
+            terrainAccelerated={terrainAcceleratedReady}
             atlasLandscapeMorphProgress={atlasLandscapeProgress}
             atlasLandscapePresentation={landscapePresentation}
             globeView={globeView}
@@ -1040,6 +1048,21 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-gpu-budget-bytes={terrainRenderer.gpu_budget_bytes}
           data-renderer-gpu-bytes={terrainRenderer.gpu_bytes}
           data-renderer-lifecycle={terrainRenderer.status.lifecycle}
+          data-renderer-landscape-relief-revision={
+            terrainRenderer.landscape_relief_revision
+          }
+          data-renderer-landscape-patch-set-id={
+            terrainRenderer.landscape_patch_set_id
+          }
+          data-renderer-landscape-patch-count={
+            terrainRenderer.landscape_patch_count
+          }
+          data-renderer-landscape-overlap-count={
+            terrainRenderer.landscape_overlap_count
+          }
+          data-renderer-landscape-gap-policy={
+            terrainRenderer.landscape_gap_policy
+          }
           data-renderer-measurement-authority={
             terrainRenderer.measurement_authority
           }

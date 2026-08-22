@@ -984,10 +984,12 @@ describe("regional scene topology projection", () => {
       Uint8Array.from([1, 1, 1, 0]),
     );
     expect(county.atlas_landscape_transition).toMatchObject({
-      schema: "rey.atlas-landscape-transition.v1",
+      schema: "rey.atlas-landscape-transition.v2",
       scene_id: "scene:1",
       terrain_field_id: county.terrain_fields[0]?.field_set_id,
-      projection_revision: "rey.atlas-landscape-projector@1",
+      projection_revision: "rey.atlas-landscape-projector@2",
+      gap_policy: "unsupported_remains_transparent",
+      overlap_policy: "later_patch_wins_with_deterministic_depth_bias",
     });
     const transitionAtlas = buildTopologyScene(
       terrainPortfolio,
@@ -1035,10 +1037,10 @@ describe("regional scene topology projection", () => {
     );
     expect(snapshot.source_revisions).toContain("terrain-dataset:grid");
     expect(snapshot.compiler_revisions).toContain(
-      "rey.explorer.regional-terrain-grid@1",
+      "rey.explorer.regional-terrain-grid@2",
     );
     expect(snapshot.compiler_revisions).toContain(
-      "rey.atlas-landscape-projector@1",
+      "rey.atlas-landscape-projector@2",
     );
     const markup = renderToStaticMarkup(
       ReferenceRenderer({

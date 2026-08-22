@@ -2,7 +2,7 @@ import { projectTerrainCoordinate } from "@rey/explorer";
 import type { FieldBounds } from "../engine/fields";
 
 export const ATLAS_LANDSCAPE_PROJECTION_REVISION =
-  "rey.atlas-landscape-projector@1" as const;
+  "rey.atlas-landscape-projector@2" as const;
 export const ATLAS_LANDSCAPE_MORPH_START_ZOOM = 0.34;
 export const ATLAS_LANDSCAPE_MORPH_END_ZOOM = 0.66;
 

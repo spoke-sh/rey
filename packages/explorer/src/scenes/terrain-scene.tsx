@@ -7,7 +7,6 @@ import {
   LineBasicNodeMaterial,
   Mesh,
   MeshBasicNodeMaterial,
-  MeshStandardNodeMaterial,
 } from "three/src/Three.WebGPU.js";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { TerrainCameraView } from "../types";
@@ -32,11 +31,21 @@ export function ContinuousReliefScene({
   const materialRevision = continuousReliefMaterialRevision(
     compiled.render_passes,
   );
-  const material = useMemo(
-    () => createContinuousReliefMaterial(compiled.render_passes),
-    [materialRevision],
+  const materials = useMemo(
+    () =>
+      compiled.meshes.map((_, index) => {
+        const material = createContinuousReliefMaterial(compiled.render_passes);
+        material.polygonOffset = index > 0;
+        material.polygonOffsetFactor = -index;
+        material.polygonOffsetUnits = -index;
+        return material;
+      }),
+    [compiled.patch_set.patch_set_id, materialRevision],
   );
-  useEffect(() => () => material.dispose(), [material]);
+  useEffect(
+    () => () => materials.forEach((material) => material.dispose()),
+    [materials],
+  );
   const camera = terrainCameraProjection(world, view);
 
   return (
@@ -51,17 +60,6 @@ export function ContinuousReliefScene({
         target={camera.target}
         top={camera.top}
       />
-      <ambientLight color={0xdde4da} intensity={0.78} />
-      <directionalLight
-        color={0xfff4d4}
-        intensity={1.35}
-        position={[-world.width * 0.42, world.width, -world.height * 0.36]}
-      />
-      <directionalLight
-        color={0xbad3df}
-        intensity={0.34}
-        position={[world.width * 0.5, world.width * 0.7, world.height * 0.48]}
-      />
       <group
         name="rey-continuous-relief"
         position={[
@@ -75,11 +73,11 @@ export function ContinuousReliefScene({
           view.model_transform?.scale_z ?? 1,
         ]}
       >
-        {compiled.meshes.map((mesh) => (
+        {compiled.meshes.map((mesh, index) => (
           <TerrainMesh
             data={mesh.data}
             key={mesh.field_set_id}
-            material={material}
+            material={materials[index]!}
             name={mesh.field_set_id}
           />
         ))}
@@ -213,7 +211,7 @@ function TerrainMesh({
   name,
 }: {
   data: TerrainMeshData;
-  material: MeshStandardNodeMaterial;
+  material: MeshBasicNodeMaterial;
   name: string;
 }) {
   const geometryRef = useRef<BufferGeometry>(null);
@@ -238,6 +236,14 @@ function TerrainMesh({
         <bufferAttribute
           args={[data.curvature, 1]}
           attach="attributes-reyCurvature"
+        />
+        <bufferAttribute
+          args={[data.hillshade, 1]}
+          attach="attributes-reyHillshade"
+        />
+        <bufferAttribute
+          args={[data.salience, 1]}
+          attach="attributes-reySalience"
         />
         <bufferAttribute args={[data.indices, 1]} attach="index" />
       </bufferGeometry>
