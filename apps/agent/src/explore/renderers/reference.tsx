@@ -203,7 +203,14 @@ export function ReferenceRenderer({
       data-renderer={accelerated ? "reference-overlays" : "reference"}
       data-atlas-landscape-progress={atlasLandscapeMorphProgress}
       data-landscape-gap-policy={scene.atlas_landscape_transition?.gap_policy}
+      data-landscape-mosaic={scene.atlas_landscape_transition?.mosaic_id}
+      data-landscape-composition={
+        scene.atlas_landscape_transition?.composition_revision
+      }
       data-landscape-patch-set={scene.atlas_landscape_transition?.patch_set_id}
+      data-landscape-primary-patch={
+        scene.atlas_landscape_transition?.primary_patch_id
+      }
     >
       {!globeWorld &&
         !morphActive &&

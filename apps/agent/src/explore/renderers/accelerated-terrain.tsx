@@ -41,6 +41,9 @@ export interface AcceleratedTerrainReport {
   terrain_source_key: string;
   landscape_relief_revision: string;
   landscape_patch_set_id: string;
+  landscape_mosaic_id: string;
+  landscape_composition_revision: string;
+  landscape_primary_patch_id: string;
   landscape_patch_count: number;
   landscape_overlap_count: number;
   landscape_gap_policy: "unsupported_remains_transparent" | "unbound";
@@ -115,6 +118,9 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     terrain_source_key: "unbound",
     landscape_relief_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
     landscape_patch_set_id: "unbound",
+    landscape_mosaic_id: "unbound",
+    landscape_composition_revision: "unbound",
+    landscape_primary_patch_id: "unbound",
     landscape_patch_count: 0,
     landscape_overlap_count: 0,
     landscape_gap_policy: "unbound",
@@ -639,6 +645,15 @@ export function AcceleratedTerrainSurface({
       landscape_relief_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
       landscape_patch_set_id:
         terrainCompilation?.patch_set.patch_set_id ?? "unbound",
+      landscape_mosaic_id:
+        snapshot.scene.terrain_fields.find((field) => field.landscape_mosaic)
+          ?.landscape_mosaic?.mosaic_id ?? "unbound",
+      landscape_composition_revision:
+        snapshot.scene.terrain_fields.find((field) => field.landscape_mosaic)
+          ?.landscape_mosaic?.composition_revision ?? "unbound",
+      landscape_primary_patch_id:
+        snapshot.scene.terrain_fields.find((field) => field.landscape_mosaic)
+          ?.landscape_mosaic?.primary_patch_id ?? "unbound",
       landscape_patch_count:
         terrainCompilation?.patch_set.patch_ids.length ?? 0,
       landscape_overlap_count:

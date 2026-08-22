@@ -75,6 +75,14 @@ export function evaluateLandscapeCapture(
     render_pass_set_bound:
       typeof renderer.render_pass_set_id === "string" &&
       renderer.render_pass_set_id !== "unbound",
+    landscape_mosaic_bound:
+      requirements.require_landscape_mosaic !== true ||
+      (typeof renderer.landscape_mosaic_id === "string" &&
+        renderer.landscape_mosaic_id !== "unbound" &&
+        typeof renderer.landscape_composition_revision === "string" &&
+        renderer.landscape_composition_revision !== "unbound" &&
+        typeof renderer.landscape_primary_patch_id === "string" &&
+        renderer.landscape_primary_patch_id !== "unbound"),
     resident_cpu_budget_respected:
       number("resident_cpu_bytes") <= number("resident_cpu_budget_bytes"),
     resident_gpu_budget_respected:
@@ -143,6 +151,10 @@ export function evaluateLandscapeCapture(
       backend: renderer.backend ?? null,
       elevation_span: number("source_elevation_span"),
       label_candidates: Number(capture?.labels?.total),
+      landscape_mosaic_id: renderer.landscape_mosaic_id ?? null,
+      landscape_composition_revision:
+        renderer.landscape_composition_revision ?? null,
+      landscape_primary_patch_id: renderer.landscape_primary_patch_id ?? null,
       no_data_leak_triangles: number("terrain_no_data_leak_triangles"),
       no_data_vertices: number("source_no_data_vertices"),
       render_pass_kinds: [...renderPassKinds],

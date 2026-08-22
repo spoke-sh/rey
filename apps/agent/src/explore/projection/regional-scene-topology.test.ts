@@ -977,19 +977,19 @@ describe("regional scene topology projection", () => {
     expect(county.terrain).toBe(true);
     expect(county.county_footprint).toBeNull();
     expect(county.detail).toContain(
-      "2×2 admitted terrain grid; no-data retained",
+      "1 admitted regional patch in 2×2 validity-safe mosaic",
     );
     expect(county.terrain_fields).toHaveLength(1);
     expect(county.terrain_fields[0]?.validity.values).toEqual(
       Uint8Array.from([1, 1, 1, 0]),
     );
     expect(county.atlas_landscape_transition).toMatchObject({
-      schema: "rey.atlas-landscape-transition.v2",
+      schema: "rey.atlas-landscape-transition.v3",
       scene_id: "scene:1",
       terrain_field_id: county.terrain_fields[0]?.field_set_id,
       projection_revision: "rey.atlas-landscape-projector@2",
       gap_policy: "unsupported_remains_transparent",
-      overlap_policy: "later_patch_wins_with_deterministic_depth_bias",
+      overlap_policy: "qualified_shared_samples_must_match_before_derivation",
     });
     const transitionAtlas = buildTopologyScene(
       terrainPortfolio,
@@ -1002,6 +1002,7 @@ describe("regional scene topology projection", () => {
     expect(transitionAtlas.terrain_fields[0]?.field_set_id).toBe(
       county.terrain_fields[0]?.field_set_id,
     );
+    expect(transitionAtlas.terrain_fields[0]).toBe(county.terrain_fields[0]);
     expect(transitionAtlas.atlas_landscape_transition?.target_frame).toEqual(
       county.atlas_landscape_transition?.target_frame,
     );
@@ -1037,7 +1038,10 @@ describe("regional scene topology projection", () => {
     );
     expect(snapshot.source_revisions).toContain("terrain-dataset:grid");
     expect(snapshot.compiler_revisions).toContain(
-      "rey.explorer.regional-terrain-grid@2",
+      "rey.explorer.regional-terrain-grid@3",
+    );
+    expect(snapshot.compiler_revisions).toContain(
+      "rey.terrain.regional-mosaic@1",
     );
     expect(snapshot.compiler_revisions).toContain(
       "rey.atlas-landscape-projector@2",

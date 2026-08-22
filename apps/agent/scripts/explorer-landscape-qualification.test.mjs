@@ -15,6 +15,7 @@ const suite = {
       id: "holes",
       purpose: "retain holes",
       requirements: {
+        require_landscape_mosaic: true,
         minimum_source_no_data_vertices: 1,
         minimum_render_pass_areas: 1,
         maximum_no_data_leak_triangles: 0,
@@ -37,6 +38,9 @@ const capture = {
   renderer: {
     backend: "webgpu",
     render_pass_set_id: "passes:fixture",
+    landscape_mosaic_id: "mosaic:fixture",
+    landscape_composition_revision: "composition:fixture",
+    landscape_primary_patch_id: "patch:fixture",
     render_pass_kinds: "admitted_boundary,river",
     render_pass_area_count: "1",
     render_pass_line_count: "2",
@@ -115,6 +119,7 @@ describe("Landscape browser workload qualification", () => {
       passed: true,
       checks: {
         exact_scene_lineage: true,
+        landscape_mosaic_bound: true,
         no_data_leakage_respected: true,
         relief_partition_respected: true,
         tile_seams_respected: true,

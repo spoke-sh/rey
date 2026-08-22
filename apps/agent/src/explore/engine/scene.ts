@@ -13,6 +13,7 @@ import {
   COUNTY_FRAME_PROJECTION_REVISION,
 } from "../projection/county-frame";
 import { REGIONAL_TERRAIN_SCENE_COMPILER_REVISION } from "../projection/regional-terrain";
+import { REGIONAL_TERRAIN_MOSAIC_REVISION } from "../terrain/regional-mosaic";
 import { ATLAS_LANDSCAPE_PROJECTION_REVISION } from "../projection/atlas-landscape";
 import type {
   CountyFrame,
@@ -170,6 +171,8 @@ export function compileSceneSnapshot(
     compilerRevisions.push(COUNTY_FOOTPRINT_PROJECTION_REVISION);
   if (regionalScenes.some(({ scene }) => scene.projection.terrain?.grid))
     compilerRevisions.push(REGIONAL_TERRAIN_SCENE_COMPILER_REVISION);
+  if (scene.terrain_fields.some((field) => field.landscape_mosaic))
+    compilerRevisions.push(REGIONAL_TERRAIN_MOSAIC_REVISION);
   if (scene.atlas_landscape_transition)
     compilerRevisions.push(ATLAS_LANDSCAPE_PROJECTION_REVISION);
   else if (scene.regime === "atlas" && scene.terrain_fields.length > 0)

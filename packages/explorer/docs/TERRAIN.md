@@ -55,6 +55,11 @@ refinement, normals, drainage, relief, tiling, and rendering operate across
 qualified seams without turning gaps into geography. The compact mosaic
 binding on derived tiles preserves the exact composition, source-patch, focus,
 coordinate, vertical-reference, overlap, and gap identities.
+The application selects the connected component containing the focused region
+only across retained, terrain-qualified, conflict-free edge seams. A disjoint
+or conflicted region stays outside the field; a component that fails the
+stricter renderer alignment contract falls back to the focused patch and
+retains that omission for the footer, diagnostics, and qualification report.
 
 `@rey/agent` derives these fields from two admitted sources:
 

@@ -1,5 +1,7 @@
 import type {
   ProjectionPacket,
+  RegionalGeographyComposition,
+  RegionalBounds,
   RegionalLayerKind,
   SemanticAtlas,
   SemanticAtlasDelta,
@@ -36,6 +38,7 @@ import {
 } from "./explore/projection/county-frame";
 import {
   compileRegionalTerrainField,
+  compileRegionalTerrainLandscapeFrame,
   projectRegionalTerrainFootprint,
   projectRegionalTerrainPosition,
 } from "./explore/projection/regional-terrain";
@@ -45,6 +48,10 @@ import {
   type TerrainProgram,
 } from "./explore/terrain/compile";
 import { deriveRegionalTerrainContours } from "./explore/terrain/contours";
+import {
+  compileRegionalTerrainMosaic,
+  type RegionalTerrainMosaicManifest,
+} from "./explore/terrain/regional-mosaic";
 import { buildSurveyScene } from "./explore/projection/survey-scene";
 import {
   buildPortfolioEvidence,
@@ -315,12 +322,15 @@ export interface TopologyWorldAtlasTransition {
 }
 
 export interface TopologyAtlasLandscapeTransition {
-  schema: "rey.atlas-landscape-transition.v2";
+  schema: "rey.atlas-landscape-transition.v3";
   transition_id: string;
   atlas_revision: string;
   scene_id: string;
   terrain_field_id: string;
   terrain_field_ids: readonly string[];
+  mosaic_id: string;
+  composition_revision: string;
+  primary_patch_id: string;
   patch_set_id: string;
   overlap_policy:
     | "later_patch_wins_with_deterministic_depth_bias"
@@ -331,6 +341,19 @@ export interface TopologyAtlasLandscapeTransition {
   target_frame: { x: number; y: number; width: number; height: number };
   authority: string;
 }
+
+interface RegionalLandscapeTerrain {
+  field: TerrainFieldSet;
+  manifest: RegionalTerrainMosaicManifest;
+  native_bounds: RegionalBounds;
+  primary_bounds: TerrainFieldSet["grid"]["bounds"];
+  omissions: readonly string[];
+}
+
+const regionalLandscapeTerrainCache = new WeakMap<
+  AdmittedRegionalProjection["scene"],
+  Map<string, RegionalLandscapeTerrain | null>
+>();
 
 export const TOPOLOGY_WORLD = { width: 1200, height: 720 } as const;
 export const ATLAS_TERRAIN_PREWARM_REVISION =
@@ -361,12 +384,24 @@ export function buildTopologyScene(
   // uncached cost (elevation summary, per-cell material, normals) that
   // landed exactly at the moment regime flips from "atlas" to "landscape",
   // stalling the frame the Atlas-to-Landscape morph needed to keep animating.
+  const regionalLandscape =
+    regionalScenes.length > 0 && !surveyFocus && regionalFocus
+      ? compileRegionalLandscapeTerrain(
+          regionalScenes,
+          selectRegionalScene(regionalScenes, focusId),
+          portfolio.regional_geography ?? null,
+        )
+      : null;
   const atlasLandscape =
     regionalScenes.length > 0 &&
     !surveyFocus &&
     regionalFocus &&
     (regime === "atlas" || regime === "landscape")
-      ? buildAtlasLandscapeTransition(regionalScenes, focusId)
+      ? buildAtlasLandscapeTransition(
+          regionalScenes,
+          focusId,
+          regionalLandscape,
+        )
       : null;
   let projection: TopologyProjection;
   if (isFreshProjectOrientation(portfolio))
@@ -399,7 +434,7 @@ export function buildTopologyScene(
       regionalScenes,
       focusId,
       regime,
-      atlasLandscape?.terrain_field,
+      regionalLandscape,
     );
   else if (regime === "world") projection = buildWorld(portfolio, focusId);
   else if (regime === "atlas") projection = buildAtlas(portfolio, focusId);
@@ -412,7 +447,10 @@ export function buildTopologyScene(
   else projection = buildPortfolioEvidence(portfolio, focusId);
   const atlasTerrainPrewarm =
     regime === "atlas" && atlasLandscape === null
-      ? compileSingleRegionalTerrainField(regionalScenes)
+      ? compileSingleRegionalTerrainField(
+          regionalScenes,
+          portfolio.regional_geography ?? null,
+        )
       : null;
   return {
     ...projection,
@@ -431,7 +469,7 @@ export function buildTopologyScene(
     terrain_fields:
       projection.terrain_fields ??
       (regime === "atlas" && atlasLandscape
-        ? [atlasLandscape.terrain_field]
+        ? [atlasLandscape.terrain.field]
         : regime === "atlas" && atlasTerrainPrewarm
           ? [atlasTerrainPrewarm]
           : []),
@@ -459,9 +497,16 @@ export function buildTopologyScene(
 
 function compileSingleRegionalTerrainField(
   regionalScenes: AdmittedRegionalProjection[],
+  composition: RegionalGeographyComposition | null,
 ): TerrainFieldSet | null {
   if (regionalScenes.length !== 1) return null;
-  return compileRegionalTerrainField(regionalScenes[0]!.scene, TOPOLOGY_WORLD);
+  return (
+    compileRegionalLandscapeTerrain(
+      regionalScenes,
+      regionalScenes[0]!,
+      composition,
+    )?.field ?? null
+  );
 }
 
 function isFreshProjectOrientation(portfolio: WorkloadList): boolean {
@@ -607,17 +652,14 @@ function buildWorldAtlasTransition(
 function buildAtlasLandscapeTransition(
   regionalScenes: AdmittedRegionalProjection[],
   focusId: string,
+  terrain: RegionalLandscapeTerrain | null,
 ): {
   transition: TopologyAtlasLandscapeTransition;
-  terrain_field: TerrainFieldSet;
+  terrain: RegionalLandscapeTerrain;
 } | null {
   const selected = selectRegionalScene(regionalScenes, focusId);
-  const terrainField = compileRegionalTerrainField(
-    selected.scene,
-    TOPOLOGY_WORLD,
-  );
   const atlasRevision = selected.scene.artifacts.admitted_atlas_revision;
-  if (!terrainField || !atlasRevision) return null;
+  if (!terrain || !atlasRevision) return null;
   const fragments = projectSemanticMercatorBounds(
     `atlas-landscape:${selected.atlas_sector.sector_id}`,
     {
@@ -651,24 +693,27 @@ function buildAtlasLandscapeTransition(
     width: Math.max(1, source.width),
     height: Math.max(1, source.height),
   });
-  const targetFrame = Object.freeze({ ...terrainField.grid.bounds });
-  const patchSet = compileLandscapePatchSet([terrainField]);
+  const targetFrame = Object.freeze({ ...terrain.primary_bounds });
+  const patchSet = compileLandscapePatchSet([terrain.field]);
   return Object.freeze({
     transition: Object.freeze({
-      schema: "rey.atlas-landscape-transition.v2",
+      schema: "rey.atlas-landscape-transition.v3",
       transition_id: [
-        "rey.atlas-landscape-transition.v2",
+        "rey.atlas-landscape-transition.v3",
         atlasRevision,
         selected.scene.scene_id,
-        terrainField.field_set_id,
+        terrain.manifest.mosaic_id,
         ATLAS_LANDSCAPE_PROJECTION_REVISION,
         `${sourceFrame.x},${sourceFrame.y},${sourceFrame.width},${sourceFrame.height}`,
         `${targetFrame.x},${targetFrame.y},${targetFrame.width},${targetFrame.height}`,
       ].join("|"),
       atlas_revision: atlasRevision,
       scene_id: selected.scene.scene_id,
-      terrain_field_id: terrainField.field_set_id,
+      terrain_field_id: terrain.field.field_set_id,
       terrain_field_ids: patchSet.patch_ids,
+      mosaic_id: terrain.manifest.mosaic_id,
+      composition_revision: terrain.manifest.composition_revision,
+      primary_patch_id: terrain.manifest.primary_patch_id,
       patch_set_id: patchSet.patch_set_id,
       overlap_policy: patchSet.overlap_policy,
       gap_policy: patchSet.gap_policy,
@@ -676,10 +721,201 @@ function buildAtlasLandscapeTransition(
       source_frame: sourceFrame,
       target_frame: targetFrame,
       authority:
-        "reversible presentation mapping from one exact admitted synthetic Atlas sector to the primary patch in an ordered validity-bounded landscape patch set; intersecting patches retain deterministic precedence, unsupported gaps remain transparent, and the mapping grants no geographic relationship between coordinate spaces",
+        "reversible presentation mapping from one exact admitted synthetic Atlas sector to the primary source patch in a shared-frame validity-bounded regional mosaic; only connected terrain-qualified edges enter the mosaic, exact shared samples must agree before derivation, unsupported gaps remain transparent, and the mapping grants no geographic relationship between coordinate spaces",
     }),
-    terrain_field: terrainField,
+    terrain,
   });
+}
+
+interface RegionalLandscapeMember {
+  member_id: string;
+  projection: AdmittedRegionalProjection;
+}
+
+function compileRegionalLandscapeTerrain(
+  regionalScenes: AdmittedRegionalProjection[],
+  selected: AdmittedRegionalProjection,
+  composition: RegionalGeographyComposition | null,
+): RegionalLandscapeTerrain | null {
+  if (!selected.scene.projection.terrain?.grid) return null;
+  const cacheKey = composition?.composition_id ?? "composition:unbound";
+  let cachedByComposition = regionalLandscapeTerrainCache.get(selected.scene);
+  if (!cachedByComposition) {
+    cachedByComposition = new Map();
+    regionalLandscapeTerrainCache.set(selected.scene, cachedByComposition);
+  }
+  if (cachedByComposition.has(cacheKey))
+    return cachedByComposition.get(cacheKey)!;
+  const selection = regionalLandscapeMembers(
+    regionalScenes,
+    selected,
+    composition,
+  );
+  try {
+    const compiled = compileRegionalLandscapeSelection(
+      selection.members,
+      selected,
+      selection.composition_revision,
+      [],
+    );
+    cachedByComposition.set(cacheKey, compiled);
+    return compiled;
+  } catch (error) {
+    if (selection.members.length === 1) throw error;
+    const detail = error instanceof Error ? error.message : String(error);
+    const compiled = compileRegionalLandscapeSelection(
+      [
+        {
+          member_id: `single:${selected.scene.scene_id}`,
+          projection: selected,
+        },
+      ],
+      selected,
+      `single:${selected.scene.admission.admission_id}`,
+      [`multi-region mosaic omitted: ${detail}`],
+    );
+    cachedByComposition.set(cacheKey, compiled);
+    return compiled;
+  }
+}
+
+function compileRegionalLandscapeSelection(
+  members: readonly RegionalLandscapeMember[],
+  selected: AdmittedRegionalProjection,
+  compositionRevision: string,
+  omissions: readonly string[],
+): RegionalLandscapeTerrain | null {
+  const frame = compileRegionalTerrainLandscapeFrame(
+    members.map(({ projection }) => projection.scene),
+    compositionRevision,
+  );
+  const patches = members.flatMap(({ member_id, projection }) => {
+    const field = compileRegionalTerrainField(
+      projection.scene,
+      TOPOLOGY_WORLD,
+      frame,
+    );
+    return field
+      ? [
+          {
+            member_id,
+            scene_id: projection.scene.scene_id,
+            role: "detail" as const,
+            field,
+          },
+        ]
+      : [];
+  });
+  const primary = patches.find(
+    ({ scene_id }) => scene_id === selected.scene.scene_id,
+  );
+  if (!primary) return null;
+  const mosaic = compileRegionalTerrainMosaic(
+    patches,
+    primary.field.field_set_id,
+    compositionRevision,
+    frame.coordinate_reference,
+    frame.vertical_reference,
+  );
+  return Object.freeze({
+    field: mosaic.field,
+    manifest: mosaic.manifest,
+    native_bounds: frame.native_bounds,
+    primary_bounds: primary.field.grid.bounds,
+    omissions: Object.freeze([...omissions, ...mosaic.manifest.omissions]),
+  });
+}
+
+export function regionalLandscapeMembers(
+  regionalScenes: AdmittedRegionalProjection[],
+  selected: AdmittedRegionalProjection,
+  composition: RegionalGeographyComposition | null,
+): {
+  composition_revision: string;
+  members: readonly RegionalLandscapeMember[];
+} {
+  const single = () => ({
+    composition_revision: `single:${selected.scene.admission.admission_id}`,
+    members: Object.freeze([
+      {
+        member_id: `single:${selected.scene.scene_id}`,
+        projection: selected,
+      },
+    ]),
+  });
+  if (
+    !composition ||
+    !composition.complete ||
+    composition.atlas_revision !==
+      selected.scene.artifacts.admitted_atlas_revision
+  )
+    return single();
+  const selectedMember = composition.members.find(
+    (member) =>
+      member.scene_id === selected.scene.scene_id &&
+      member.admission_id === selected.scene.admission.admission_id &&
+      member.package_id === selected.scene.admission.package_id &&
+      member.package_revision ===
+        selected.scene.admission.package_snapshot_revision,
+  );
+  if (!selectedMember) return single();
+  const projectionBySceneId = new Map(
+    regionalScenes.map((projection) => [projection.scene.scene_id, projection]),
+  );
+  const memberById = new Map(
+    composition.members.flatMap((member) => {
+      const projection = projectionBySceneId.get(member.scene_id);
+      return projection && projection.scene.projection.terrain?.grid
+        ? [
+            [
+              member.member_id,
+              { member_id: member.member_id, projection },
+            ] as const,
+          ]
+        : [];
+    }),
+  );
+  if (!memberById.has(selectedMember.member_id)) return single();
+  const connected = new Set([selectedMember.member_id]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const seam of composition.seams) {
+      if (
+        seam.relationship !== "edge_adjacent" ||
+        seam.terrain_status !== "qualified" ||
+        composition.conflicts.some(
+          (conflict) => conflict.seam_id === seam.seam_id,
+        )
+      )
+        continue;
+      const [left, right] = seam.member_ids;
+      if (
+        connected.has(left) &&
+        !connected.has(right) &&
+        memberById.has(right)
+      ) {
+        connected.add(right);
+        changed = true;
+      }
+      if (
+        connected.has(right) &&
+        !connected.has(left) &&
+        memberById.has(left)
+      ) {
+        connected.add(left);
+        changed = true;
+      }
+    }
+  }
+  return {
+    composition_revision: composition.composition_id,
+    members: Object.freeze(
+      [...connected]
+        .sort((left, right) => left.localeCompare(right))
+        .map((memberId) => memberById.get(memberId)!),
+    ),
+  };
 }
 
 function currentSemanticAtlasDelta(
@@ -1130,12 +1366,9 @@ function buildRegionalCounty(
   focusId: string,
   regime: LensRegime,
   // Passed by buildTopologyScene when buildAtlasLandscapeTransition has
-  // already compiled this same admitted scene's terrain field (true
-  // whenever regime is "landscape" with a regional focus) — reusing it
-  // avoids doing that admitted-DEM compile twice for the same scene on
-  // every render. Falls back to compiling it here (unchanged from before)
-  // whenever no such field was precompiled.
-  precompiledTerrainField?: TerrainFieldSet | null,
+  // already compiled the selected qualified regional component. Reusing the
+  // mosaic avoids recompiling the same source fields at the Landscape handoff.
+  precompiledTerrain?: RegionalLandscapeTerrain | null,
 ): TopologyProjection {
   const selected = selectRegionalScene(regionalScenes, focusId);
   const {
@@ -1146,12 +1379,14 @@ function buildRegionalCounty(
     county_footprint: countyFootprint,
   } = selected;
   const world = TOPOLOGY_WORLD;
-  const bounds = scene.native_bounds;
+  const terrainProjectionBounds =
+    precompiledTerrain?.native_bounds ?? scene.native_bounds;
+  const bounds = terrainProjectionBounds;
   const objects = scene.projection.objects;
   const frameView = countyFrameView(countyFrame, world);
   const terrainField =
-    precompiledTerrainField !== undefined
-      ? precompiledTerrainField
+    precompiledTerrain !== undefined
+      ? (precompiledTerrain?.field ?? null)
       : compileRegionalTerrainField(scene, world);
   if (!countyFootprint && !terrainField)
     throw new Error(
@@ -1161,7 +1396,7 @@ function buildRegionalCounty(
     ? terrainField
       ? projectRegionalTerrainFootprint(
           countyFrame,
-          scene.native_bounds,
+          terrainProjectionBounds,
           countyFootprint,
           world,
         )
@@ -1201,14 +1436,20 @@ function buildRegionalCounty(
           2,
     ] as const;
     const screen = terrainField
-      ? projectRegionalTerrainPosition(scene.native_bounds, nativeCenter, world)
+      ? projectRegionalTerrainPosition(
+          terrainProjectionBounds,
+          nativeCenter,
+          world,
+        )
       : projectCountyLocal(countyFrame, local, frameView);
     const width = countyObjectWidth(bounds, object.native_bounds, world);
     const envelopePath = projectRegionalObjectEnvelope(
       countyFrame,
       object.native_bounds,
       frameView,
-      terrainField ? { scene_bounds: scene.native_bounds, world } : undefined,
+      terrainField
+        ? { scene_bounds: terrainProjectionBounds, world }
+        : undefined,
     );
     const geometryPath = object.native_geometry
       ? projectRegionalObjectGeometry(
@@ -1216,7 +1457,7 @@ function buildRegionalCounty(
           object.native_geometry,
           frameView,
           terrainField
-            ? { scene_bounds: scene.native_bounds, world }
+            ? { scene_bounds: terrainProjectionBounds, world }
             : undefined,
         )
       : null;
@@ -1275,7 +1516,7 @@ function buildRegionalCounty(
   const copyByRegime: Record<LensRegime, readonly [string, string]> = {
     landscape: [
       countyFootprint ? "ADMITTED COUNTY" : "ADMITTED TERRAIN",
-      `${scene.region_id} · ${countyFootprint ? "exact admitted footprint" : "exact terrain-grid validity mask"} · ${scene.projection.terrain?.grid ? `${scene.projection.terrain.grid.columns}×${scene.projection.terrain.grid.rows} admitted terrain grid; no-data retained` : scene.projection.terrain ? `${scene.projection.terrain.samples.length} exact terrain samples; no interpolation` : "terrain height unsupported"}`,
+      `${scene.region_id} · ${countyFootprint ? "exact admitted footprint" : "exact terrain-grid validity mask"} · ${precompiledTerrain ? `${precompiledTerrain.manifest.patch_ids.length} admitted regional ${precompiledTerrain.manifest.patch_ids.length === 1 ? "patch" : "patches"} in ${precompiledTerrain.manifest.columns}×${precompiledTerrain.manifest.rows} validity-safe mosaic` : scene.projection.terrain?.grid ? `${scene.projection.terrain.grid.columns}×${scene.projection.terrain.grid.rows} admitted terrain grid; no-data retained` : scene.projection.terrain ? `${scene.projection.terrain.samples.length} exact terrain samples; no interpolation` : "terrain height unsupported"}`,
     ],
     neighborhoods: [
       "COUNTY NEIGHBORHOODS",
@@ -1316,6 +1557,7 @@ function buildRegionalCounty(
       ...validityBoundaries.map(
         (validity) => `${validity.class}: ${validity.scope} · ${validity.rule}`,
       ),
+      ...(precompiledTerrain?.omissions ?? []),
       countyFootprint
         ? `County fabric and validity end at exact footprint ${shortCoordinate(countyFootprint.footprint_id)} from ${countyFootprint.source_object_id}; holes remain holes`
         : `Terrain fabric and validity end at exact grid ${shortCoordinate(scene.projection.terrain!.grid!.dataset_id)}; no-data vertices cut triangle support and remain holes`,

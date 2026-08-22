@@ -199,6 +199,12 @@ elevation, and material disagreements become a content-identified report. A
 touching edge is not a stitch. Only a connected set of exact, conflict-free,
 terrain-qualified seams may become an input to a later geography-compiler
 output, and even that output must return through editor review and admission.
+Explorer may also form a transient renderer-neutral mosaic from the connected
+qualified edge component without claiming a new source dataset: all members
+use one declared horizontal frame and component-wide elevation normalization,
+shared samples must agree exactly, and unsupported cells remain invalid. That
+projection cannot resolve overlap, fill gaps, or replace the admitted
+geography-compiler path.
 
 ## One Continuous Spatial Journey
 
@@ -335,18 +341,22 @@ and fail closed on any channel, palette, validity, or identity tampering.
 Renderer transport may project that compact contract; it must not be the first
 place semantic repetition is removed.
 
-Acceleration is a bounded projection of that reference dataset. Stable tiles
-retain source revision, parentage, shared edge samples, conservative validity,
-geometric error, and byte cost. A camera may select and retain tiles under
-explicit budgets, but coarse detail can only remove valid support; it cannot
-bridge a hole. Tile evaluation and mesh preparation belong in cancellable
-workers so interaction does not turn React reconciliation into a terrain
-compute loop. Worker loss or budget failure reveals the deterministic
-reference surface.
+Acceleration is a bounded projection of that reference dataset. Connected
+qualified regional fields first form one validity-safe mosaic so refinement,
+normals, drainage, and relief see both sides of every admitted seam. Stable
+tiles retain source revision, parentage, shared edge samples, conservative
+validity, geometric error, and byte cost. A camera may select and retain tiles
+under explicit budgets, but coarse detail can only remove valid support; it
+cannot bridge a hole. Relief is derived over the complete field before camera
+tile cropping, and partitioned results must equal that complete-field result.
+Tile evaluation and mesh preparation belong in cancellable workers so
+interaction does not turn React reconciliation into a terrain compute loop.
+Worker loss or budget failure reveals the deterministic reference surface.
 
 Atlas-to-Landscape continuity is one reversible projection, not a route-time
-scene replacement. The selected Atlas sector, exact regional field, footprint,
-vectors, and pick identities share one source-to-target mapping. Perceptual
+scene replacement. The selected Atlas sector, exact primary patch, shared
+regional mosaic, footprint, vectors, and pick identities share one
+source-to-target mapping. Perceptual
 curves control overlap, elevation rise, and camera tilt without becoming
 semantic LOD. The bounded camera retains an analytic ground target, north/yaw,
 scale, focus, and native-coordinate inverse through both traversal directions.
@@ -429,9 +439,11 @@ A rendering change is incomplete until its human journey is qualified.
   coastline/water, dense vectors, explicit holes, stale data, and backend loss
   at both target viewports. A capture binds a real admitted fixture; the harness
   never fabricates one.
-- Landscape manifests retain source validity and relief, screen-space error,
-  tile seams, no-data leakage, pass identity, labels, resident budgets, picking
-  continuity, interaction convergence, backend, and exact scene lineage.
+- Landscape manifests retain source validity and relief, selected mosaic,
+  composition and primary-patch identities, screen-space error, tile and relief
+  partition seams, no-data leakage, pass identity, labels, resident budgets,
+  picking continuity, interaction convergence, backend, and exact scene
+  lineage.
 - WebGPU, WebGL2 compatibility, and the deterministic reference renderer keep
   semantic parity; unsupported visual fidelity is disclosed rather than
   hidden.

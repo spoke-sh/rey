@@ -21,7 +21,17 @@ import type {
 import { nativePositionToCountyLocal } from "./county-frame";
 
 export const REGIONAL_TERRAIN_SCENE_COMPILER_REVISION =
-  "rey.explorer.regional-terrain-grid@2";
+  "rey.explorer.regional-terrain-grid@3";
+
+export interface RegionalTerrainLandscapeFrame {
+  frame_id: string;
+  member_scene_ids: readonly string[];
+  native_bounds: RegionalBounds;
+  elevation_minimum: number;
+  elevation_maximum: number;
+  coordinate_reference: "native_crs84_projected_to_shared_landscape_frame";
+  vertical_reference: string;
+}
 
 const TERRAIN_CANVAS_INSET_X = 96;
 const TERRAIN_CANVAS_INSET_Y = 72;
@@ -63,15 +73,20 @@ const regionalTerrainFieldCache = new WeakMap<
 export function compileRegionalTerrainField(
   scene: AdmittedRegionalScene,
   world: { width: number; height: number },
+  landscapeFrame?: RegionalTerrainLandscapeFrame,
 ): TerrainFieldSet | null {
-  const worldKey = `${world.width}x${world.height}`;
+  const worldKey = `${world.width}x${world.height}|${landscapeFrame?.frame_id ?? "scene-local-frame"}`;
   let byWorld = regionalTerrainFieldCache.get(scene);
   if (!byWorld) {
     byWorld = new Map();
     regionalTerrainFieldCache.set(scene, byWorld);
   }
   if (byWorld.has(worldKey)) return byWorld.get(worldKey)!;
-  const field = compileRegionalTerrainFieldUncached(scene, world);
+  const field = compileRegionalTerrainFieldUncached(
+    scene,
+    world,
+    landscapeFrame,
+  );
   byWorld.set(worldKey, field);
   return field;
 }
@@ -79,13 +94,14 @@ export function compileRegionalTerrainField(
 function compileRegionalTerrainFieldUncached(
   scene: AdmittedRegionalScene,
   world: { width: number; height: number },
+  landscapeFrame?: RegionalTerrainLandscapeFrame,
 ): TerrainFieldSet | null {
   const program = scene.projection.terrain;
   const dataset = program?.grid;
   if (!program || !dataset) return null;
   const datasetValues = regionalTerrainGridValueColumns(dataset);
   const bounds = projectRegionalTerrainBounds(
-    scene.native_bounds,
+    landscapeFrame?.native_bounds ?? scene.native_bounds,
     dataset.native_bounds,
     world,
   );
@@ -98,8 +114,17 @@ function compileRegionalTerrainFieldUncached(
     validityValues,
     datasetValues.elevation_micrometers,
   );
-  const minimumElevation = elevationSummary.minimum;
-  const maximumElevation = elevationSummary.maximum;
+  const minimumElevation =
+    landscapeFrame?.elevation_minimum ?? elevationSummary.minimum;
+  const maximumElevation =
+    landscapeFrame?.elevation_maximum ?? elevationSummary.maximum;
+  if (
+    elevationSummary.minimum < minimumElevation ||
+    elevationSummary.maximum > maximumElevation
+  )
+    throw new Error(
+      "regional terrain field exceeds its landscape elevation frame",
+    );
   const elevationRange = Math.max(1, maximumElevation - minimumElevation);
   const elevationValues = new Float32Array(cells);
   for (let index = 0; index < cells; index += 1) {
@@ -192,19 +217,21 @@ function compileRegionalTerrainFieldUncached(
   ] as const;
   return Object.freeze({
     schema: TERRAIN_FIELD_SCHEMA,
-    field_set_id: `${TERRAIN_FIELD_SCHEMA}|${program.program_id}|${dataset.dataset_id}|${REGIONAL_TERRAIN_SCENE_COMPILER_REVISION}`,
+    field_set_id: `${TERRAIN_FIELD_SCHEMA}|${program.program_id}|${dataset.dataset_id}|${REGIONAL_TERRAIN_SCENE_COMPILER_REVISION}|${landscapeFrame?.frame_id ?? "scene-local-frame"}`,
     program_id: program.program_id,
     working_set_id: `admitted-grid:${dataset.dataset_id}`,
     active_band_ids: Object.freeze(["admitted_dem"]),
-    detail_authority: dataset.authority,
+    detail_authority: landscapeFrame
+      ? `${dataset.authority}; projected into shared frame ${landscapeFrame.frame_id} with one qualified component-wide elevation normalization`
+      : dataset.authority,
     source_revision: dataset.dataset_id,
     source_summary: Object.freeze({
       columns: dataset.columns,
       rows: dataset.rows,
       valid_vertices: elevationSummary.valid_count,
       no_data_vertices: cells - elevationSummary.valid_count,
-      elevation_minimum: minimumElevation,
-      elevation_maximum: maximumElevation,
+      elevation_minimum: elevationSummary.minimum,
+      elevation_maximum: elevationSummary.maximum,
     }),
     grid,
     elevation_scale: elevationScale,
@@ -222,6 +249,80 @@ function compileRegionalTerrainFieldUncached(
       (total, field) => total + fieldByteLength(field),
       0,
     ),
+  });
+}
+
+export function compileRegionalTerrainLandscapeFrame(
+  scenes: readonly AdmittedRegionalScene[],
+  compositionRevision: string,
+): RegionalTerrainLandscapeFrame {
+  if (scenes.length === 0 || !compositionRevision)
+    throw new Error("regional terrain landscape frame has no admitted members");
+  const members = scenes
+    .map((scene) => {
+      const dataset = scene.projection.terrain?.grid;
+      if (!dataset)
+        throw new Error(
+          "regional terrain landscape member has no terrain grid",
+        );
+      if (scene.native_bounds.crosses_antimeridian)
+        throw new Error(
+          "regional terrain landscape cannot cross the antimeridian",
+        );
+      const values = regionalTerrainGridValueColumns(dataset);
+      return {
+        scene,
+        dataset,
+        elevation: regionalTerrainElevationSummary(
+          values.validity,
+          values.elevation_micrometers,
+        ),
+      };
+    })
+    .sort((left, right) =>
+      left.scene.scene_id.localeCompare(right.scene.scene_id),
+    );
+  const nativeBounds = Object.freeze({
+    west_microdegrees: Math.min(
+      ...members.map(({ scene }) => scene.native_bounds.west_microdegrees),
+    ),
+    south_microdegrees: Math.min(
+      ...members.map(({ scene }) => scene.native_bounds.south_microdegrees),
+    ),
+    east_microdegrees: Math.max(
+      ...members.map(({ scene }) => scene.native_bounds.east_microdegrees),
+    ),
+    north_microdegrees: Math.max(
+      ...members.map(({ scene }) => scene.native_bounds.north_microdegrees),
+    ),
+    crosses_antimeridian: false,
+  });
+  const elevationMinimum = Math.min(
+    ...members.map(({ elevation }) => elevation.minimum),
+  );
+  const elevationMaximum = Math.max(
+    ...members.map(({ elevation }) => elevation.maximum),
+  );
+  const memberSceneIds = Object.freeze(
+    members.map(({ scene }) => scene.scene_id),
+  );
+  return Object.freeze({
+    frame_id: [
+      "rey.regional-terrain-landscape-frame.v1",
+      compositionRevision,
+      ...members.flatMap(({ scene, dataset }) => [
+        scene.scene_id,
+        dataset.dataset_id,
+      ]),
+      `${nativeBounds.west_microdegrees},${nativeBounds.south_microdegrees},${nativeBounds.east_microdegrees},${nativeBounds.north_microdegrees}`,
+      `${elevationMinimum},${elevationMaximum}`,
+    ].join("|"),
+    member_scene_ids: memberSceneIds,
+    native_bounds: nativeBounds,
+    elevation_minimum: elevationMinimum,
+    elevation_maximum: elevationMaximum,
+    coordinate_reference: "native_crs84_projected_to_shared_landscape_frame",
+    vertical_reference: `qualified_shared_elevation_meters:${compositionRevision}`,
   });
 }
 

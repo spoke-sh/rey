@@ -80,8 +80,8 @@ main-thread fallback. Deterministic residency retains compiled tiles under
 separate 48 MiB CPU and 64 MiB GPU budgets.
 
 A selected regional Atlas member now retains one
-`rey.atlas-landscape-transition.v2` binding from its exact synthetic sector
-fragment to its exact primary terrain patch and ordered Landscape patch set.
+`rey.atlas-landscape-transition.v3` binding from its exact synthetic sector
+fragment to its exact primary terrain patch and shared Landscape mosaic.
 One reversible projector drives
 the accelerated terrain model, reference/vector plane, terrain opacity,
 elevation rise, and bounded camera pitch/yaw. Atlas and terrain overlap through
@@ -401,19 +401,24 @@ source row/column identity. `rey.terrain.compilation-worker@4` retains both
 shared relief-border mismatches and complete-field/partition mismatches; the
 fidelity suite requires the latter to remain zero. Residency and worker CPU
 budgets now include those sampled derived arrays. This is seam-safe for one
-complete regional field, but it is not yet the shared-datum multi-region mosaic
-or metric relief pyramid required below.
+complete regional field. The following regional-mosaic slice now supplies the
+shared horizontal frame; a metric relief pyramid remains open below.
 
-`rey.terrain.regional-mosaic@1` now establishes the next renderer-neutral
-enabling contract. It compiles integer-aligned, common-scale regional fields
+`rey.terrain.regional-mosaic@1` now establishes and executes the next
+renderer-neutral contract. It compiles integer-aligned, common-scale regional fields
 into `rey.landscape-mosaic.v1`, requires identical validity, elevation, and
 material at qualified shared samples, rejects positive-area overlap, and
 retains uncovered grid cells as unsupported. The result carries exact source
 placements, revisions, authority, sample spacing, composition, coordinate and
 vertical references, focus patch, limits, and omissions into every sampled
-render tile. It is not yet selected from the retained composition graph or
-projected by `/explore`; until that integration lands, the browser still
-renders the selected single-region field.
+render tile. `/explore` selects only the connected conflict-free component of
+qualified edge seams containing the focused region, projects all members
+through one horizontal frame and component-wide elevation normalization, and
+derives refinement, geography, relief, and tiles from the resulting single
+mosaic. Disjoint or conflicted members remain out; a component that fails the
+stricter renderer-neutral alignment contract falls back to the focused patch
+with an explicit omission. Positive-area overlap and admitted overview gap
+coverage remain open.
 
 ## Geographic Synthesis Boundary
 
@@ -455,10 +460,13 @@ historical admission binding and current membership before projecting it.
 package pair and retains gaps, corner contact, shared edges, overlaps, terrain
 sample alignment, validity, elevation, and material conflicts under one exact
 atlas revision. The human workload list exposes its package, pair, qualified
-seam, conflict, and stitch-readiness counts. This is an input assessment only:
-it grants no merge authority and produces no stitched field. Qualified
-geography-compiler output, raster-native field storage, and deeper vector
-density remain subsequent slices of the same boundary.
+seam, conflict, and stitch-readiness counts. This assessment grants no source
+merge or synthesis authority. Explorer may project its connected qualified
+edge component into a renderer-neutral validity-safe mosaic, but that derived
+field is not an admitted source dataset and cannot resolve an overlap, fill a
+gap, or change a seam decision. Qualified geography-compiler output,
+raster-native field storage, and deeper vector density remain subsequent slices
+of the same boundary.
 
 ## Delivery Sequence
 
@@ -609,10 +617,10 @@ and which implementation revisions produced each derived channel.
 
 #### 8.2 Compile a validity-safe multi-region mosaic
 
-- [ ] Select only a connected terrain-qualified subset from
+- [x] Select only a connected terrain-qualified subset from
       `rey.regional-geography-composition.v1`; reject or omit coordinate,
       vertical-reference, unit, and seam relationships that are not qualified.
-- [ ] Transform qualified patches into one declared horizontal frame and
+- [x] Transform qualified patches into one declared horizontal frame and
       vertical reference before resampling. A missing transform or datum
       relationship remains a typed omission and cannot be hidden by visual
       alignment.

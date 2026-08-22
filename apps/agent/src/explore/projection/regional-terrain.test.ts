@@ -4,6 +4,7 @@ import type { AdmittedRegionalScene } from "../../domain";
 import {
   REGIONAL_TERRAIN_SCENE_COMPILER_REVISION,
   compileRegionalTerrainField,
+  compileRegionalTerrainLandscapeFrame,
   invertRegionalTerrainPosition,
   projectRegionalTerrainPosition,
   regionalTerrainElevationSummary,
@@ -42,6 +43,7 @@ function regionalTerrainScene(withHole = true): AdmittedRegionalScene {
     };
   });
   return {
+    scene_id: "scene:terrain",
     native_bounds: {
       west_microdegrees: -123_000_000,
       south_microdegrees: 37_000_000,
@@ -149,6 +151,74 @@ describe("regional terrain projection", () => {
     });
     expect(differentScene).not.toBe(first);
     expect(differentScene).toEqual(first);
+  });
+
+  it("projects adjacent regions through one horizontal and vertical frame", () => {
+    const west = regionalTerrainScene(false);
+    const east = structuredClone(west);
+    east.scene_id = "scene:terrain:east";
+    east.projection.terrain!.grid!.dataset_id = "dataset:terrain:east";
+    const shift = 1_000_000;
+    for (const bounds of [
+      east.native_bounds,
+      east.projection.terrain!.grid!.native_bounds,
+    ]) {
+      bounds.west_microdegrees += shift;
+      bounds.east_microdegrees += shift;
+    }
+    const westGrid = west.projection.terrain!.grid!;
+    const eastGrid = east.projection.terrain!.grid!;
+    if (
+      westGrid.schema !== "rey.regional-terrain-grid.v1" ||
+      eastGrid.schema !== "rey.regional-terrain-grid.v1"
+    )
+      throw new Error("shared-frame fixture requires expanded grid cells");
+    for (let row = 0; row < westGrid.rows; row += 1) {
+      const westCell =
+        westGrid.cells[row * westGrid.columns + westGrid.columns - 1]!;
+      const eastCell = eastGrid.cells[row * eastGrid.columns]!;
+      eastCell.elevation_micrometers = westCell.elevation_micrometers;
+      eastCell.material = westCell.material;
+      eastCell.native_position[0] += shift;
+    }
+    for (const cell of eastGrid.cells)
+      if (cell.grid_position[0] !== 0) cell.native_position[0] += shift;
+
+    const frame = compileRegionalTerrainLandscapeFrame(
+      [west, east],
+      "composition:adjacent",
+    );
+    const westField = compileRegionalTerrainField(
+      west,
+      { width: 1200, height: 720 },
+      frame,
+    )!;
+    const eastField = compileRegionalTerrainField(
+      east,
+      { width: 1200, height: 720 },
+      frame,
+    )!;
+
+    expect(frame).toMatchObject({
+      member_scene_ids: ["scene:terrain", "scene:terrain:east"],
+      elevation_minimum: 100,
+      elevation_maximum: 236,
+      coordinate_reference: "native_crs84_projected_to_shared_landscape_frame",
+      vertical_reference:
+        "qualified_shared_elevation_meters:composition:adjacent",
+    });
+    expect(westField.grid.bounds.x + westField.grid.bounds.width).toBeCloseTo(
+      eastField.grid.bounds.x,
+      8,
+    );
+    for (let row = 0; row < westField.grid.rows; row += 1)
+      expect(
+        westField.elevation.values[
+          row * westField.grid.columns + westField.grid.columns - 1
+        ],
+      ).toBe(eastField.elevation.values[row * eastField.grid.columns]);
+    expect(westField.field_set_id).toContain(frame.frame_id);
+    expect(eastField.field_set_id).toContain(frame.frame_id);
   });
 
   it("maps native north-west and south-east into a padded, zoomed-out landscape frame", () => {

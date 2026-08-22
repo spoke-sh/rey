@@ -92,6 +92,10 @@ function stableEvidence(capture) {
     source_revisions: capture.source_revisions,
     stage: capture.stage,
     terrain: {
+      landscape_composition_revision:
+        capture.renderer?.landscape_composition_revision,
+      landscape_mosaic_id: capture.renderer?.landscape_mosaic_id,
+      landscape_primary_patch_id: capture.renderer?.landscape_primary_patch_id,
       no_data_leak_triangles: capture.renderer?.terrain_no_data_leak_triangles,
       render_pass_kinds: capture.renderer?.render_pass_kinds,
       render_pass_area_count: capture.renderer?.render_pass_area_count,

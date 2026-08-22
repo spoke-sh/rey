@@ -1054,6 +1054,15 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-landscape-patch-set-id={
             terrainRenderer.landscape_patch_set_id
           }
+          data-renderer-landscape-mosaic-id={
+            terrainRenderer.landscape_mosaic_id
+          }
+          data-renderer-landscape-composition-revision={
+            terrainRenderer.landscape_composition_revision
+          }
+          data-renderer-landscape-primary-patch-id={
+            terrainRenderer.landscape_primary_patch_id
+          }
           data-renderer-landscape-patch-count={
             terrainRenderer.landscape_patch_count
           }
