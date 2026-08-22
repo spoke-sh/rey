@@ -3,6 +3,8 @@ import { Object3D, Vector3 } from "three/src/Three.WebGPU.js";
 import {
   buildProjectedBoundsMeshes,
   buildProjectedGlobeMesh,
+  GLOBE_ATLAS_EXTENT_RATIO,
+  GLOBE_ATLAS_REGION_MARKER_RADIUS,
   GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT,
   GLOBE_ATLAS_REPEAT_MAX_DEPTH,
   GLOBE_CAMERA_DISTANCE,
@@ -14,6 +16,7 @@ import {
   globeAtlasRepeatSeamWeight,
   globeAtlasRepeatVisibility,
   globeAtlasProjectionCenter,
+  globeAtlasRegionMarkerSceneRadius,
   globeAtlasWidth,
   globeAtlasViewCenter,
   globeAtmosphereOpacity,
@@ -87,7 +90,9 @@ describe("declarative globe-to-Mercator projection", () => {
     expect(atlas.normal).toEqual([0, 0, 1]);
     const east = projectGlobeCoordinate(180, 0, view, world, 1);
     expect(east.position[0]).toBeCloseTo(
-      GLOBE_CAMERA_HALF_HEIGHT * (world.width / world.height) * 0.985,
+      GLOBE_CAMERA_HALF_HEIGHT *
+        (world.width / world.height) *
+        GLOBE_ATLAS_EXTENT_RATIO,
     );
     const north = projectGlobeCoordinate(
       0,
@@ -96,7 +101,10 @@ describe("declarative globe-to-Mercator projection", () => {
       world,
       1,
     );
-    expect(north.position[1]).toBeCloseTo(GLOBE_CAMERA_HALF_HEIGHT * 0.985, 5);
+    expect(north.position[1]).toBeCloseTo(
+      GLOBE_CAMERA_HALF_HEIGHT * GLOBE_ATLAS_EXTENT_RATIO,
+      5,
+    );
   });
 
   it("uses the same projection for the base surface and admitted sectors", () => {
@@ -215,11 +223,15 @@ describe("declarative globe-to-Mercator projection", () => {
     const rowLength = 13 * 3;
     const equatorOffset = 4 * rowLength;
     expect(mesh.positions[equatorOffset]).toBeCloseTo(
-      -GLOBE_CAMERA_HALF_HEIGHT * (world.width / world.height) * 0.985,
+      -GLOBE_CAMERA_HALF_HEIGHT *
+        (world.width / world.height) *
+        GLOBE_ATLAS_EXTENT_RATIO,
       5,
     );
     expect(mesh.positions[equatorOffset + 12 * 3]).toBeCloseTo(
-      GLOBE_CAMERA_HALF_HEIGHT * (world.width / world.height) * 0.985,
+      GLOBE_CAMERA_HALF_HEIGHT *
+        (world.width / world.height) *
+        GLOBE_ATLAS_EXTENT_RATIO,
       5,
     );
     expect(center.longitude_degrees).not.toBe(0);
@@ -227,11 +239,22 @@ describe("declarative globe-to-Mercator projection", () => {
 
   it("defines one exact horizontal period for repeated Atlas charts", () => {
     expect(globeAtlasWidth(world)).toBeCloseTo(
-      GLOBE_CAMERA_HALF_HEIGHT * (world.width / world.height) * 0.985 * 2,
+      GLOBE_CAMERA_HALF_HEIGHT *
+        (world.width / world.height) *
+        GLOBE_ATLAS_EXTENT_RATIO *
+        2,
     );
     expect(() => globeAtlasWidth({ width: 0, height: 720 })).toThrow(
       "globe projection requires a finite positive world",
     );
+  });
+
+  it("projects the flat Atlas regional marker into reference scene units", () => {
+    expect(globeAtlasRegionMarkerSceneRadius(world)).toBeCloseTo(
+      (GLOBE_ATLAS_REGION_MARKER_RADIUS * world.height) /
+        (GLOBE_CAMERA_HALF_HEIGHT * 2),
+    );
+    expect(globeAtlasRegionMarkerSceneRadius(world)).toBeCloseTo(4.41509434);
   });
 
   it("keeps repeated charts attached to the unfurling projection seam", () => {

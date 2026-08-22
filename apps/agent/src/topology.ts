@@ -5,6 +5,7 @@ import type {
   SemanticAtlasDelta,
   WorkloadList,
 } from "./domain";
+import { GLOBE_ATLAS_EXTENT_RATIO } from "@rey/explorer";
 import {
   DEFAULT_LENS_ZOOM,
   lensRegimeForZoom,
@@ -1431,11 +1432,15 @@ function regionalSceneTraversable(
 }
 
 function semanticMercatorFrame() {
+  const horizontalInset =
+    (TOPOLOGY_WORLD.width * (1 - GLOBE_ATLAS_EXTENT_RATIO)) / 2;
+  const verticalInset =
+    (TOPOLOGY_WORLD.height * (1 - GLOBE_ATLAS_EXTENT_RATIO)) / 2;
   return {
-    x: 70,
-    y: 55,
-    width: TOPOLOGY_WORLD.width - 140,
-    height: TOPOLOGY_WORLD.height - 110,
+    x: horizontalInset,
+    y: verticalInset,
+    width: TOPOLOGY_WORLD.width * GLOBE_ATLAS_EXTENT_RATIO,
+    height: TOPOLOGY_WORLD.height * GLOBE_ATLAS_EXTENT_RATIO,
   };
 }
 

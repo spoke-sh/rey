@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { globeAtlasRegionMarkerSceneRadius } from "@rey/explorer";
 import type { AdmittedRegionalScene } from "../../domain";
 import type { TopologyScene } from "../../topology";
 import {
@@ -26,7 +27,8 @@ function minimalRegionalTerrainField() {
       elevation_micrometers: (100 + index * 17) * 1_000_000,
       material: "granite",
       validity: "valid" as const,
-      authority: "exact admitted Point altitude and material at one valid grid vertex",
+      authority:
+        "exact admitted Point altitude and material at one valid grid vertex",
     };
   });
   const scene = {
@@ -478,7 +480,7 @@ describe("reference renderer", () => {
         schema: "rey.world-atlas-transition.v1",
         atlas_revision: "atlas:1",
         globe_source_revision: "atlas:1",
-        projection_revision: "rey.semantic-mercator-projection@2",
+        projection_revision: "rey.semantic-mercator-projection@3",
         atlas_frame: { x: 0, y: 0, width: 1500, height: 1000 },
         points: [],
         sectors: [],
@@ -509,7 +511,12 @@ describe("reference renderer", () => {
       'data-semantic-identity="region:1"',
     );
     expect(extractAtlasFeatureLayer(referenceMarkup)).toContain("<rect");
-    expect(extractAtlasFeatureLayer(referenceMarkup)).toContain("<circle");
+    const referenceLayer = extractAtlasFeatureLayer(referenceMarkup);
+    const markerRadius = globeAtlasRegionMarkerSceneRadius(atlasScene.world);
+    expect(referenceLayer.match(/<circle/g)).toHaveLength(3);
+    expect(
+      referenceLayer.match(new RegExp(`r="${markerRadius}"`, "g")),
+    ).toHaveLength(3);
 
     const acceleratedMarkup = renderToStaticMarkup(
       <ReferenceRenderer
@@ -578,7 +585,7 @@ describe("reference renderer", () => {
         schema: "rey.world-atlas-transition.v1",
         atlas_revision: "atlas:1",
         globe_source_revision: "atlas:1",
-        projection_revision: "rey.semantic-mercator-projection@2",
+        projection_revision: "rey.semantic-mercator-projection@3",
         atlas_frame: { x: 0, y: 0, width: 1500, height: 1000 },
         points: [],
         sectors: [],
@@ -624,7 +631,7 @@ describe("reference renderer", () => {
     // It must still be present and carrying the fade here.
     expect(markup).toContain('data-atlas-feature-layer="atlas:1"');
     expect(markup).toContain('data-semantic-identity="atlas-sector:1"');
-    expect(markup).toContain("style=\"opacity:" + presentation.atlas_opacity);
+    expect(markup).toContain('style="opacity:' + presentation.atlas_opacity);
 
     // The css_transform is meant only for content laid out in target_frame
     // (terrain/county pixel space) — it maps that space onto source_frame
@@ -636,17 +643,16 @@ describe("reference renderer", () => {
     // sector through the swoop. It must appear exactly once in the markup —
     // on the terrain-space wrapper — never inside AtlasFeatureLayer's own
     // <svg>.
-    const transformOccurrences = markup.split(
-      presentation.css_transform,
-    ).length - 1;
+    const transformOccurrences =
+      markup.split(presentation.css_transform).length - 1;
     expect(transformOccurrences).toBe(1);
     const atlasLayerStart = markup.indexOf(
       'data-atlas-feature-layer="atlas:1"',
     );
     const atlasLayerEnd = markup.indexOf("</svg>", atlasLayerStart);
-    expect(
-      markup.slice(atlasLayerStart, atlasLayerEnd),
-    ).not.toContain(presentation.css_transform);
+    expect(markup.slice(atlasLayerStart, atlasLayerEnd)).not.toContain(
+      presentation.css_transform,
+    );
   });
 
   it("eases an Atlas node label's white halo in as the morph reaches the flat map", () => {
@@ -674,7 +680,7 @@ describe("reference renderer", () => {
         schema: "rey.world-atlas-transition.v1",
         atlas_revision: "atlas:1",
         globe_source_revision: "atlas:1",
-        projection_revision: "rey.semantic-mercator-projection@2",
+        projection_revision: "rey.semantic-mercator-projection@3",
         atlas_frame: { x: 0, y: 0, width: 1500, height: 1000 },
         points: [],
         sectors: [],
@@ -753,7 +759,7 @@ describe("reference renderer", () => {
         schema: "rey.world-atlas-transition.v1",
         atlas_revision: "atlas:1",
         globe_source_revision: "atlas:1",
-        projection_revision: "rey.semantic-mercator-projection@2",
+        projection_revision: "rey.semantic-mercator-projection@3",
         atlas_frame: { x: 0, y: 0, width: 1500, height: 1000 },
         points: [
           {
@@ -821,7 +827,7 @@ describe("reference renderer", () => {
         schema: "rey.world-atlas-transition.v1",
         atlas_revision: "atlas:1",
         globe_source_revision: "atlas:1",
-        projection_revision: "rey.semantic-mercator-projection@2",
+        projection_revision: "rey.semantic-mercator-projection@3",
         atlas_frame: { x: 0, y: 0, width: 1500, height: 1000 },
         points: [
           {
@@ -908,7 +914,7 @@ describe("reference renderer", () => {
         schema: "rey.world-atlas-transition.v1",
         atlas_revision: "atlas:1",
         globe_source_revision: "atlas:1",
-        projection_revision: "rey.semantic-mercator-projection@2",
+        projection_revision: "rey.semantic-mercator-projection@3",
         atlas_frame: { x: 0, y: 0, width: 1500, height: 1000 },
         points: [
           {

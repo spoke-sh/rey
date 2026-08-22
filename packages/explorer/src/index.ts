@@ -12,6 +12,8 @@ export {
 export type { GlobePole, GlobePolePattern } from "./globe-samples";
 export {
   GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES,
+  GLOBE_ATLAS_EXTENT_RATIO,
+  GLOBE_ATLAS_REGION_MARKER_RADIUS,
   GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT,
   GLOBE_ATLAS_REPEAT_DISSOLVE_START,
   GLOBE_ATLAS_REPEAT_MAX_DEPTH,
@@ -24,6 +26,7 @@ export {
   globeAtlasRepeatPeriod,
   globeAtlasRepeatSeamWeight,
   globeAtlasRepeatVisibility,
+  globeAtlasRegionMarkerSceneRadius,
   globeAtlasWidth,
   globeAtlasViewCenter,
   globeAtmosphereOpacity,

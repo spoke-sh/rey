@@ -30,6 +30,7 @@ import {
 } from "@rey/explorer/globe-samples";
 import {
   GLOBE_ATLAS_REPEAT_DISSOLVE_START,
+  globeAtlasRegionMarkerSceneRadius,
   globeAtlasRepeatOpacity,
   globeAtlasRepeatSeamWeight,
   globeAtlasRepeatVisibility,
@@ -735,20 +736,12 @@ function AtlasFeatureLayer({
                 tabIndex={wrapIndex === 0 ? 0 : -1}
               >
                 {!accelerated ? (
-                  <>
-                    <circle
-                      className={sx(styles.atlasFeatureHalo)}
-                      cx={x}
-                      cy={node.y}
-                      r={15}
-                    />
-                    <circle
-                      className={sx(styles.atlasFeaturePoint)}
-                      cx={x}
-                      cy={node.y}
-                      r={7}
-                    />
-                  </>
+                  <circle
+                    className={sx(styles.atlasFeaturePoint)}
+                    cx={x}
+                    cy={node.y}
+                    r={globeAtlasRegionMarkerSceneRadius(scene.world)}
+                  />
                 ) : null}
                 {placement.visible ? (
                   <text

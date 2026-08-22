@@ -2,7 +2,7 @@ import type { GlobeCameraView } from "../engine/camera";
 import { globeAtlasViewCenter } from "@rey/explorer/globe-projection";
 
 export const SEMANTIC_MERCATOR_PROJECTION_REVISION =
-  "rey.semantic-mercator-projection@2";
+  "rey.semantic-mercator-projection@3";
 export const SEMANTIC_LONGITUDE_WRAP_MICRODEGREES = 360_000_000;
 export const SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES = 85_051_129;
 

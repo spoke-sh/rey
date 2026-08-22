@@ -1285,14 +1285,15 @@ export function explorerGeographicCoordinate(
     };
   }
   if (scene.regime === "atlas") {
+    const atlasFrame = scene.world_atlas_transition?.atlas_frame ?? {
+      x: 0,
+      y: 0,
+      width: scene.world.width,
+      height: scene.world.height,
+    };
     const semantic = invertViewAlignedSemanticMercator(
       cameraCenter,
-      {
-        x: 0,
-        y: 0,
-        width: scene.world.width,
-        height: scene.world.height,
-      },
+      atlasFrame,
       globeView,
     ).coordinate;
     return {

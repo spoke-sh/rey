@@ -410,7 +410,7 @@ describe("regional scene topology projection", () => {
     expect(world.world_atlas_transition).toMatchObject({
       schema: "rey.world-atlas-transition.v1",
       atlas_revision: "atlas:1",
-      projection_revision: "rey.semantic-mercator-projection@2",
+      projection_revision: "rey.semantic-mercator-projection@3",
       points: [
         {
           identity: "atlas-region:1",
@@ -437,6 +437,11 @@ describe("regional scene topology projection", () => {
       },
     });
     expect(atlas.world_atlas_transition).toEqual(world.world_atlas_transition);
+    const atlasFrame = atlas.world_atlas_transition?.atlas_frame;
+    expect(atlasFrame?.x).toBeCloseTo(9);
+    expect(atlasFrame?.y).toBeCloseTo(5.4);
+    expect(atlasFrame?.width).toBeCloseTo(1_182);
+    expect(atlasFrame?.height).toBeCloseTo(709.2);
     expect(atlas.regions[0]).toMatchObject({
       id: "atlas-sector:sector:1",
       label: "SECTOR 5.4",
@@ -482,7 +487,7 @@ describe("regional scene topology projection", () => {
         }),
       );
       expect(transitionMarkup).toContain(
-        'data-projection-morph="rey.semantic-mercator-projection@2"',
+        'data-projection-morph="rey.semantic-mercator-projection@3"',
       );
       expect(transitionMarkup).toContain(
         'data-projection-morph-progress="0.500"',

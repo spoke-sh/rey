@@ -256,6 +256,26 @@ describe("Explorer canvas toolbar", () => {
     expect(
       explorerGeographicCoordinate(
         {
+          county_frame: null,
+          globe: null,
+          regime: "atlas",
+          world: { width: 1_200, height: 720 },
+          world_atlas_transition: {
+            atlas_frame: { x: 9, y: 5.4, width: 1_182, height: 709.2 },
+          },
+        } as TopologyScene,
+        { x: 591, y: 0 },
+        1,
+        { yaw_degrees: 0, pitch_degrees: 0 },
+      ),
+    ).toMatchObject({
+      authority: "semantic_mercator",
+      longitude_degrees: -180,
+    });
+
+    expect(
+      explorerGeographicCoordinate(
+        {
           county_frame: {
             source_bounds: {
               west_microdegrees: -123_000_000,

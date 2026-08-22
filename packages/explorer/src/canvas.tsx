@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ContextGlobeScene } from "./scenes/globe-scene";
 import { ContinuousReliefScene } from "./scenes/terrain-scene";
 import {
+  acceleratedCanvasOpacity,
   boundedViewport,
   renderFrameInvalidation,
   type RenderFrameIdentity,
@@ -102,9 +103,8 @@ export function ExplorerCanvas({
           transform: `translate(-50%, -50%) scale(${(content.world.width * horizontalWrapIndexes.length) / viewport.width}, ${content.world.height / viewport.height})`,
           transformOrigin: "center center",
           width: viewport.width,
-          opacity,
         }
-      : { opacity };
+      : undefined;
   const onReportRef = useRef(onReport);
   onReportRef.current = onReport;
   const report = (
@@ -352,7 +352,10 @@ export function ExplorerCanvas({
       }
       data-renderer="react-three-fiber"
       ref={canvasRef}
-      style={wrappedCanvasStyle}
+      style={{
+        ...wrappedCanvasStyle,
+        opacity: acceleratedCanvasOpacity(opacity, ready, visible),
+      }}
     />
   );
 }

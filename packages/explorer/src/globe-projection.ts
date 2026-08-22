@@ -4,6 +4,8 @@ import { GLOBE_RADIUS } from "./three-globe";
 export const SEMANTIC_MERCATOR_LATITUDE_CUTOFF_DEGREES = 85.051129;
 export const GLOBE_CAMERA_HALF_HEIGHT = 2.12;
 export const GLOBE_CAMERA_DISTANCE = 6;
+export const GLOBE_ATLAS_EXTENT_RATIO = 0.985;
+export const GLOBE_ATLAS_REGION_MARKER_RADIUS = 0.026;
 export const GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES = Object.freeze([
   -1, 0, 1,
 ] as const);
@@ -56,7 +58,20 @@ export interface GlobeAtlasViewCenter {
 
 export function globeAtlasWidth(world: GlobeProjectionWorld) {
   verifyWorld(world);
-  return GLOBE_CAMERA_HALF_HEIGHT * (world.width / world.height) * 0.985 * 2;
+  return (
+    GLOBE_CAMERA_HALF_HEIGHT *
+    (world.width / world.height) *
+    GLOBE_ATLAS_EXTENT_RATIO *
+    2
+  );
+}
+
+export function globeAtlasRegionMarkerSceneRadius(world: GlobeProjectionWorld) {
+  verifyWorld(world);
+  return (
+    (GLOBE_ATLAS_REGION_MARKER_RADIUS * world.height) /
+    (GLOBE_CAMERA_HALF_HEIGHT * 2)
+  );
 }
 
 /** The current east-to-west seam period while the sphere unfurls. */
@@ -338,8 +353,9 @@ export function projectGlobeCoordinate(
   );
   const latitudeRadians = (latitudeCutoff * Math.PI) / 180;
   const aspect = world.width / world.height;
-  const halfHeight = GLOBE_CAMERA_HALF_HEIGHT * 0.985;
-  const halfWidth = GLOBE_CAMERA_HALF_HEIGHT * aspect * 0.985;
+  const halfHeight = GLOBE_CAMERA_HALF_HEIGHT * GLOBE_ATLAS_EXTENT_RATIO;
+  const halfWidth =
+    GLOBE_CAMERA_HALF_HEIGHT * aspect * GLOBE_ATLAS_EXTENT_RATIO;
   // The flat Mercator chart has "north always up" fixed into its definition
   // and cannot represent the view's own pitch. Always recentering against
   // the level (pitch 0) bearing — rather than the live, possibly-pitched

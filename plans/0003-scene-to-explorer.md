@@ -256,9 +256,13 @@ execution timing.
       the immutable reference buffers.
 - [x] Retain real-backend rendered-output parity captures; the current GPU
       consumes qualified CPU fields and does not independently assess evidence.
-- [x] Preserve the visible reference renderer through initialization failure,
-      WebGL context loss, and asynchronous WebGPU device loss; retain real-backend
-      loss captures with the named qualification voyages.
+- [x] Preserve the visible reference renderer through initialization and its
+      first valid accelerated submission, initialization failure, WebGL context
+      loss, and asynchronous WebGPU device loss; never expose a configuring
+      accelerated frame over the reference Atlas, keep the Mercator frame and
+      regional marker footprint pixel-aligned across an atomic readiness
+      handoff, and retain real-backend loss captures with the named
+      qualification voyages.
 - [x] Keep base terrain independently active while available contour, water,
       weather, and probe overlays remain visible without per-layer controls.
 - [x] Compose LOD-aware terrain, contours, hydrology, validity boundaries,

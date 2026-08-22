@@ -300,9 +300,10 @@ admitted county footprints are separate identities; focus may raise a sector
 as transient presentation without changing its evidence or height.
 
 The browser implements this transform as
-`rey.semantic-mercator-projection@2`, a deterministic primitive with an exact
+`rey.semantic-mercator-projection@3`, a deterministic primitive with an exact
 `360000000µ°` wrap, `±85051129µ°` cutoff and polar disclosure, analytic inverse,
-view-relative shared-identity fragments, and stable World/Atlas endpoints. The
+view-relative shared-identity fragments, cross-renderer frame and marker
+parity, and stable World/Atlas endpoints. The
 coordinate facing the rotated globe remains centered, and the surface seam
 moves behind that view before the map unfurls. Its compiler revision is part of
 each regional immutable scene snapshot. Regional Atlas points and occupied

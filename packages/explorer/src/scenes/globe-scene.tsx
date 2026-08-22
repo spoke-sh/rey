@@ -2,6 +2,7 @@ import { useMemo, useRef } from "react";
 import type { GlobeCameraView } from "../types";
 import {
   buildProjectedGlobeMesh,
+  GLOBE_ATLAS_REGION_MARKER_RADIUS,
   GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES,
   GLOBE_CAMERA_HALF_HEIGHT,
   globeAtlasRepeatOffset,
@@ -193,7 +194,8 @@ function GlobeAtlasLayers({
           name={wrappedName(`semantic-region:${region.id}`)}
           progress={progress}
           radius={
-            0.026 + Math.min(0.056, region.angular_radius_degrees / 2_200)
+            GLOBE_ATLAS_REGION_MARKER_RADIUS +
+            Math.min(0.056, region.angular_radius_degrees / 2_200)
           }
           view={view}
           world={world}

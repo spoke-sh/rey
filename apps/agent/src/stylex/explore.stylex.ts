@@ -205,11 +205,7 @@ export const exploreStyles = stylex.create({
     opacity: 0,
     pointerEvents: "none",
     position: "absolute",
-    transitionDuration: {
-      default: "180ms",
-      "@media (prefers-reduced-motion: reduce)": "0.01ms",
-    },
-    transitionProperty: "opacity",
+    transitionDuration: "0ms",
     width: "100%",
     zIndex: 0,
   },
@@ -541,11 +537,10 @@ export const exploreStyles = stylex.create({
     zIndex: 3,
   },
   atlasSector: {
-    fill: "color-mix(in srgb, var(--rey-accent) 6%, transparent)",
+    fill: "color-mix(in srgb, #d57824 18%, transparent)",
     pointerEvents: "none",
-    stroke: "color-mix(in srgb, var(--rey-accent) 48%, var(--line))",
-    strokeDasharray: "5 5",
-    strokeWidth: 1.2,
+    stroke: "#d57824",
+    strokeWidth: 1,
     vectorEffect: "non-scaling-stroke",
   },
   atlasFeature: {
@@ -555,17 +550,8 @@ export const exploreStyles = stylex.create({
       ":focus-visible": "2px solid var(--rey-accent)",
     },
   },
-  atlasFeatureHalo: {
-    fill: "color-mix(in srgb, var(--rey-accent) 12%, transparent)",
-    stroke: "color-mix(in srgb, var(--rey-accent) 38%, transparent)",
-    strokeWidth: 1,
-    vectorEffect: "non-scaling-stroke",
-  },
   atlasFeaturePoint: {
     fill: "#446c61",
-    stroke: "#f4f0df",
-    strokeWidth: 2,
-    vectorEffect: "non-scaling-stroke",
   },
   atlasFeatureLabel: {
     fill: "#213532",

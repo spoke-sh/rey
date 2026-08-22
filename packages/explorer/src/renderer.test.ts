@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { boundedViewport, renderFrameInvalidation } from "./renderer";
+import {
+  acceleratedCanvasOpacity,
+  boundedViewport,
+  renderFrameInvalidation,
+} from "./renderer";
 
 describe("renderer contracts", () => {
   it("bounds physical viewport work independently of CSS size", () => {
@@ -49,5 +53,13 @@ describe("render invalidation", () => {
         render_graph_id: "graph:two",
       }),
     ).toEqual(["camera", "render_graph"]);
+  });
+});
+
+describe("accelerated canvas presentation", () => {
+  it("keeps configuring and hidden canvases transparent", () => {
+    expect(acceleratedCanvasOpacity(1, false, true)).toBe(0);
+    expect(acceleratedCanvasOpacity(1, true, false)).toBe(0);
+    expect(acceleratedCanvasOpacity(0.35, true, true)).toBe(0.35);
   });
 });

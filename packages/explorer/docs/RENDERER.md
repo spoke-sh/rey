@@ -24,7 +24,15 @@ status. WebGL context loss unmounts the R3F root and does the same.
 The package does not draw fallback pixels. `@rey/agent` retains its
 deterministic reference surface beneath the accelerated canvas, reveals
 acceleration only after a valid submitted frame, and reveals the reference
-surface again after loss.
+surface again after loss. Requested content opacity remains subordinate to
+that lifecycle gate, so a configuring or prewarmed accelerated canvas stays
+fully transparent instead of briefly covering the reference Atlas.
+The reference and accelerated flat-Mercator endpoints share the same bounded
+frame, sector treatment, and regional marker footprint, so the first submitted
+frame does not resize the admitted region projection during that handoff. That
+readiness handoff is atomic: CSS must not fade the accelerated canvas in after
+the reference geometry has already been withdrawn. Projection and lens easing
+continue to come from their explicit bounded progress curves.
 
 This separation means backend failure changes visible fidelity, not semantic
 assessment or scene identity.

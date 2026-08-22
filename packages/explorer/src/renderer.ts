@@ -27,6 +27,14 @@ export interface RenderFrameIdentity {
 export type RenderInvalidation =
   "scene" | "camera" | "material" | "render_graph";
 
+export function acceleratedCanvasOpacity(
+  requestedOpacity: number,
+  ready: boolean,
+  visible: boolean,
+): number {
+  return ready && visible ? requestedOpacity : 0;
+}
+
 export function renderFrameInvalidation(
   previous: RenderFrameIdentity | undefined,
   next: RenderFrameIdentity,
