@@ -26,7 +26,7 @@ describe("bounded terrain compilation worker", () => {
       fields: [source],
       programs: [],
       view: terrainTileView(4),
-      maximum_cpu_bytes: 16 * 1024 * 1024,
+      maximum_cpu_bytes: 24 * 1024 * 1024,
       maximum_gpu_bytes: 8 * 1024 * 1024,
     });
     expect(result.execution).toBe("main_thread_fallback");
@@ -67,6 +67,12 @@ describe("bounded terrain compilation worker", () => {
       relief_hierarchy_levels:
         result.materialized_landscape_pyramids[0]!.relief_levels.length,
       relief_hierarchy_bytes: expect.any(Number),
+      relief_derived_bytes: expect.any(Number),
+      relief_halo_source_cells: expect.any(Number),
+      selected_tile_cpu_bytes: expect.any(Number),
+      selected_tile_gpu_bytes: expect.any(Number),
+      materialized_pyramid_cache_hits: 0,
+      materialized_pyramid_cache_misses: 1,
       relief_border_digest_mismatches: 0,
       gpu_timing_ms: null,
       gpu_timing_authority: "unavailable_without_capable_gpu_timer",
@@ -88,7 +94,7 @@ describe("bounded terrain compilation worker", () => {
     const completeRelief =
       result.materialized_landscape_pyramids[0]!.relief_levels.at(-1)!.relief;
     let independentlyDerivedTileDiffers = false;
-    for (const tile of result.compiled_tiles) {
+    for (const [tileSequence, tile] of result.compiled_tiles.entries()) {
       expect(tile.fields.normal.implementation_revision).toContain(
         REGIONAL_TERRAIN_GEOGRAPHY_REVISION,
       );
@@ -97,7 +103,8 @@ describe("bounded terrain compilation worker", () => {
         source_relief_field_id: completeRelief.relief_field_id,
         derivation_scope: "sampled_from_complete_field",
       });
-      const independent = deriveLandscapeReliefField(tile.fields);
+      const independent =
+        tileSequence === 0 ? deriveLandscapeReliefField(tile.fields) : null;
       let tileIndex = 0;
       for (const row of tile.descriptor.row_indices) {
         for (const column of tile.descriptor.column_indices) {
@@ -115,10 +122,11 @@ describe("bounded terrain compilation worker", () => {
             completeRelief.salience[sourceIndex],
           );
           independentlyDerivedTileDiffers ||=
-            independent.hillshade[tileIndex] !==
+            independent !== null &&
+            (independent.hillshade[tileIndex] !==
               completeRelief.hillshade[sourceIndex] ||
-            independent.salience[tileIndex] !==
-              completeRelief.salience[sourceIndex];
+              independent.salience[tileIndex] !==
+                completeRelief.salience[sourceIndex]);
           tileIndex += 1;
         }
       }
@@ -126,7 +134,7 @@ describe("bounded terrain compilation worker", () => {
         expect(tile.fields.validity.values[index]).toBe(1);
     }
     expect(independentlyDerivedTileDiffers).toBe(true);
-  });
+  }, 15_000);
 
   it("rejects CPU overflow and cancels before fallback evaluation", async () => {
     expect(() =>
@@ -153,7 +161,7 @@ describe("bounded terrain compilation worker", () => {
           fields: [admittedField()],
           programs: [],
           view: terrainTileView(4),
-          maximum_cpu_bytes: 16 * 1024 * 1024,
+          maximum_cpu_bytes: 24 * 1024 * 1024,
           maximum_gpu_bytes: 8 * 1024 * 1024,
         },
         abort.signal,

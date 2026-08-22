@@ -1,6 +1,7 @@
 import {
   compileContinuousRelief,
   deriveLandscapeReliefField,
+  landscapePyramidContentId,
   landscapeReliefFieldByteLength,
   terrainNoDataLeakTriangleCount,
   type CompiledContinuousRelief,
@@ -17,8 +18,10 @@ import {
 } from "./compile";
 import type { CompiledTerrainTile } from "./residency";
 import type { MaterializedLandscapeHeightHierarchy } from "./height-pyramid";
+import { LANDSCAPE_HEIGHT_HIERARCHY_REVISION } from "./height-pyramid";
 import {
   compileMaterializedLandscapePyramid,
+  LANDSCAPE_RELIEF_HIERARCHY_REVISION,
   type MaterializedLandscapePyramid,
 } from "./relief-pyramid";
 import { refineRegionalTerrainField } from "./refinement";
@@ -39,7 +42,8 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@8" as const;
+  "rey.terrain.compilation-worker@9" as const;
+export const MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES = 48 * 1024 * 1024;
 
 export interface TerrainProgramWorkerRequest {
   program: TerrainProgram;
@@ -77,6 +81,8 @@ export interface TerrainCompilationMetrics {
   relief_halo_source_cells: number;
   selected_tile_cpu_bytes: number;
   selected_tile_gpu_bytes: number;
+  materialized_pyramid_cache_hits: number;
+  materialized_pyramid_cache_misses: number;
   relief_border_digest_mismatches: number;
   gpu_timing_ms: null;
   gpu_timing_authority: "unavailable_without_capable_gpu_timer";
@@ -121,8 +127,11 @@ export function executeTerrainCompilationJob(
   const admittedFields = admittedSourceFields
     .map((field) => refineRegionalTerrainField(field))
     .map(deriveRegionalTerrainGeography);
-  const materializedLandscapePyramids = admittedFields.map((field) =>
-    compileMaterializedLandscapePyramid(field),
+  const materializedResults = admittedFields.map((field) =>
+    cachedMaterializedLandscapePyramid(field),
+  );
+  const materializedLandscapePyramids = materializedResults.map(
+    ({ pyramid }) => pyramid,
   );
   const heightHierarchies = materializedLandscapePyramids.map(
     ({ height_hierarchy }) => height_hierarchy,
@@ -349,6 +358,12 @@ export function executeTerrainCompilationJob(
         (total, tile) => total + tile.descriptor.gpu_bytes,
         0,
       ),
+      materialized_pyramid_cache_hits: materializedResults.filter(
+        ({ cache_hit }) => cache_hit,
+      ).length,
+      materialized_pyramid_cache_misses: materializedResults.filter(
+        ({ cache_hit }) => !cache_hit,
+      ).length,
       relief_border_digest_mismatches: materializedLandscapePyramids.reduce(
         (total, pyramid) => total + pyramid.border_mismatches,
         0,
@@ -361,4 +376,95 @@ export function executeTerrainCompilationJob(
 
 function measurementNow(): number {
   return globalThis.performance?.now() ?? Date.now();
+}
+
+interface MaterializedLandscapeCacheEntry {
+  pyramid: MaterializedLandscapePyramid;
+  last_requested_generation: number;
+}
+
+const materializedLandscapeCache = new Map<
+  string,
+  MaterializedLandscapeCacheEntry
+>();
+let materializedLandscapeCacheGeneration = 0;
+let materializedLandscapeCacheBytes = 0;
+
+function cachedMaterializedLandscapePyramid(field: TerrainFieldSet): {
+  pyramid: MaterializedLandscapePyramid;
+  cache_hit: boolean;
+} {
+  materializedLandscapeCacheGeneration += 1;
+  const key = materializedLandscapeCacheKey(field);
+  const retained = materializedLandscapeCache.get(key);
+  if (retained) {
+    retained.last_requested_generation = materializedLandscapeCacheGeneration;
+    return { pyramid: retained.pyramid, cache_hit: true };
+  }
+  const pyramid = compileMaterializedLandscapePyramid(field);
+  if (pyramid.byte_length <= MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES) {
+    materializedLandscapeCache.set(key, {
+      pyramid,
+      last_requested_generation: materializedLandscapeCacheGeneration,
+    });
+    materializedLandscapeCacheBytes += pyramid.byte_length;
+    const candidates = [...materializedLandscapeCache.entries()].sort(
+      ([leftKey, left], [rightKey, right]) =>
+        left.last_requested_generation - right.last_requested_generation ||
+        leftKey.localeCompare(rightKey),
+    );
+    for (const [candidateKey, candidate] of candidates) {
+      if (
+        materializedLandscapeCacheBytes <=
+        MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES
+      )
+        break;
+      if (candidateKey === key) continue;
+      materializedLandscapeCache.delete(candidateKey);
+      materializedLandscapeCacheBytes -= candidate.pyramid.byte_length;
+    }
+  }
+  return { pyramid, cache_hit: false };
+}
+
+function materializedLandscapeCacheKey(field: TerrainFieldSet): string {
+  const metadata = new TextEncoder().encode(
+    JSON.stringify({
+      worker_revision: TERRAIN_COMPILATION_WORKER_REVISION,
+      height_revision: LANDSCAPE_HEIGHT_HIERARCHY_REVISION,
+      relief_revision: LANDSCAPE_RELIEF_HIERARCHY_REVISION,
+      field_set_id: field.field_set_id,
+      source_revision: field.source_revision,
+      grid: field.grid,
+      elevation_scale: field.elevation_scale,
+      relief_metrics: field.relief_metrics,
+      landscape_reference: field.landscape_reference,
+      landscape_mosaic: field.landscape_mosaic,
+      channels: [
+        field.elevation.implementation_revision,
+        field.rainfall.implementation_revision,
+        field.flow_direction.implementation_revision,
+        field.flow_accumulation.implementation_revision,
+        field.erosion.implementation_revision,
+        field.normal.implementation_revision,
+        field.curvature.implementation_revision,
+        field.material.implementation_revision,
+      ],
+    }),
+  );
+  return landscapePyramidContentId("materialized-landscape-cache", [
+    metadata,
+    field.validity.values,
+    field.validity_classification?.values ?? new Uint8Array(),
+    field.elevation.values,
+    field.rainfall.values,
+    field.flow_direction.values,
+    field.flow_accumulation.values,
+    field.erosion.values,
+    field.normal.values,
+    field.curvature.values,
+    field.material.tint,
+    field.material.occlusion,
+    field.material.roughness,
+  ]);
 }

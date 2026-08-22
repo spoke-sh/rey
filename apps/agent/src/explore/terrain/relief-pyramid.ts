@@ -34,11 +34,25 @@ import {
 import { deriveTerrainNormals } from "./normals";
 
 export const LANDSCAPE_RELIEF_HIERARCHY_REVISION =
-  "rey.terrain.relief-hierarchy@1" as const;
-export const LANDSCAPE_RELIEF_DERIVATION_TILE_INTERVALS = 32;
+  "rey.terrain.relief-hierarchy@2" as const;
+export const LANDSCAPE_RELIEF_DERIVATION_TILE_INTERVALS = 64;
 export const LANDSCAPE_RELIEF_PARTITION_TOLERANCE = 1e-6;
 
 type ReliefBorder = "north" | "east" | "south" | "west";
+const RELIEF_SCALAR_CHANNELS = Object.freeze([
+  "slope",
+  "aspect",
+  "mdow",
+  "sky_view_factor",
+  "openness",
+  "profile_curvature",
+  "plan_curvature",
+  "local_contrast",
+  "hillshade",
+  "salience",
+] as const);
+type ReliefScalarChannel = (typeof RELIEF_SCALAR_CHANNELS)[number];
+type ReliefArrays = Pick<LandscapeReliefField, ReliefScalarChannel | "tangent">;
 
 export interface MaterializedLandscapeReliefTile {
   tile_id: string;
@@ -139,8 +153,7 @@ export function compileMaterializedLandscapePyramid(
     hierarchy_id: landscapePyramidContentId(
       `${LANDSCAPE_RELIEF_HIERARCHY_REVISION}:${heightHierarchy.hierarchy_id}:${envelope.envelope_id}`,
       reliefLevels.flatMap(({ relief }) => [
-        relief.hillshade,
-        relief.salience,
+        ...RELIEF_SCALAR_CHANNELS.map((channel) => relief[channel]),
         relief.tangent,
       ]),
     ),
@@ -286,9 +299,14 @@ function compileReliefLevel(
   );
   const reference = deriveLandscapeReliefField(levelField);
   const gutter = reference.maximum_support_radius_cells;
-  const hillshade = new Float32Array(levelField.field_cells);
-  const salience = new Float32Array(levelField.field_cells);
+  const assembled = Object.fromEntries(
+    RELIEF_SCALAR_CHANNELS.map((channel) => [
+      channel,
+      new Float32Array(levelField.field_cells),
+    ]),
+  ) as unknown as Pick<ReliefArrays, ReliefScalarChannel>;
   const tangent = new Float32Array(levelField.field_cells * 2);
+  const assembledRelief: ReliefArrays = { ...assembled, tangent };
   const written = new Uint8Array(levelField.field_cells);
   let borderMismatches = 0;
   const tiles: MaterializedLandscapeReliefTile[] = [];
@@ -331,9 +349,7 @@ function compileReliefLevel(
         tileRelief,
         interior,
         levelField.grid.columns,
-        hillshade,
-        salience,
-        tangent,
+        assembledRelief,
         written,
       );
       tiles.push(
@@ -356,11 +372,7 @@ function compileReliefLevel(
   if (written.some((value) => value === 0))
     throw new Error("landscape relief tile partition omitted an interior");
   borderMismatches += adjacentBorderMismatchCount(tiles);
-  const partitionMismatches = reliefMismatchCount(reference, {
-    hillshade,
-    salience,
-    tangent,
-  });
+  const partitionMismatches = reliefMismatchCount(reference, assembledRelief);
   const borderDigestId = landscapePyramidContentId(
     `relief-border-set:${heightLevel.level}`,
     [
@@ -377,9 +389,7 @@ function compileReliefLevel(
   const relief = Object.freeze({
     ...reference,
     relief_field_id: `${LANDSCAPE_RELIEF_HIERARCHY_REVISION}:${heightLevel.level_id}:${borderDigestId}`,
-    hillshade,
-    salience,
-    tangent,
+    ...assembledRelief,
   });
   return Object.freeze({
     level: heightLevel.level,
@@ -649,6 +659,12 @@ function cropReliefInterior(
   };
   const columns = columnEnd - columnStart + 1;
   const rows = rowEnd - rowStart + 1;
+  const scalarChannels = Object.fromEntries(
+    RELIEF_SCALAR_CHANNELS.map((channel) => [
+      channel,
+      sampleReliefWindow(source[channel], source.columns, window, 1),
+    ]),
+  ) as unknown as Pick<ReliefArrays, ReliefScalarChannel>;
   return Object.freeze({
     ...source,
     relief_field_id: `${source.relief_field_id}|interior:${tileId}`,
@@ -658,8 +674,7 @@ function cropReliefInterior(
     derivation_scope: "sampled_from_complete_field" as const,
     columns,
     rows,
-    hillshade: sampleReliefWindow(source.hillshade, source.columns, window, 1),
-    salience: sampleReliefWindow(source.salience, source.columns, window, 1),
+    ...scalarChannels,
     tangent: sampleReliefWindow(source.tangent, source.columns, window, 2),
   });
 }
@@ -668,9 +683,7 @@ function mergeReliefInterior(
   source: LandscapeReliefField,
   interior: MaterializedLandscapeReliefTile["interior"],
   targetColumns: number,
-  hillshade: Float32Array,
-  salience: Float32Array,
-  tangent: Float32Array,
+  target: ReliefArrays,
   written: Uint8Array,
 ): number {
   let sourceIndex = 0;
@@ -684,28 +697,28 @@ function mergeReliefInterior(
       const targetIndex = row * targetColumns + column;
       if (
         written[targetIndex] !== 0 &&
-        (!reliefValueMatches(
-          hillshade[targetIndex]!,
-          source.hillshade[sourceIndex]!,
+        (RELIEF_SCALAR_CHANNELS.some(
+          (channel) =>
+            !reliefValueMatches(
+              target[channel][targetIndex]!,
+              source[channel][sourceIndex]!,
+            ),
         ) ||
           !reliefValueMatches(
-            salience[targetIndex]!,
-            source.salience[sourceIndex]!,
-          ) ||
-          !reliefValueMatches(
-            tangent[targetIndex * 2]!,
+            target.tangent[targetIndex * 2]!,
             source.tangent[sourceIndex * 2]!,
           ) ||
           !reliefValueMatches(
-            tangent[targetIndex * 2 + 1]!,
+            target.tangent[targetIndex * 2 + 1]!,
             source.tangent[sourceIndex * 2 + 1]!,
           ))
       )
         mismatches += 1;
-      hillshade[targetIndex] = source.hillshade[sourceIndex]!;
-      salience[targetIndex] = source.salience[sourceIndex]!;
-      tangent[targetIndex * 2] = source.tangent[sourceIndex * 2]!;
-      tangent[targetIndex * 2 + 1] = source.tangent[sourceIndex * 2 + 1]!;
+      for (const channel of RELIEF_SCALAR_CHANNELS)
+        target[channel][targetIndex] = source[channel][sourceIndex]!;
+      target.tangent[targetIndex * 2] = source.tangent[sourceIndex * 2]!;
+      target.tangent[targetIndex * 2 + 1] =
+        source.tangent[sourceIndex * 2 + 1]!;
       written[targetIndex] = 1;
       sourceIndex += 1;
     }
@@ -715,16 +728,18 @@ function mergeReliefInterior(
 
 function reliefMismatchCount(
   expected: LandscapeReliefField,
-  actual: Pick<LandscapeReliefField, "hillshade" | "salience" | "tangent">,
+  actual: ReliefArrays,
 ): number {
   let mismatches = 0;
   for (let index = 0; index < expected.hillshade.length; index += 1)
     if (
-      !reliefValueMatches(
-        expected.hillshade[index]!,
-        actual.hillshade[index]!,
+      RELIEF_SCALAR_CHANNELS.some(
+        (channel) =>
+          !reliefValueMatches(
+            expected[channel][index]!,
+            actual[channel][index]!,
+          ),
       ) ||
-      !reliefValueMatches(expected.salience[index]!, actual.salience[index]!) ||
       !reliefValueMatches(
         expected.tangent[index * 2]!,
         actual.tangent[index * 2]!,
@@ -744,11 +759,10 @@ function reliefBorderDigests(
 ): Readonly<Record<ReliefBorder, string>> {
   const digest = (edge: ReliefBorder) => {
     const indices = borderIndices(relief.columns, relief.rows, edge);
-    const hillshade = Float32Array.from(indices, (index) =>
-      canonicalReliefValue(relief.hillshade[index]!),
-    );
-    const salience = Float32Array.from(indices, (index) =>
-      canonicalReliefValue(relief.salience[index]!),
+    const scalarChannels = RELIEF_SCALAR_CHANNELS.map((channel) =>
+      Float32Array.from(indices, (index) =>
+        canonicalReliefValue(relief[channel][index]!),
+      ),
     );
     const tangent = Float32Array.from(
       indices.flatMap((index) => [
@@ -758,8 +772,7 @@ function reliefBorderDigests(
     );
     return landscapePyramidContentId("relief-border", [
       Uint8Array.from(indices, (index) => validity[index]!),
-      hillshade,
-      salience,
+      ...scalarChannels,
       tangent,
     ]);
   };
@@ -872,8 +885,10 @@ function windowBounds(
 
 function reliefChannelIds(relief: LandscapeReliefField): readonly string[] {
   return [
-    `hillshade:${landscapePyramidContentId("hillshade", [relief.hillshade])}`,
-    `salience:${landscapePyramidContentId("salience", [relief.salience])}`,
+    ...RELIEF_SCALAR_CHANNELS.map(
+      (channel) =>
+        `${channel}:${landscapePyramidContentId(channel, [relief[channel]])}`,
+    ),
     `tangent:${landscapePyramidContentId("tangent", [relief.tangent])}`,
   ];
 }

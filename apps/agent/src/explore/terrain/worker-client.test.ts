@@ -42,7 +42,7 @@ function job(jobId: string) {
     fields: [admittedField()],
     programs: [],
     view: terrainTileView(4),
-    maximum_cpu_bytes: 16 * 1024 * 1024,
+    maximum_cpu_bytes: 24 * 1024 * 1024,
     maximum_gpu_bytes: 8 * 1024 * 1024,
   };
 }
@@ -70,7 +70,13 @@ describe("terrain compilation worker client", () => {
     expect(MockWorker.instances).toHaveLength(1);
     expect(MockWorker.instances[0]!.terminated).toBe(false);
     MockWorker.instances[0]!.respond("pan:2");
-    await expect(second).resolves.toMatchObject({ job_id: "pan:2" });
+    await expect(second).resolves.toMatchObject({
+      job_id: "pan:2",
+      metrics: {
+        materialized_pyramid_cache_hits: 1,
+        materialized_pyramid_cache_misses: 0,
+      },
+    });
   });
 
   it("collapses requests that arrive while one is in flight down to just the latest", async () => {

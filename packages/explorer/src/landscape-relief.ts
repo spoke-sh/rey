@@ -5,14 +5,22 @@ import {
 import type { TerrainFieldSetInput } from "./types";
 
 export const LANDSCAPE_RELIEF_ENGINE_REVISION =
-  "rey.landscape-relief-engine@3" as const;
+  "rey.landscape-relief-engine@4" as const;
+export const LANDSCAPE_METRIC_GRADIENT_REVISION =
+  "rey.landscape.metric-gradient@1" as const;
+export const LANDSCAPE_MDOW_REVISION = "rey.landscape.mdow@1" as const;
+export const LANDSCAPE_OPENNESS_REVISION = "rey.landscape.openness@1" as const;
+export const LANDSCAPE_RIDGE_SALIENCE_REVISION =
+  "rey.landscape.ridge-salience@1" as const;
+export const LANDSCAPE_TONE_MAPPING_REVISION =
+  "rey.landscape.linear-tone-map@1" as const;
 export const LANDSCAPE_TERRAIN_FABRIC_REVISION =
   "rey.landscape-terrain-fabric@1" as const;
 export const LANDSCAPE_PATCH_SET_REVISION =
   "rey.landscape-patch-set@1" as const;
 
 export interface LandscapeReliefField {
-  schema: "rey.landscape-relief-field.v3";
+  schema: "rey.landscape-relief-field.v4";
   implementation_revision: typeof LANDSCAPE_RELIEF_ENGINE_REVISION;
   relief_field_id: string;
   field_set_id: string;
@@ -28,9 +36,29 @@ export interface LandscapeReliefField {
     support_radius_meters: number | null;
     weight: number;
     supported: boolean;
+    channel_id: string;
+    gradient_revision: typeof LANDSCAPE_METRIC_GRADIENT_REVISION;
+    illumination_revision: typeof LANDSCAPE_MDOW_REVISION;
+    openness_revision: typeof LANDSCAPE_OPENNESS_REVISION;
   }[];
+  operators: Readonly<{
+    metric_gradient: typeof LANDSCAPE_METRIC_GRADIENT_REVISION;
+    mdow: typeof LANDSCAPE_MDOW_REVISION;
+    openness: typeof LANDSCAPE_OPENNESS_REVISION;
+    ridge_salience: typeof LANDSCAPE_RIDGE_SALIENCE_REVISION;
+    tone_mapping: typeof LANDSCAPE_TONE_MAPPING_REVISION;
+    lighting_owner: "renderer_neutral_relief_field";
+  }>;
   columns: number;
   rows: number;
+  slope: Float32Array;
+  aspect: Float32Array;
+  mdow: Float32Array;
+  sky_view_factor: Float32Array;
+  openness: Float32Array;
+  profile_curvature: Float32Array;
+  plan_curvature: Float32Array;
+  local_contrast: Float32Array;
   hillshade: Float32Array;
   salience: Float32Array;
   tangent: Float32Array;
@@ -62,6 +90,14 @@ export function landscapeReliefFieldByteLength(
   relief: LandscapeReliefField,
 ): number {
   return (
+    relief.slope.byteLength +
+    relief.aspect.byteLength +
+    relief.mdow.byteLength +
+    relief.sky_view_factor.byteLength +
+    relief.openness.byteLength +
+    relief.profile_curvature.byteLength +
+    relief.plan_curvature.byteLength +
+    relief.local_contrast.byteLength +
     relief.hillshade.byteLength +
     relief.salience.byteLength +
     relief.tangent.byteLength
@@ -75,10 +111,20 @@ const RELIEF_SCALE_TARGETS = Object.freeze([
   { id: "regional", radius_meters: 5_600, weight: 0.1 },
 ] as const);
 export const LANDSCAPE_RELIEF_MAXIMUM_SUPPORT_RADIUS_CELLS = 64;
-const KEY_LIGHT = normalize3(-0.56, -0.48, 0.68);
-const FILL_LIGHT = normalize3(0.46, -0.18, 0.87);
-const BACK_LIGHT = normalize3(0.42, 0.5, 0.76);
+const KEY_LIGHT = cartographicLight(315, 42);
+const FILL_LIGHT = cartographicLight(225, 28);
+const BACK_LIGHT = cartographicLight(45, 24);
 const CARTOGRAPHIC_RELIEF_VERTICAL_EXAGGERATION = 5;
+const OPENNESS_DIRECTIONS = Object.freeze([
+  [-1, 0],
+  [-1, -1],
+  [0, -1],
+  [1, -1],
+  [1, 0],
+  [1, 1],
+  [0, 1],
+  [-1, 1],
+] as const);
 
 /**
  * Binds one ordered landscape from zero or more admitted terrain patches.
@@ -170,22 +216,6 @@ export function deriveLandscapeReliefField(
   verifyTerrainFieldShape(field);
   const { columns, rows } = field.grid;
   const cells = field.field_cells;
-  const normalX = new Float32Array(cells);
-  const normalY = new Float32Array(cells);
-  const normalUp = new Float32Array(cells);
-  for (let index = 0; index < cells; index += 1) {
-    if (field.validity.values[index] === 0) continue;
-    const offset = index * 3;
-    const normalized = normalize3(
-      field.normal.values[offset]!,
-      field.normal.values[offset + 1]!,
-      field.normal.values[offset + 2]!,
-    );
-    normalX[index] = normalized[0];
-    normalY[index] = normalized[1];
-    normalUp[index] = normalized[2];
-  }
-
   const supportPrefix = prefixSum(columns, rows, (index) =>
     field.validity.values[index] === 0 ? 0 : 1,
   );
@@ -206,11 +236,13 @@ export function deriveLandscapeReliefField(
       : maximumSupported(field.elevation.values, field.validity.values) -
           minimumSupported(field.elevation.values, field.validity.values),
   );
-  const hillshade = new Float32Array(cells);
-  const salience = new Float32Array(cells);
-  const tangent = new Float32Array(cells * 2);
   const scaleContract = landscapeReliefScales(field);
-  const maximumSupportRadius = maximumSupportedScaleRadius(scaleContract);
+  const metricSupportRadius = maximumSupportedScaleRadius(scaleContract);
+  const contrastRadius =
+    metricSupportRadius === 0
+      ? 0
+      : Math.max(1, Math.min(4, metricSupportRadius));
+  const maximumSupportRadius = metricSupportRadius + contrastRadius;
   const spacingX =
     field.relief_metrics?.sample_spacing_x_meters ??
     field.grid.bounds.width / (columns - 1);
@@ -219,17 +251,33 @@ export function deriveLandscapeReliefField(
     field.grid.bounds.height / (rows - 1);
   const verticalScale =
     field.relief_metrics?.elevation_range_meters ?? field.elevation_scale;
+  const slope = new Float32Array(cells);
+  const aspect = new Float32Array(cells);
+  const mdow = new Float32Array(cells);
+  const skyViewFactor = new Float32Array(cells);
+  const openness = new Float32Array(cells);
+  const profileCurvature = new Float32Array(cells);
+  const planCurvature = new Float32Array(cells);
+  const localContrast = new Float32Array(cells);
+  const hillshade = new Float32Array(cells);
+  const salience = new Float32Array(cells);
+  const tangent = new Float32Array(cells * 2);
+  const activeSupport = new Uint8Array(cells);
 
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {
       const index = row * columns + column;
       if (field.validity.values[index] === 0) continue;
       let illumination = 0;
-      let reliefStrength = 0;
+      let slopeTotal = 0;
+      let aspectX = 0;
+      let aspectY = 0;
+      let skyView = 0;
+      let opennessTotal = 0;
+      let profileTotal = 0;
+      let planTotal = 0;
       let position = 0;
       let weightTotal = 0;
-      let directionX = normalX[index]!;
-      let directionY = normalY[index]!;
 
       for (const scale of scaleContract) {
         if (!scale.supported) continue;
@@ -247,7 +295,11 @@ export function deriveLandscapeReliefField(
         const inverseArea = 1 / window.area;
         const normal =
           radius === 0
-            ? normalize3(normalX[index]!, normalY[index]!, normalUp[index]!)
+            ? normalize3(
+                field.normal.values[index * 3]!,
+                field.normal.values[index * 3 + 1]!,
+                field.normal.values[index * 3 + 2]!,
+              )
             : elevationNormal(
                 field.elevation.values,
                 columns,
@@ -258,12 +310,28 @@ export function deriveLandscapeReliefField(
                 spacingY,
                 verticalScale,
               );
-        const key = Math.max(0, dot3(normal, KEY_LIGHT));
-        const fill = Math.max(0, dot3(normal, FILL_LIGHT));
-        const back = Math.max(0, dot3(normal, BACK_LIGHT));
-        illumination +=
-          (0.18 + key * 0.74 + fill * 0.07 + back * 0.03) * weight;
-        reliefStrength += Math.hypot(normal[0], normal[1]) * weight;
+        const scaleSlope = Math.atan2(
+          Math.hypot(normal[0], normal[1]),
+          normal[2],
+        );
+        const scaleAspect = Math.atan2(-normal[1], -normal[0]);
+        const scaleIllumination = mdowIllumination(normal, scaleSlope);
+        const scaleOpenness = directionalOpenness(
+          field.elevation.values,
+          columns,
+          column,
+          row,
+          radius,
+          spacingX,
+          spacingY,
+          verticalScale,
+        );
+        illumination += scaleIllumination * weight;
+        slopeTotal += scaleSlope * weight;
+        aspectX += Math.cos(scaleAspect) * weight;
+        aspectY += Math.sin(scaleAspect) * weight;
+        skyView += scaleOpenness.sky_view_factor * weight;
+        opennessTotal += scaleOpenness.openness * weight;
         const meanElevation =
           rectangleSum(elevationPrefix, columns, window) * inverseArea;
         const meanElevationSquare =
@@ -281,55 +349,103 @@ export function deriveLandscapeReliefField(
             -1,
             1,
           ) * weight;
-        directionX += normal[0] * weight;
-        directionY += normal[1] * weight;
+        const curvature = metricCurvature(
+          field.elevation.values,
+          columns,
+          column,
+          row,
+          radius,
+          elevationSpan,
+        );
+        profileTotal += curvature.profile * weight;
+        planTotal += curvature.plan * weight;
         weightTotal += weight;
       }
 
-      const curvature = clamp(
-        Math.abs(field.curvature.values[index]!) /
-          Math.max(elevationSpan * 0.004, 0.000_01),
-        0,
-        1,
-      );
       if (weightTotal === 0) {
+        mdow[index] = 1;
+        skyViewFactor[index] = 1;
+        localContrast[index] = 0.5;
         hillshade[index] = 1;
-        salience[index] = Math.fround(curvature * 0.16);
-        const tangentLength = Math.hypot(directionX, directionY);
-        tangent[index * 2] = Math.fround(
-          tangentLength > 0.000_01 ? -directionY / tangentLength : 1,
-        );
-        tangent[index * 2 + 1] = Math.fround(
-          tangentLength > 0.000_01 ? directionX / tangentLength : 0,
-        );
+        tangent[index * 2] = 1;
         continue;
       }
       const inverseWeight = 1 / weightTotal;
-      illumination *= inverseWeight;
-      reliefStrength *= inverseWeight;
-      position *= inverseWeight;
-      hillshade[index] = Math.fround(
-        clamp(0.92 + (illumination - 0.77) * 1.8 + position * 0.26, 0.25, 1.18),
-      );
+      activeSupport[index] = 1;
+      slope[index] = Math.fround(slopeTotal * inverseWeight);
+      aspect[index] = Math.fround(Math.atan2(aspectY, aspectX));
+      mdow[index] = Math.fround(illumination * inverseWeight);
+      skyViewFactor[index] = Math.fround(skyView * inverseWeight);
+      openness[index] = Math.fround(opennessTotal * inverseWeight);
+      profileCurvature[index] = Math.fround(profileTotal * inverseWeight);
+      planCurvature[index] = Math.fround(planTotal * inverseWeight);
+      const highFrequency =
+        Math.max(0, profileCurvature[index]!) * 0.52 +
+        Math.abs(planCurvature[index]!) * 0.28;
       salience[index] = Math.fround(
         clamp(
-          reliefStrength * 1.7 + Math.abs(position) * 0.28 + curvature * 0.16,
+          highFrequency +
+            Math.sin(Math.min(Math.PI / 2, slope[index]!)) * 0.28 +
+            Math.abs(position * inverseWeight) * 0.12,
           0,
           1,
         ),
       );
-      const tangentLength = Math.hypot(directionX, directionY);
-      tangent[index * 2] = Math.fround(
-        tangentLength > 0.000_01 ? -directionY / tangentLength : 1,
+      tangent[index * 2] = Math.fround(-Math.sin(aspect[index]!));
+      tangent[index * 2 + 1] = Math.fround(Math.cos(aspect[index]!));
+    }
+  }
+
+  const mdowPrefix = prefixSum(columns, rows, (index) => mdow[index]!);
+  const mdowSquarePrefix = prefixSum(
+    columns,
+    rows,
+    (index) => mdow[index]! ** 2,
+  );
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const index = row * columns + column;
+      if (field.validity.values[index] === 0 || activeSupport[index] === 0)
+        continue;
+      const window = completeWindow(
+        supportPrefix,
+        columns,
+        rows,
+        column,
+        row,
+        contrastRadius,
       );
-      tangent[index * 2 + 1] = Math.fround(
-        tangentLength > 0.000_01 ? directionX / tangentLength : 0,
-      );
+      let contrast = 0.5;
+      if (window) {
+        const inverseArea = 1 / window.area;
+        const mean = rectangleSum(mdowPrefix, columns, window) * inverseArea;
+        const variance = Math.max(
+          0,
+          rectangleSum(mdowSquarePrefix, columns, window) * inverseArea -
+            mean ** 2,
+        );
+        contrast = clamp(
+          0.5 + (mdow[index]! - mean) / Math.max(0.16, Math.sqrt(variance) * 4),
+          0,
+          1,
+        );
+      }
+      localContrast[index] = Math.fround(contrast);
+      const contrastIllumination = 0.62 + contrast * 0.76;
+      const ambientSky = 0.58 + skyViewFactor[index]! * 0.42;
+      const opennessFill = 0.94 + openness[index]! * 0.06;
+      const linear =
+        (mdow[index]! * 0.7 + contrastIllumination * 0.3) *
+          ambientSky *
+          opennessFill +
+        salience[index]! * 0.04;
+      const reinhard = linear / (linear + 0.35);
+      hillshade[index] = Math.fround(clamp(reinhard / (1 / 1.35), 0.28, 1.2));
     }
   }
 
   return Object.freeze({
-    schema: "rey.landscape-relief-field.v3",
+    schema: "rey.landscape-relief-field.v4",
     implementation_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
     relief_field_id: [
       LANDSCAPE_RELIEF_ENGINE_REVISION,
@@ -346,8 +462,17 @@ export function deriveLandscapeReliefField(
       ? "metric_source_spacing"
       : "presentation_grid_spacing",
     scales: scaleContract,
+    operators: reliefOperatorContract(),
     columns,
     rows,
+    slope,
+    aspect,
+    mdow,
+    sky_view_factor: skyViewFactor,
+    openness,
+    profile_curvature: profileCurvature,
+    plan_curvature: planCurvature,
+    local_contrast: localContrast,
     hillshade,
     salience,
     tangent,
@@ -375,7 +500,7 @@ export function sampleLandscapeReliefField(
   verifySampleIndices(rowIndices, source.grid.rows, "row");
   const cells = columnIndices.length * rowIndices.length;
   const result = Object.freeze({
-    schema: "rey.landscape-relief-field.v3" as const,
+    schema: "rey.landscape-relief-field.v4" as const,
     implementation_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
     relief_field_id: `${relief.relief_field_id}|sample:${targetFieldSetId}`,
     field_set_id: targetFieldSetId,
@@ -385,8 +510,65 @@ export function sampleLandscapeReliefField(
     maximum_support_radius_cells: relief.maximum_support_radius_cells,
     scale_basis: relief.scale_basis,
     scales: relief.scales,
+    operators: relief.operators,
     columns: columnIndices.length,
     rows: rowIndices.length,
+    slope: sampleReliefComponents(
+      relief.slope,
+      source.grid.columns,
+      columnIndices,
+      rowIndices,
+      1,
+    ),
+    aspect: sampleReliefComponents(
+      relief.aspect,
+      source.grid.columns,
+      columnIndices,
+      rowIndices,
+      1,
+    ),
+    mdow: sampleReliefComponents(
+      relief.mdow,
+      source.grid.columns,
+      columnIndices,
+      rowIndices,
+      1,
+    ),
+    sky_view_factor: sampleReliefComponents(
+      relief.sky_view_factor,
+      source.grid.columns,
+      columnIndices,
+      rowIndices,
+      1,
+    ),
+    openness: sampleReliefComponents(
+      relief.openness,
+      source.grid.columns,
+      columnIndices,
+      rowIndices,
+      1,
+    ),
+    profile_curvature: sampleReliefComponents(
+      relief.profile_curvature,
+      source.grid.columns,
+      columnIndices,
+      rowIndices,
+      1,
+    ),
+    plan_curvature: sampleReliefComponents(
+      relief.plan_curvature,
+      source.grid.columns,
+      columnIndices,
+      rowIndices,
+      1,
+    ),
+    local_contrast: sampleReliefComponents(
+      relief.local_contrast,
+      source.grid.columns,
+      columnIndices,
+      rowIndices,
+      1,
+    ),
     hillshade: sampleReliefComponents(
       relief.hillshade,
       source.grid.columns,
@@ -410,6 +592,14 @@ export function sampleLandscapeReliefField(
     ),
   });
   if (
+    result.slope.length !== cells ||
+    result.aspect.length !== cells ||
+    result.mdow.length !== cells ||
+    result.sky_view_factor.length !== cells ||
+    result.openness.length !== cells ||
+    result.profile_curvature.length !== cells ||
+    result.plan_curvature.length !== cells ||
+    result.local_contrast.length !== cells ||
     result.hillshade.length !== cells ||
     result.salience.length !== cells ||
     result.tangent.length !== cells * 2
@@ -432,10 +622,10 @@ export function verifyLandscapeReliefField(
           JSON.stringify(expectedScales.map(scaleGeometry));
   const expectedMaximumSupportRadius =
     relief.derivation_scope === "complete_field"
-      ? maximumSupportedScaleRadius(expectedScales)
-      : maximumSupportedScaleRadius(relief.scales);
+      ? effectiveReliefSupportRadius(expectedScales)
+      : effectiveReliefSupportRadius(relief.scales);
   if (
-    relief.schema !== "rey.landscape-relief-field.v3" ||
+    relief.schema !== "rey.landscape-relief-field.v4" ||
     relief.implementation_revision !== LANDSCAPE_RELIEF_ENGINE_REVISION ||
     relief.field_set_id !== field.field_set_id ||
     relief.maximum_support_radius_cells !== expectedMaximumSupportRadius ||
@@ -444,8 +634,18 @@ export function verifyLandscapeReliefField(
         ? "metric_source_spacing"
         : "presentation_grid_spacing") ||
     !scaleContractMatches ||
+    JSON.stringify(relief.operators) !==
+      JSON.stringify(reliefOperatorContract()) ||
     relief.columns !== field.grid.columns ||
     relief.rows !== field.grid.rows ||
+    relief.slope.length !== field.field_cells ||
+    relief.aspect.length !== field.field_cells ||
+    relief.mdow.length !== field.field_cells ||
+    relief.sky_view_factor.length !== field.field_cells ||
+    relief.openness.length !== field.field_cells ||
+    relief.profile_curvature.length !== field.field_cells ||
+    relief.plan_curvature.length !== field.field_cells ||
+    relief.local_contrast.length !== field.field_cells ||
     relief.hillshade.length !== field.field_cells ||
     relief.salience.length !== field.field_cells ||
     relief.tangent.length !== field.field_cells * 2
@@ -468,6 +668,16 @@ function maximumSupportedScaleRadius(
     ...scales
       .filter(({ supported }) => supported)
       .map(({ support_radius_cells }) => support_radius_cells),
+  );
+}
+
+function effectiveReliefSupportRadius(
+  scales: LandscapeReliefField["scales"],
+): number {
+  const metricRadius = maximumSupportedScaleRadius(scales);
+  return (
+    metricRadius +
+    (metricRadius === 0 ? 0 : Math.max(1, Math.min(4, metricRadius)))
   );
 }
 
@@ -539,6 +749,10 @@ function landscapeReliefScales(
           support_radius_meters: null,
           weight: RELIEF_SCALE_TARGETS[index]!.weight,
           supported: true,
+          ...reliefScaleOperatorIdentity(
+            RELIEF_SCALE_TARGETS[index]!.id,
+            radius,
+          ),
         }),
       ),
     );
@@ -564,9 +778,33 @@ function landscapeReliefScales(
           target.radius_meters >= representativeSpacing &&
           requested <= LANDSCAPE_RELIEF_MAXIMUM_SUPPORT_RADIUS_CELLS &&
           radius * 2 + 1 <= Math.min(field.grid.columns, field.grid.rows),
+        ...reliefScaleOperatorIdentity(target.id, radius),
       });
     }),
   );
+}
+
+function reliefScaleOperatorIdentity(
+  id: LandscapeReliefField["scales"][number]["id"],
+  radius: number,
+) {
+  return {
+    channel_id: `${LANDSCAPE_METRIC_GRADIENT_REVISION}:${LANDSCAPE_MDOW_REVISION}:${LANDSCAPE_OPENNESS_REVISION}:${id}:r${radius}`,
+    gradient_revision: LANDSCAPE_METRIC_GRADIENT_REVISION,
+    illumination_revision: LANDSCAPE_MDOW_REVISION,
+    openness_revision: LANDSCAPE_OPENNESS_REVISION,
+  } as const;
+}
+
+function reliefOperatorContract(): LandscapeReliefField["operators"] {
+  return Object.freeze({
+    metric_gradient: LANDSCAPE_METRIC_GRADIENT_REVISION,
+    mdow: LANDSCAPE_MDOW_REVISION,
+    openness: LANDSCAPE_OPENNESS_REVISION,
+    ridge_salience: LANDSCAPE_RIDGE_SALIENCE_REVISION,
+    tone_mapping: LANDSCAPE_TONE_MAPPING_REVISION,
+    lighting_owner: "renderer_neutral_relief_field" as const,
+  });
 }
 
 function elevationNormal(
@@ -594,6 +832,95 @@ function elevationNormal(
       CARTOGRAPHIC_RELIEF_VERTICAL_EXAGGERATION) /
     (2 * radius * spacingY);
   return normalize3(-derivativeX, -derivativeY, 1);
+}
+
+function mdowIllumination(
+  normal: readonly [number, number, number],
+  slope: number,
+): number {
+  const key = Math.max(0, dot3(normal, KEY_LIGHT));
+  const fill = Math.max(0, dot3(normal, FILL_LIGHT));
+  const rim = Math.max(0, dot3(normal, BACK_LIGHT));
+  const weighted = 0.24 + key * 0.58 + fill * 0.11 + rim * 0.07;
+  const adaptive = smoothstep(0.08, 0.9, slope);
+  return clamp(1 + (weighted - 0.78) * (0.52 + adaptive * 0.48), 0.34, 1.18);
+}
+
+function directionalOpenness(
+  elevation: Float32Array,
+  columns: number,
+  column: number,
+  row: number,
+  radius: number,
+  spacingX: number,
+  spacingY: number,
+  verticalScale: number,
+): { sky_view_factor: number; openness: number } {
+  if (radius === 0) return { sky_view_factor: 1, openness: 0 };
+  const distances = [
+    ...new Set([
+      Math.max(1, Math.round(radius * 0.25)),
+      Math.max(1, Math.round(radius * 0.5)),
+      radius,
+    ]),
+  ];
+  const center = elevation[row * columns + column]!;
+  let skyView = 0;
+  let signedOpenness = 0;
+  for (const [directionX, directionY] of OPENNESS_DIRECTIONS) {
+    let positiveHorizon = 0;
+    let negativeHorizon = 0;
+    for (const distance of distances) {
+      const sampleColumn = column + directionX * distance;
+      const sampleRow = row + directionY * distance;
+      const horizontalDistance = Math.hypot(
+        directionX * distance * spacingX,
+        directionY * distance * spacingY,
+      );
+      const difference =
+        (elevation[sampleRow * columns + sampleColumn]! - center) *
+        verticalScale;
+      positiveHorizon = Math.max(
+        positiveHorizon,
+        Math.atan2(difference, horizontalDistance),
+      );
+      negativeHorizon = Math.max(
+        negativeHorizon,
+        Math.atan2(-difference, horizontalDistance),
+      );
+    }
+    skyView += Math.cos(positiveHorizon) ** 2;
+    signedOpenness += (negativeHorizon - positiveHorizon) / (Math.PI / 2);
+  }
+  return {
+    sky_view_factor: clamp(skyView / OPENNESS_DIRECTIONS.length, 0, 1),
+    openness: clamp(signedOpenness / OPENNESS_DIRECTIONS.length, -1, 1),
+  };
+}
+
+function metricCurvature(
+  elevation: Float32Array,
+  columns: number,
+  column: number,
+  row: number,
+  radius: number,
+  elevationSpan: number,
+): { profile: number; plan: number } {
+  if (radius === 0) return { profile: 0, plan: 0 };
+  const center = elevation[row * columns + column]!;
+  const left = elevation[row * columns + column - radius]!;
+  const right = elevation[row * columns + column + radius]!;
+  const top = elevation[(row - radius) * columns + column]!;
+  const bottom = elevation[(row + radius) * columns + column]!;
+  const threshold = Math.max(elevationSpan * 0.006, 0.000_001);
+  return {
+    profile: clamp(
+      (center - (left + right + top + bottom) / 4) / threshold,
+      -1,
+      1,
+    ),
+    plan: clamp((left + right - top - bottom) / 2 / threshold, -1, 1),
+  };
 }
 
 interface PrefixWindow {
@@ -745,6 +1072,20 @@ function normalize3(
   return length > 0 ? [x / length, y / length, z / length] : [0, 0, 1];
 }
 
+function cartographicLight(
+  azimuthDegrees: number,
+  altitudeDegrees: number,
+): readonly [number, number, number] {
+  const azimuth = (azimuthDegrees * Math.PI) / 180;
+  const altitude = (altitudeDegrees * Math.PI) / 180;
+  const horizontal = Math.cos(altitude);
+  return normalize3(
+    Math.sin(azimuth) * horizontal,
+    -Math.cos(azimuth) * horizontal,
+    Math.sin(altitude),
+  );
+}
+
 function dot3(
   left: readonly [number, number, number],
   right: readonly [number, number, number],
@@ -763,6 +1104,11 @@ function stableSequenceNoise(sequence: number, revision: string): number {
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
+}
+
+function smoothstep(minimum: number, maximum: number, value: number): number {
+  const progress = clamp((value - minimum) / (maximum - minimum), 0, 1);
+  return progress * progress * (3 - 2 * progress);
 }
 
 function boundsOverlap(

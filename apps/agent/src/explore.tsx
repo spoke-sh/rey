@@ -1099,6 +1099,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-landscape-selected-tile-gpu-bytes={
             terrainRenderer.landscape_selected_tile_gpu_bytes
           }
+          data-renderer-landscape-materialized-cache-hits={
+            terrainRenderer.landscape_materialized_cache_hits
+          }
+          data-renderer-landscape-materialized-cache-misses={
+            terrainRenderer.landscape_materialized_cache_misses
+          }
           data-renderer-landscape-relief-derivation-tiles={
             terrainRenderer.landscape_relief_derivation_tile_count
           }

@@ -444,8 +444,16 @@ function verifyLandscapePyramidFieldBinding(
   const reliefLevel = envelope.relief_pyramid.levels.at(-1)!;
   const validity = summarizeTerrainFieldValidity(field);
   const expectedReliefChannels = canonicalStrings([
+    `aspect:${landscapePyramidContentId("aspect", [relief.aspect])}`,
     `hillshade:${landscapePyramidContentId("hillshade", [relief.hillshade])}`,
+    `local_contrast:${landscapePyramidContentId("local_contrast", [relief.local_contrast])}`,
+    `mdow:${landscapePyramidContentId("mdow", [relief.mdow])}`,
+    `openness:${landscapePyramidContentId("openness", [relief.openness])}`,
+    `plan_curvature:${landscapePyramidContentId("plan_curvature", [relief.plan_curvature])}`,
+    `profile_curvature:${landscapePyramidContentId("profile_curvature", [relief.profile_curvature])}`,
     `salience:${landscapePyramidContentId("salience", [relief.salience])}`,
+    `sky_view_factor:${landscapePyramidContentId("sky_view_factor", [relief.sky_view_factor])}`,
+    `slope:${landscapePyramidContentId("slope", [relief.slope])}`,
     `tangent:${landscapePyramidContentId("tangent", [relief.tangent])}`,
   ]);
   if (

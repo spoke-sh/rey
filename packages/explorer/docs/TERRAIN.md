@@ -36,20 +36,34 @@ Each `TerrainFieldSetInput` supplies one bounded regular grid:
 | Occlusion      | `Float32Array`                  | Darkens bounded valleys and ambient support.                   |
 | Roughness      | `Float32Array`                  | Controls the TSL surface response.                             |
 
-`rey.landscape-relief-field.v3` separately binds renderer-neutral hillshade,
-salience, tangent, metric-scale basis, and operator-support metadata to the
-exact field identity. `rey.terrain-relief-metrics.v1`, when present, binds
+`rey.landscape-relief-field.v4` binds renderer-neutral metric slope/aspect,
+MDOW illumination, sky-view factor, signed openness, profile/plan curvature,
+local contrast, tone-mapped hillshade, ridge salience, and tangent arrays to
+the exact field identity. `rey.terrain-relief-metrics.v1`, when present, binds
 source sample spacing in both axes, admitted elevation range, and the authority
-of that presentation transform. Regional terrain derives the relief arrays
-once over the complete refined field before camera tile materialization. Each
-render tile samples that field-wide result by original row/column identity.
-Relief is never re-evaluated on a cropped tile, so a kernel cannot lose
-neighbors or renormalize merely because the camera selected a different tile
-partition. A target scale that is finer than the admitted spacing, larger than
-the bounded kernel, or wider than the complete grid is marked unsupported and
-does not contribute. Renderer diagnostics expose the scale basis and exact
-support decisions. The worker retains both shared-border equality and
-complete-field/partition equality as distinct zero-mismatch diagnostics.
+of that presentation transform. Each local, midslope, and regional scale names
+its metric-gradient, MDOW, and openness revisions and declares its support in
+meters and cells.
+
+MDOW combines a 315° northwest primary, 225° southwest fill, and 45° northeast
+rim with slope-adaptive contrast and a nonblack ambient floor. Directional
+positive/negative horizons derive sky-view and openness from admitted metric
+elevation. High-pass profile/plan curvature, metric slope, and local position
+produce ridge salience; a validity-safe local statistic then applies
+linear-space contrast and deterministic tone mapping. The complete support
+radius includes this contrast neighborhood as well as the largest metric
+operator.
+
+Regional terrain derives every relief array over the complete refined field
+before camera tile materialization. Each render tile samples that result by
+original row/column identity. Relief is never re-evaluated on a cropped render
+tile, so a kernel cannot lose neighbors or renormalize merely because the
+camera selected a different partition. A target scale that is finer than the
+admitted spacing, larger than the bounded kernel, or wider than the complete
+grid is marked unsupported and does not contribute. Renderer diagnostics
+expose the scale basis and exact support decisions. The worker retains both
+shared-border equality and complete-field/partition equality across every
+derived array as distinct zero-mismatch diagnostics.
 
 Admitted regional fields also carry
 `rey.terrain-validity-classification.v1`. Its values distinguish supported
@@ -95,7 +109,7 @@ envelope before sampling camera tiles; diagnostics retain its identities,
 completion, level/byte counts, gutters, border digests, and zero-mismatch
 results.
 
-`rey.terrain.relief-hierarchy@1` partitions every level into bounded
+`rey.terrain.relief-hierarchy@2` partitions every level into bounded
 32-interval interiors, expands each source window by the largest supported
 metric operator, derives from that halo, and then crops the interior. The
 assembled result must equal whole-level derivation within the named `1e-6`
@@ -323,7 +337,7 @@ remove coarse support but cannot become a valid coarse vertex. Camera
 selection chooses a uniform level from cumulative hierarchy error, preventing
 mixed-level edge cracks while retaining screen-space control.
 
-`rey.terrain.compilation-worker@8` runs hierarchy projection, haloed relief
+`rey.terrain.compilation-worker@9` runs hierarchy projection, haloed relief
 derivation, exact relief sampling, procedural field evaluation, partition and
 border parity checking, and mesh preparation in a cancellable dedicated
 worker. The deterministic reference field remains visible while work is
@@ -331,7 +345,10 @@ pending or after failure. A disclosed main-thread fallback exists where
 `Worker` is unavailable. `rey.terrain.tile-residency@2` retains compiled tiles
 under independent 48 MiB CPU and 64 MiB GPU budgets, rejects a tile whose
 compiled relief differs from its cache identity, and evicts the oldest
-unrequested exact identity first.
+unrequested exact identity first. The worker also retains a separately bounded
+48 MiB exact materialized-pyramid cache keyed from every contributing typed
+array and the mosaic, hierarchy, relief, validity, and material revisions; its
+hits and misses are exposed in browser diagnostics.
 
 When an Atlas contains exactly one admitted regional terrain field, the
 application may mount an invisible `rey.explorer.atlas-terrain-prewarm@1`

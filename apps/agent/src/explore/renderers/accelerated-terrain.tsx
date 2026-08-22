@@ -60,6 +60,8 @@ export interface AcceleratedTerrainReport {
   landscape_relief_halo_source_cells: number;
   landscape_selected_tile_cpu_bytes: number;
   landscape_selected_tile_gpu_bytes: number;
+  landscape_materialized_cache_hits: number;
+  landscape_materialized_cache_misses: number;
   landscape_relief_derivation_tile_count: number;
   landscape_relief_maximum_gutter_cells: number;
   landscape_relief_border_digest_ids: readonly string[];
@@ -169,6 +171,8 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     landscape_relief_halo_source_cells: 0,
     landscape_selected_tile_cpu_bytes: 0,
     landscape_selected_tile_gpu_bytes: 0,
+    landscape_materialized_cache_hits: 0,
+    landscape_materialized_cache_misses: 0,
     landscape_relief_derivation_tile_count: 0,
     landscape_relief_maximum_gutter_cells: 0,
     landscape_relief_border_digest_ids: Object.freeze([]),
@@ -802,6 +806,10 @@ export function AcceleratedTerrainSurface({
         activeTerrain?.result.metrics.selected_tile_cpu_bytes ?? 0,
       landscape_selected_tile_gpu_bytes:
         activeTerrain?.result.metrics.selected_tile_gpu_bytes ?? 0,
+      landscape_materialized_cache_hits:
+        activeTerrain?.result.metrics.materialized_pyramid_cache_hits ?? 0,
+      landscape_materialized_cache_misses:
+        activeTerrain?.result.metrics.materialized_pyramid_cache_misses ?? 0,
       landscape_relief_derivation_tile_count:
         activeTerrain?.result.materialized_landscape_pyramids.reduce(
           (total, pyramid) =>

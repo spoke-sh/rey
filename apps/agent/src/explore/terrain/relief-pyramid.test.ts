@@ -1,4 +1,5 @@
 import {
+  landscapeReliefFieldByteLength,
   TERRAIN_VALIDITY_NO_DATA,
   TERRAIN_VALIDITY_UNSUPPORTED,
   verifyLandscapePyramidEnvelope,
@@ -46,9 +47,7 @@ describe("materialized landscape relief pyramid", () => {
           level.field.grid.rows === level.relief.rows &&
           level.byte_length ===
             level.field.field_bytes +
-              level.relief.hillshade.byteLength +
-              level.relief.salience.byteLength +
-              level.relief.tangent.byteLength,
+              landscapeReliefFieldByteLength(level.relief),
       ),
     ).toBe(true);
     expect(fine.tiles.length).toBeGreaterThan(1);

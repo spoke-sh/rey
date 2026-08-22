@@ -52,16 +52,26 @@ describe("landscape relief engine", () => {
     const first = deriveLandscapeReliefField(field);
     const replay = deriveLandscapeReliefField(field);
     expect(first).toMatchObject({
-      schema: "rey.landscape-relief-field.v3",
+      schema: "rey.landscape-relief-field.v4",
       field_set_id: field.field_set_id,
       source_field_set_id: field.field_set_id,
       source_relief_field_id: null,
       derivation_scope: "complete_field",
-      maximum_support_radius_cells: 8,
+      maximum_support_radius_cells: 12,
       scale_basis: "presentation_grid_spacing",
     });
     expect(first.hillshade).toEqual(replay.hillshade);
     expect(first.salience).toEqual(replay.salience);
+    expect(first.slope).toEqual(replay.slope);
+    expect(first.sky_view_factor).toEqual(replay.sky_view_factor);
+    expect(first.operators).toMatchObject({
+      metric_gradient: "rey.landscape.metric-gradient@1",
+      mdow: "rey.landscape.mdow@1",
+      openness: "rey.landscape.openness@1",
+      ridge_salience: "rey.landscape.ridge-salience@1",
+      tone_mapping: "rey.landscape.linear-tone-map@1",
+      lighting_owner: "renderer_neutral_relief_field",
+    });
     expect(new Set(first.hillshade).size).toBeGreaterThan(2);
     expect(Math.max(...first.salience)).toBeGreaterThan(0.1);
 
@@ -91,7 +101,7 @@ describe("landscape relief engine", () => {
     );
 
     expect(tile).toMatchObject({
-      schema: "rey.landscape-relief-field.v3",
+      schema: "rey.landscape-relief-field.v4",
       field_set_id: "terrain:fixture:tile",
       source_field_set_id: field.field_set_id,
       source_relief_field_id: complete.relief_field_id,
@@ -105,6 +115,9 @@ describe("landscape relief engine", () => {
     );
     expect([...tile.salience]).toEqual(
       expectedIndices.map((index) => complete.salience[index]),
+    );
+    expect([...tile.sky_view_factor]).toEqual(
+      expectedIndices.map((index) => complete.sky_view_factor[index]),
     );
     expect(() => verifyLandscapeReliefField(field, tile)).toThrow(
       "does not match terrain input",
@@ -136,7 +149,7 @@ describe("landscape relief engine", () => {
     const relief = deriveLandscapeReliefField(field);
 
     expect(relief.scale_basis).toBe("metric_source_spacing");
-    expect(relief.maximum_support_radius_cells).toBe(1);
+    expect(relief.maximum_support_radius_cells).toBe(2);
     expect(relief.scales).toMatchObject([
       {
         id: "local",
@@ -169,6 +182,53 @@ describe("landscape relief engine", () => {
     );
   });
 
+  it("separates steep ridges from low relief without black MDOW shadows", () => {
+    const steep = metricReliefFixture(33, 33, (column, row) => {
+      const ridge = Math.exp(-(((column - 16) / 2.4) ** 2));
+      return 0.12 + ridge * 0.76 + row * 0.001;
+    });
+    const low = metricReliefFixture(
+      33,
+      33,
+      (column, row) => 0.46 + Math.sin(column / 4) * 0.008 + row * 0.0002,
+    );
+    const steepRelief = deriveLandscapeReliefField(steep);
+    const lowRelief = deriveLandscapeReliefField(low);
+
+    expect(Math.max(...steepRelief.slope)).toBeGreaterThan(
+      Math.max(...lowRelief.slope) * 4,
+    );
+    expect(Math.max(...steepRelief.salience)).toBeGreaterThan(
+      Math.max(...lowRelief.salience),
+    );
+    expect(
+      Math.min(
+        ...[...steepRelief.hillshade].filter((_, index) =>
+          Boolean(steep.validity.values[index]),
+        ),
+      ),
+    ).toBeGreaterThanOrEqual(0.28);
+  });
+
+  it("darkens a valid enclosed valley with deterministic sky-view support", () => {
+    const valley = metricReliefFixture(33, 33, (column, row) => {
+      const distance = Math.hypot(column - 16, row - 16) / 16;
+      return 0.18 + Math.min(0.72, distance * 0.72);
+    });
+    const flat = metricReliefFixture(33, 33, () => 0.5);
+    const valleyRelief = deriveLandscapeReliefField(valley);
+    const flatRelief = deriveLandscapeReliefField(flat);
+    const center = 16 * 33 + 16;
+
+    expect(valleyRelief.sky_view_factor[center]).toBeLessThan(
+      flatRelief.sky_view_factor[center]!,
+    );
+    expect(valleyRelief.openness[center]).toBeLessThan(0);
+    expect(valleyRelief.hillshade[center]).toBeLessThan(
+      flatRelief.hillshade[center]!,
+    );
+  });
+
   it("does not derive fabric samples or multiscale spill inside no-data", () => {
     const field = terrainFieldFixture();
     const hole = 7;
@@ -176,6 +236,7 @@ describe("landscape relief engine", () => {
     const relief = deriveLandscapeReliefField(field);
     expect(relief.hillshade[hole]).toBe(0);
     expect(relief.salience[hole]).toBe(0);
+    expect(relief.sky_view_factor[hole]).toBe(0);
     for (const sample of landscapeTerrainFabricSamples(field, 500)) {
       const column = Math.round(sample.u * (field.grid.columns - 1));
       const row = Math.round(sample.v * (field.grid.rows - 1));
@@ -183,3 +244,41 @@ describe("landscape relief engine", () => {
     }
   });
 });
+
+function metricReliefFixture(
+  columns: number,
+  rows: number,
+  elevationAt: (column: number, row: number) => number,
+) {
+  const field = terrainFieldFixture();
+  const cells = columns * rows;
+  field.grid = {
+    columns,
+    rows,
+    bounds: {
+      x: 0,
+      y: 0,
+      width: (columns - 1) * 100,
+      height: (rows - 1) * 100,
+    },
+  };
+  field.field_cells = cells;
+  field.validity.values = new Uint8Array(cells).fill(1);
+  field.elevation.values = Float32Array.from({ length: cells }, (_, index) =>
+    elevationAt(index % columns, Math.floor(index / columns)),
+  );
+  field.normal.values = new Float32Array(cells * 3);
+  for (let index = 0; index < cells; index += 1)
+    field.normal.values[index * 3 + 2] = 1;
+  field.curvature.values = new Float32Array(cells);
+  field.relief_metrics = {
+    schema: "rey.terrain-relief-metrics.v1",
+    sample_spacing_x_meters: 100,
+    sample_spacing_y_meters: 100,
+    elevation_range_meters: 1_800,
+    elevation_value_minimum: 0,
+    elevation_value_maximum: 1,
+    authority: "metric relief operator fixture",
+  };
+  return field;
+}

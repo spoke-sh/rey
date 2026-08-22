@@ -456,18 +456,19 @@ bytes now participate in the worker CPU limit and both renderer paths expose
 hierarchy identity and level counts. Revision 2 removes the accidental
 odd-dimension requirement: non-dyadic and rectangular source grids now reach a
 bounded 2×2 root through explicit conservative child windows without gaining
-support. The shared height and relief envelopes now carry those levels; camera
-tile selection still uses the separate finest-field tile prototype until the
-remaining LOD/residency cutover lands.
+support. The shared height and relief envelopes carry those levels, and
+`rey.terrain.dataset-tiles@2` now selects them directly with cumulative
+screen-space error and exact revision-bound residency.
 
-`rey.landscape-relief-engine@3` extends that prototype with
+`rey.landscape-relief-engine@4` replaces that prototype with
 `rey.terrain-relief-metrics.v1` source-spacing and elevation-range metadata.
 It derives local, midslope, and regional target radii in meters, explicitly
 marks scales that the admitted grid cannot support, excludes unsupported
 scales from composition, and exposes the exact scale basis and support through
-renderer diagnostics. Its multi-azimuth light and validity-bounded local tone
-are still a prototype: they are not the slope-adaptive MDOW, SVF/openness,
-high-pass curvature, or linear composition contracts required by 8.4–8.5.
+renderer diagnostics. Revisioned metric gradients, slope-adaptive MDOW,
+SVF/openness, high-pass curvature/ridge salience, and linear local tone arrays
+are now shared by both render paths. Chromatic lighting and final map
+composition remain in 8.5.
 
 `rey.terrain.regional-mosaic@1` now establishes and executes the next
 renderer-neutral contract. It compiles integer-aligned, common-scale regional fields
@@ -709,9 +710,9 @@ and CLI evidence are complete.
       spacing, dimensions, bounds, validity, source lineage, operator support,
       implementation revision, and exact parent/child identity.
 - [x] Hard-cut the accelerated and reference paths to those shared contracts
-      once parity is proved. Keep `rey.landscape-relief-field.v3` labeled as an
-      enabling field-wide prototype inside the incomplete envelope until 8.3
-      replaces it with the haloed hierarchy.
+      once parity is proved. The enabling field was hard-cut to
+      `rey.landscape-relief-field.v4` when 8.3 supplied the haloed hierarchy
+      and 8.4 supplied revisioned metric cartographic operators.
 - [x] Extend the existing verbose `rey workloads run scene-admission` result
       and structured JSON with patch-set, mosaic, pyramid, conflict, omission,
       source-resolution, and renderer-budget summaries before treating the
@@ -773,28 +774,28 @@ discontinuity or crosshatch banding attributable to kernel truncation.
 
 #### 8.4 Derive cartographic relief at explicit metric scales
 
-- [ ] Derive metric slope, aspect, and normals from source spacing rather than
+- [x] Derive metric slope, aspect, and normals from source spacing rather than
       cell count. Produce separately revisioned local, midslope, and regional
       channels whose support radii are declared in meters (e.g. local 350m,
       midslope 1,400m, regional 5,600m).
-- [ ] Implement deterministic Multi-Directional Oblique Weighted (MDOW) Swiss
+- [x] Implement deterministic Multi-Directional Oblique Weighted (MDOW) Swiss
       hillshading. Weight illumination across multiple azimuths (NW 315° primary
       sun, SW 225° fill, NE 45° back-rim) with slope-adaptive contrast to prevent
       pitch-black shadows on steep faces and washouts on flat plains.
-- [ ] Add a deterministic Sky-View Factor (SVF) / positive-and-negative
+- [x] Add a deterministic Sky-View Factor (SVF) / positive-and-negative
       topographic openness term to naturally darken deep gorges, cirques, and
       valleys without artificial scalar multiplier hacks.
-- [ ] Blend high-pass profile/plan curvature and slope magnitude into high-frequency
+- [x] Blend high-pass profile/plan curvature and slope magnitude into high-frequency
       ridge salience so micro-scale crests, couloirs, and ravines separate
       crisply against macroscopic mountain mass illumination.
-- [ ] Apply local contrast and cartographic tone mapping as presentation
+- [x] Apply local contrast and cartographic tone mapping as presentation
       channels in linear color space. Keep one lighting owner so a pre-lit
       relief scalar is not lit again by a physical material.
-- [ ] Share exact derived arrays, masks, parameters, and implementation identity
+- [x] Share exact derived arrays, masks, parameters, and implementation identity
       between the deterministic reference and WebGPU/WebGL2 paths. Renderer
       backends may execute the math differently only under retained parity
       tolerances.
-- [ ] Treat finer terrain content as source work. Any synthesized landform must
+- [x] Treat finer terrain content as source work. Any synthesized landform must
       be generated, reviewed, and admitted before rendering with explicit
       lineage; shader noise and renderer-side microrelief cannot substitute for
       absent elevation evidence.

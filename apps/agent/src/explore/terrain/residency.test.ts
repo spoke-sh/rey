@@ -13,7 +13,7 @@ describe("terrain tile residency", () => {
       fields: [admittedField()],
       programs: [],
       view: terrainTileView(4),
-      maximum_cpu_bytes: 16 * 1024 * 1024,
+      maximum_cpu_bytes: 24 * 1024 * 1024,
       maximum_gpu_bytes: 8 * 1024 * 1024,
     });
     const [first, second] = result.compiled_tiles;
@@ -55,7 +55,7 @@ describe("terrain tile residency", () => {
       fields: [admittedField()],
       programs: [],
       view: terrainTileView(4),
-      maximum_cpu_bytes: 16 * 1024 * 1024,
+      maximum_cpu_bytes: 24 * 1024 * 1024,
       maximum_gpu_bytes: 8 * 1024 * 1024,
     });
     const [first, second] = result.compiled_tiles;
@@ -79,7 +79,7 @@ describe("terrain tile residency", () => {
       fields: [admittedField()],
       programs: [],
       view: terrainTileView(4),
-      maximum_cpu_bytes: 16 * 1024 * 1024,
+      maximum_cpu_bytes: 24 * 1024 * 1024,
       maximum_gpu_bytes: 8 * 1024 * 1024,
     });
     const tile = result.compiled_tiles[0]!;
