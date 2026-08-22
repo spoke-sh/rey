@@ -13,11 +13,11 @@ export const LANDSCAPE_RELIEF_PYRAMID_SCHEMA =
 export const LANDSCAPE_PYRAMID_ENVELOPE_SCHEMA =
   "rey.landscape-pyramid-envelope.v1" as const;
 export const LANDSCAPE_HEIGHT_PYRAMID_CONTRACT_REVISION =
-  "rey.landscape-height-pyramid-contract@1" as const;
+  "rey.landscape-height-pyramid-contract@2" as const;
 export const LANDSCAPE_RELIEF_PYRAMID_CONTRACT_REVISION =
-  "rey.landscape-relief-pyramid-contract@1" as const;
+  "rey.landscape-relief-pyramid-contract@2" as const;
 export const LANDSCAPE_PYRAMID_ENVELOPE_REVISION =
-  "rey.landscape-pyramid-envelope@1" as const;
+  "rey.landscape-pyramid-envelope@2" as const;
 
 export interface LandscapePyramidBounds {
   x: number;
@@ -100,6 +100,9 @@ export interface LandscapeReliefPyramidLevel {
   validity: LandscapePyramidValidity;
   channel_ids: readonly string[];
   operator_support: readonly LandscapeReliefOperatorSupport[];
+  derivation_tile_count: number;
+  maximum_gutter_radius_cells: number;
+  border_digest_id: string;
   relief_bytes: number;
   source_lineage: readonly LandscapePyramidLineage[];
 }
@@ -404,10 +407,24 @@ export function verifyLandscapeReliefPyramid(
       level.channel_ids.length === 0 ||
       !canonicalStringOrder(level.channel_ids) ||
       level.channel_ids.some((channelId) => !channelContentId(channelId)) ||
-      level.operator_support.length === 0
+      level.operator_support.length === 0 ||
+      !Number.isSafeInteger(level.derivation_tile_count) ||
+      level.derivation_tile_count < 1 ||
+      !Number.isSafeInteger(level.maximum_gutter_radius_cells) ||
+      level.maximum_gutter_radius_cells < 0 ||
+      !contentId(level.border_digest_id)
     )
       throw new Error("landscape relief pyramid level is invalid");
     verifyOperatorSupport(level.operator_support);
+    if (
+      level.operator_support.some(
+        ({ supported, gutter_radius_cells }) =>
+          supported &&
+          (gutter_radius_cells > level.maximum_gutter_radius_cells ||
+            level.maximum_gutter_radius_cells === 0),
+      )
+    )
+      throw new Error("landscape relief pyramid gutter summary is invalid");
   }
   const byteLength = pyramid.levels.reduce(
     (total, level) => total + level.relief_bytes,

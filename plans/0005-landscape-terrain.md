@@ -438,6 +438,10 @@ shared horizontal frame; a metric relief pyramid remains open below.
 cut admitted terrain through `rey.landscape-pyramid-envelope.v1`. The envelope
 binds exact BLAKE3 height, validity-class, hillshade, salience, and tangent
 content to the one-level height/relief contracts before camera tile sampling.
+Contract revision 2 additionally makes derivation-tile count, maximum source
+gutter, and border-digest identity mandatory on every relief level; the
+current complete-field fallback reports one tile and zero gutter rather than
+claiming halo-safe support.
 Both pyramids remain explicitly incomplete: current envelopes retain only the
 complete finest field, report zero source gutter for every relief operator,
 and list absent coarse levels, halos, border digests, MDOW, and SVF as

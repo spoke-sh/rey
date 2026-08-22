@@ -43,6 +43,11 @@ describe("landscape pyramid contracts", () => {
     expect(relief.levels[1]!.operator_support[0]!.support_id).toMatch(
       /^blake3:[0-9a-f]{64}$/,
     );
+    expect(relief.levels[1]).toMatchObject({
+      derivation_tile_count: 4,
+      maximum_gutter_radius_cells: 8,
+      border_digest_id: expect.stringMatching(/^blake3:[0-9a-f]{64}$/),
+    });
     expect(relief.byte_length).toBe(500);
   });
 
@@ -67,6 +72,12 @@ describe("landscape pyramid contracts", () => {
     expect(() =>
       verifyLandscapeReliefPyramid(insufficientGutter, height),
     ).toThrow("operator support");
+
+    const changedBorder = structuredClone(relief);
+    changedBorder.levels[0]!.border_digest_id = `blake3:${"0".repeat(64)}`;
+    expect(() => verifyLandscapeReliefPyramid(changedBorder, height)).toThrow(
+      "identity changed",
+    );
   });
 });
 
@@ -178,6 +189,9 @@ function reliefInput(
           validity_policy: "complete_valid_window",
         },
       ],
+      derivation_tile_count: 4,
+      maximum_gutter_radius_cells: 8,
+      border_digest_id: `blake3:${"7".repeat(64)}`,
       relief_bytes: index === 0 ? 200 : 300,
       source_lineage: level.source_lineage,
     })),

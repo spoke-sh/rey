@@ -105,6 +105,12 @@ export function compileCurrentLandscapePyramidEnvelope(
             `salience:${landscapePyramidContentId("salience", [relief.salience])}`,
             `tangent:${landscapePyramidContentId("tangent", [relief.tangent])}`,
           ],
+          derivation_tile_count: 1,
+          maximum_gutter_radius_cells: 0,
+          border_digest_id: landscapePyramidContentId(
+            "complete-field-relief-fallback-border",
+            [relief.hillshade, relief.salience, relief.tangent],
+          ),
           operator_support: relief.scales.map((scale) => ({
             operator_id: `multiscale-hillshade:${scale.id}`,
             implementation_revision: relief.implementation_revision,

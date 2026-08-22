@@ -68,9 +68,11 @@ tone and chromatic composition required by Plan 0005.
 ## Height And Relief Pyramid Contracts
 
 `rey.landscape-height-pyramid.v1` and
-`rey.landscape-relief-pyramid.v1` are now executable, content-identified
-contract schemas. Their finalizers canonicalize lineage, channels, operators,
-and omissions before assigning BLAKE3 identities. Their verifiers require
+`rey.landscape-relief-pyramid.v1` are executable, content-identified contract
+schemas. Contract revision 2 requires every relief level to retain its
+derivation-tile count, maximum source gutter, and exact border-digest identity
+in addition to its derived channels. Their finalizers canonicalize lineage,
+channels, operators, and omissions before assigning BLAKE3 identities. Their verifiers require
 every level to retain metric x/y spacing, dimensions, common bounds,
 conservative valid/no-data/unsupported counts, byte cost, exact source
 lineage, and deterministic parent/child level identities.
@@ -91,9 +93,11 @@ before sampling camera tiles; accelerated diagnostics retain its envelope,
 height-pyramid, relief-pyramid, completion, and omission values.
 
 This is a renderer-contract cutover, not a claim that the hierarchy is built.
-Each current envelope has one finest level and `complete: false`; every relief
-operator reports zero retained gutter and therefore cannot claim halo-safe
-pyramid support. The current `rey.terrain-tile-pyramid.v1` remains a
+Each current fallback envelope has one finest level and `complete: false`;
+every relief operator reports zero retained gutter and therefore cannot claim
+halo-safe pyramid support. Its digest binds the complete-field fallback rather
+than claiming adjacent derivation borders. The current
+`rey.terrain-tile-pyramid.v1` remains a
 camera-selection prototype and `rey.landscape-relief-field.v3` remains a
 complete-field relief prototype inside the envelope. Haloed multilevel data,
 border digests, residency accounting, and hierarchy qualification remain open
