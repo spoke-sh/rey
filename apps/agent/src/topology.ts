@@ -334,7 +334,11 @@ export interface TopologyAtlasLandscapeTransition {
   patch_set_id: string;
   overlap_policy:
     | "later_patch_wins_with_deterministic_depth_bias"
-    | "qualified_shared_samples_must_match_before_derivation";
+    | "qualified_shared_samples_must_match_before_derivation"
+    | "validity_authority_resolution_then_stable_identity";
+  source_contribution_id: string;
+  conflict_id: string;
+  conflict_vertices: number;
   gap_policy: "unsupported_remains_transparent";
   projection_revision: typeof ATLAS_LANDSCAPE_PROJECTION_REVISION;
   source_frame: { x: number; y: number; width: number; height: number };
@@ -716,12 +720,15 @@ function buildAtlasLandscapeTransition(
       primary_patch_id: terrain.manifest.primary_patch_id,
       patch_set_id: patchSet.patch_set_id,
       overlap_policy: patchSet.overlap_policy,
+      source_contribution_id: terrain.manifest.source_contribution.content_id,
+      conflict_id: terrain.manifest.conflicts.content_id,
+      conflict_vertices: terrain.manifest.conflict_vertices,
       gap_policy: patchSet.gap_policy,
       projection_revision: ATLAS_LANDSCAPE_PROJECTION_REVISION,
       source_frame: sourceFrame,
       target_frame: targetFrame,
       authority:
-        "reversible presentation mapping from one exact admitted synthetic Atlas sector to the primary source patch in a shared-frame validity-bounded regional mosaic; only connected terrain-qualified edges enter the mosaic, exact shared samples must agree before derivation, unsupported gaps remain transparent, and the mapping grants no geographic relationship between coordinate spaces",
+        "reversible presentation mapping from one exact admitted synthetic Atlas sector to the primary source patch in a shared-frame validity-bounded regional mosaic; only connected terrain-qualified edges enter the mosaic, overlap decisions retain validity, declared authority, nominal spacing, stable source identity, final contribution, and conflicts, unsupported gaps remain transparent, and the mapping grants no geographic relationship between coordinate spaces",
     }),
     terrain,
   });
@@ -801,6 +808,11 @@ function compileRegionalLandscapeSelection(
             member_id,
             scene_id: projection.scene.scene_id,
             role: "detail" as const,
+            authority: Object.freeze({
+              identity: field.detail_authority,
+              revision: field.source_revision,
+              priority: 100,
+            }),
             field,
           },
         ]

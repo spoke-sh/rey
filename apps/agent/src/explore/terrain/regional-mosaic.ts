@@ -5,6 +5,7 @@ import {
   verifyTerrainFieldValidityClassification,
   type TerrainFieldSetInput,
 } from "@rey/explorer";
+import { blake3 } from "@noble/hashes/blake3.js";
 import {
   TERRAIN_FIELD_SCHEMA,
   createFieldGrid,
@@ -21,15 +22,36 @@ import { deriveTerrainNormals } from "./normals";
 export const REGIONAL_TERRAIN_MOSAIC_SCHEMA =
   "rey.landscape-mosaic.v1" as const;
 export const REGIONAL_TERRAIN_MOSAIC_REVISION =
-  "rey.terrain.regional-mosaic@1" as const;
+  "rey.terrain.regional-mosaic@2" as const;
 export const MAXIMUM_REGIONAL_TERRAIN_MOSAIC_CELLS = 2_000_000;
 
 export interface RegionalTerrainMosaicPatch {
   member_id: string;
   scene_id: string;
   role: "detail" | "overview";
+  authority: {
+    identity: string;
+    revision: string;
+    priority: number;
+  };
   field: TerrainFieldSet;
 }
+
+interface RegionalTerrainMosaicPlacement {
+  patch: RegionalTerrainMosaicPatch;
+  validity_classification: NonNullable<
+    TerrainFieldSetInput["validity_classification"]
+  >;
+  column_offset: number;
+  row_offset: number;
+}
+
+export type RegionalTerrainOverlapDecisionReason =
+  | "identical_shared_sample"
+  | "higher_validity"
+  | "higher_declared_authority"
+  | "finer_nominal_spacing"
+  | "stable_source_identity";
 
 export interface RegionalTerrainMosaicManifest {
   schema: typeof REGIONAL_TERRAIN_MOSAIC_SCHEMA;
@@ -49,9 +71,27 @@ export interface RegionalTerrainMosaicManifest {
   no_data_vertices: number;
   unsupported_vertices: number;
   shared_vertices: number;
+  overlap_vertices: number;
+  conflict_vertices: number;
   overlap_pairs: readonly (readonly [string, string])[];
-  overlap_policy: "qualified_shared_samples_must_match_before_derivation";
+  overlap_policy: "validity_authority_resolution_then_stable_identity";
   gap_policy: "unsupported_remains_transparent";
+  source_contribution: {
+    schema: "rey.landscape-source-contribution.v1";
+    content_id: string;
+    unsupported_index: number;
+    patch_ids: readonly string[];
+    owner_indices: Uint32Array;
+  };
+  conflicts: {
+    schema: "rey.landscape-overlap-conflicts.v1";
+    content_id: string;
+    values: Uint8Array;
+  };
+  overlap_decisions: readonly {
+    reason: RegionalTerrainOverlapDecisionReason;
+    samples: number;
+  }[];
   limits: { maximum_cells: number };
   omissions: readonly string[];
   patches: readonly {
@@ -59,10 +99,12 @@ export interface RegionalTerrainMosaicManifest {
     scene_id: string;
     field_set_id: string;
     source_revision: string;
-    authority: string;
+    authority: RegionalTerrainMosaicPatch["authority"];
     role: "detail" | "overview";
     sample_spacing_x: number;
     sample_spacing_y: number;
+    nominal_sample_spacing_x_meters: number;
+    nominal_sample_spacing_y_meters: number;
     column_offset: number;
     row_offset: number;
     columns: number;
@@ -102,20 +144,16 @@ export function compileRegionalTerrainMosaic(
       ordered.length ||
     new Set(ordered.map(({ field }) => field.field_set_id)).size !==
       ordered.length ||
-    !ordered.some(({ field }) => field.field_set_id === primaryPatchId)
+    !ordered.some(({ field }) => field.field_set_id === primaryPatchId) ||
+    ordered.some(
+      ({ authority }) =>
+        !authority.identity ||
+        !authority.revision ||
+        !Number.isSafeInteger(authority.priority) ||
+        authority.priority < 0,
+    )
   )
     throw new Error("regional terrain mosaic patch identity is invalid");
-  for (let left = 0; left < ordered.length; left += 1)
-    for (let right = left + 1; right < ordered.length; right += 1)
-      if (
-        positiveAreaOverlap(
-          ordered[left]!.field.grid.bounds,
-          ordered[right]!.field.grid.bounds,
-        )
-      )
-        throw new Error(
-          "regional terrain mosaic does not admit overlapping patch areas",
-        );
 
   const bounds = unionBounds(ordered.map(({ field }) => field.grid.bounds));
   const spacingX = sampleSpacing(ordered[0]!.field, "x");
@@ -126,6 +164,7 @@ export function compileRegionalTerrainMosaic(
     const validityClassification =
       verifyTerrainFieldValidityClassification(field);
     if (
+      !field.relief_metrics ||
       !sameNumber(sampleSpacing(field, "x"), spacingX) ||
       !sameNumber(sampleSpacing(field, "y"), spacingY) ||
       !sameNumber(field.elevation_scale, elevationScale)
@@ -138,7 +177,7 @@ export function compileRegionalTerrainMosaic(
       validity_classification: validityClassification,
       column_offset: columnOffset,
       row_offset: rowOffset,
-    });
+    }) satisfies RegionalTerrainMosaicPlacement;
   });
   const columns = alignedExtent(bounds.width, spacingX) + 1;
   const rows = alignedExtent(bounds.height, spacingY) + 1;
@@ -146,7 +185,10 @@ export function compileRegionalTerrainMosaic(
   if (!Number.isSafeInteger(cells) || cells > maximumCells)
     throw new Error("regional terrain mosaic exceeds its cell budget");
   const grid = createFieldGrid(columns, rows, bounds);
-  const occupancy = new Int32Array(cells).fill(-1);
+  const unsupportedOwner = 0xffff_ffff;
+  const occupancy = new Uint32Array(cells).fill(unsupportedOwner);
+  const overlapTouched = new Uint8Array(cells);
+  const conflictValues = new Uint8Array(cells);
   const validityValues = new Uint8Array(cells);
   const validityClassificationValues = new Uint8Array(cells).fill(
     TERRAIN_VALIDITY_UNSUPPORTED,
@@ -160,7 +202,12 @@ export function compileRegionalTerrainMosaic(
   const occlusionValues = new Float32Array(cells);
   const roughnessValues = new Float32Array(cells);
   const overlapPairs = new Set<string>();
+  const overlapDecisionCounts = new Map<
+    RegionalTerrainOverlapDecisionReason,
+    number
+  >();
   let sharedVertices = 0;
+  let overlapVertices = 0;
 
   for (const [patchIndex, placement] of placements.entries()) {
     const source = placement.patch.field;
@@ -172,26 +219,70 @@ export function compileRegionalTerrainMosaic(
           placement.column_offset +
           column;
         const owner = occupancy[targetIndex]!;
-        if (owner >= 0) {
-          const ownerPatch = placements[owner]!.patch;
+        if (owner !== unsupportedOwner) {
+          const ownerPlacement = placements[owner]!;
+          const ownerPatch = ownerPlacement.patch;
           const pair = [
             ownerPatch.field.field_set_id,
             source.field_set_id,
           ].sort((left, right) => left.localeCompare(right));
           overlapPairs.add(`${pair[0]}\u0000${pair[1]}`);
           sharedVertices += 1;
-          verifySharedSample(
-            validityValues,
-            validityClassificationValues,
-            elevationValues,
-            tintValues,
-            occlusionValues,
-            roughnessValues,
-            targetIndex,
+          if (overlapTouched[targetIndex] === 0) {
+            overlapTouched[targetIndex] = 1;
+            overlapVertices += 1;
+          }
+          const ownerRow =
+            placement.row_offset + row - ownerPlacement.row_offset;
+          const ownerColumn =
+            placement.column_offset + column - ownerPlacement.column_offset;
+          const ownerSourceIndex =
+            ownerRow * ownerPatch.field.grid.columns + ownerColumn;
+          const identical = samplesEqual(
+            ownerPatch.field,
+            ownerPlacement.validity_classification.values,
+            ownerSourceIndex,
             source,
             placement.validity_classification.values,
             sourceIndex,
           );
+          const decision = identical
+            ? {
+                selected_patch_index: owner,
+                reason: "identical_shared_sample" as const,
+              }
+            : resolveOverlap(
+                ownerPlacement,
+                ownerSourceIndex,
+                placement,
+                sourceIndex,
+                owner,
+                patchIndex,
+              );
+          overlapDecisionCounts.set(
+            decision.reason,
+            (overlapDecisionCounts.get(decision.reason) ?? 0) + 1,
+          );
+          if (!identical) conflictValues[targetIndex] = 1;
+          if (decision.selected_patch_index === patchIndex) {
+            occupancy[targetIndex] = patchIndex;
+            copySample(
+              validityValues,
+              validityClassificationValues,
+              elevationValues,
+              rainfallValues,
+              flowDirectionValues,
+              flowAccumulationValues,
+              erosionValues,
+              tintValues,
+              occlusionValues,
+              roughnessValues,
+              targetIndex,
+              source,
+              placement.validity_classification.values,
+              sourceIndex,
+            );
+          }
           continue;
         }
         occupancy[targetIndex] = patchIndex;
@@ -273,26 +364,50 @@ export function compileRegionalTerrainMosaic(
     ordered.map(({ field }) => field.field_set_id),
   );
   const memberIds = Object.freeze(ordered.map(({ member_id }) => member_id));
+  const validitySummary = summarizeTerrainValidityClassification(
+    validityClassification,
+  );
+  const sourceContributionId = mosaicContentId("source-contribution", [
+    occupancy,
+  ]);
+  const conflictId = mosaicContentId("overlap-conflicts", [conflictValues]);
+  const heightId = mosaicContentId("height", [elevationValues]);
   const mosaicId = [
     REGIONAL_TERRAIN_MOSAIC_SCHEMA,
     REGIONAL_TERRAIN_MOSAIC_REVISION,
     compositionRevision,
     primaryPatchId,
-    ...ordered.flatMap(({ member_id, field }) => [
+    ...ordered.flatMap(({ member_id, role, authority, field }) => [
       member_id,
+      role,
+      authority.identity,
+      authority.revision,
+      `${authority.priority}`,
       field.field_set_id,
       field.source_revision,
+      `${field.relief_metrics!.sample_spacing_x_meters}`,
+      `${field.relief_metrics!.sample_spacing_y_meters}`,
     ]),
+    heightId,
+    validitySummary.validity_id,
+    sourceContributionId,
+    conflictId,
     `${columns}x${rows}`,
   ].join("|");
-  const validitySummary = summarizeTerrainValidityClassification(
-    validityClassification,
-  );
   const {
     valid_vertices: validVertices,
     no_data_vertices: noDataVertices,
     unsupported_vertices: unsupportedVertices,
   } = validitySummary;
+  const conflictVertices = conflictValues.reduce(
+    (total, value) => total + (value === 0 ? 0 : 1),
+    0,
+  );
+  const overlapDecisions = Object.freeze(
+    [...overlapDecisionCounts]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([reason, samples]) => Object.freeze({ reason, samples })),
+  );
   const pairs = Object.freeze(
     [...overlapPairs]
       .sort((left, right) => left.localeCompare(right))
@@ -310,8 +425,11 @@ export function compileRegionalTerrainMosaic(
     coordinate_reference: coordinateReference,
     vertical_reference: verticalReference,
     overlap_policy:
-      "qualified_shared_samples_must_match_before_derivation" as const,
+      "validity_authority_resolution_then_stable_identity" as const,
     gap_policy: "unsupported_remains_transparent" as const,
+    source_contribution_id: sourceContributionId,
+    conflict_id: conflictId,
+    conflict_vertices: conflictVertices,
   }) satisfies NonNullable<TerrainFieldSetInput["landscape_mosaic"]>;
   const manifest = Object.freeze({
     schema: REGIONAL_TERRAIN_MOSAIC_SCHEMA,
@@ -331,9 +449,24 @@ export function compileRegionalTerrainMosaic(
     no_data_vertices: noDataVertices,
     unsupported_vertices: unsupportedVertices,
     shared_vertices: sharedVertices,
+    overlap_vertices: overlapVertices,
+    conflict_vertices: conflictVertices,
     overlap_pairs: pairs,
     overlap_policy: binding.overlap_policy,
     gap_policy: binding.gap_policy,
+    source_contribution: Object.freeze({
+      schema: "rey.landscape-source-contribution.v1" as const,
+      content_id: sourceContributionId,
+      unsupported_index: unsupportedOwner,
+      patch_ids: patchIds,
+      owner_indices: occupancy,
+    }),
+    conflicts: Object.freeze({
+      schema: "rey.landscape-overlap-conflicts.v1" as const,
+      content_id: conflictId,
+      values: conflictValues,
+    }),
+    overlap_decisions: overlapDecisions,
     limits: Object.freeze({ maximum_cells: maximumCells }),
     omissions: Object.freeze(
       unsupportedVertices > 0
@@ -349,10 +482,14 @@ export function compileRegionalTerrainMosaic(
           scene_id: patch.scene_id,
           field_set_id: patch.field.field_set_id,
           source_revision: patch.field.source_revision,
-          authority: patch.field.detail_authority,
+          authority: patch.authority,
           role: patch.role,
           sample_spacing_x: sampleSpacing(patch.field, "x"),
           sample_spacing_y: sampleSpacing(patch.field, "y"),
+          nominal_sample_spacing_x_meters:
+            patch.field.relief_metrics!.sample_spacing_x_meters,
+          nominal_sample_spacing_y_meters:
+            patch.field.relief_metrics!.sample_spacing_y_meters,
           column_offset,
           row_offset,
           columns: patch.field.grid.columns,
@@ -388,7 +525,7 @@ export function compileRegionalTerrainMosaic(
       "admitted_multi_region_mosaic",
     ]),
     detail_authority:
-      "shared-frame mosaic of a connected terrain-qualified regional set; exact shared samples must agree, source no-data and unsupported gaps retain zero validity, and no overlap or gap is resolved by draw order",
+      "shared-frame mosaic of a connected terrain-qualified regional set; overlap selection is validity-first, then declared-authority, nominal-spacing, and stable-source identity; every source conflict and final contribution is retained, while source no-data and unsupported gaps retain zero geometry validity",
     source_revision: mosaicId,
     source_summary: Object.freeze({
       columns,
@@ -421,7 +558,9 @@ export function compileRegionalTerrainMosaic(
     field_cells: fieldCellCount(grid),
     field_bytes: fields.reduce(
       (total, channel) => total + fieldByteLength(channel),
-      validityClassification.values.byteLength,
+      validityClassification.values.byteLength +
+        occupancy.byteLength +
+        conflictValues.byteLength,
     ),
     landscape_mosaic: binding,
   }) satisfies TerrainFieldSet;
@@ -497,56 +636,126 @@ function unionBounds(
   });
 }
 
-function positiveAreaOverlap(
-  left: TerrainFieldSet["grid"]["bounds"],
-  right: TerrainFieldSet["grid"]["bounds"],
+function resolveOverlap(
+  owner: RegionalTerrainMosaicPlacement,
+  ownerSourceIndex: number,
+  candidate: RegionalTerrainMosaicPlacement,
+  candidateSourceIndex: number,
+  ownerPatchIndex: number,
+  candidatePatchIndex: number,
+): {
+  selected_patch_index: number;
+  reason: Exclude<
+    RegionalTerrainOverlapDecisionReason,
+    "identical_shared_sample"
+  >;
+} {
+  const ownerValidity = validityRank(
+    owner.validity_classification.values[ownerSourceIndex]!,
+  );
+  const candidateValidity = validityRank(
+    candidate.validity_classification.values[candidateSourceIndex]!,
+  );
+  if (ownerValidity !== candidateValidity)
+    return {
+      selected_patch_index:
+        candidateValidity > ownerValidity
+          ? candidatePatchIndex
+          : ownerPatchIndex,
+      reason: "higher_validity",
+    };
+  if (owner.patch.authority.priority !== candidate.patch.authority.priority)
+    return {
+      selected_patch_index:
+        candidate.patch.authority.priority > owner.patch.authority.priority
+          ? candidatePatchIndex
+          : ownerPatchIndex,
+      reason: "higher_declared_authority",
+    };
+  const ownerSpacing = nominalMetricSampleArea(owner.patch.field);
+  const candidateSpacing = nominalMetricSampleArea(candidate.patch.field);
+  if (!sameNumber(ownerSpacing, candidateSpacing))
+    return {
+      selected_patch_index:
+        candidateSpacing < ownerSpacing ? candidatePatchIndex : ownerPatchIndex,
+      reason: "finer_nominal_spacing",
+    };
+  return {
+    selected_patch_index:
+      stablePatchIdentity(candidate.patch).localeCompare(
+        stablePatchIdentity(owner.patch),
+      ) < 0
+        ? candidatePatchIndex
+        : ownerPatchIndex,
+    reason: "stable_source_identity",
+  };
+}
+
+function samplesEqual(
+  left: TerrainFieldSet,
+  leftClassification: Uint8Array,
+  leftIndex: number,
+  right: TerrainFieldSet,
+  rightClassification: Uint8Array,
+  rightIndex: number,
 ): boolean {
-  return (
-    Math.min(left.x + left.width, right.x + right.width) -
-      Math.max(left.x, right.x) >
-      0.000_001 &&
-    Math.min(left.y + left.height, right.y + right.height) -
-      Math.max(left.y, right.y) >
-      0.000_001
+  const scalarChannels = [
+    [left.validity.values, right.validity.values],
+    [leftClassification, rightClassification],
+    [left.elevation.values, right.elevation.values],
+    [left.material.occlusion, right.material.occlusion],
+    [left.material.roughness, right.material.roughness],
+  ] as const;
+  if (
+    scalarChannels.some(
+      ([leftValues, rightValues]) =>
+        leftValues[leftIndex] !== rightValues[rightIndex],
+    )
+  )
+    return false;
+  return componentsEqual(
+    left.material.tint,
+    leftIndex,
+    right.material.tint,
+    rightIndex,
+    3,
   );
 }
 
-function verifySharedSample(
-  validity: Uint8Array,
-  validityClassification: Uint8Array,
-  elevation: Float32Array,
-  tint: Float32Array,
-  occlusion: Float32Array,
-  roughness: Float32Array,
-  targetIndex: number,
-  source: TerrainFieldSet,
-  sourceValidityClassification: Uint8Array,
-  sourceIndex: number,
-): void {
-  if (validity[targetIndex] !== source.validity.values[sourceIndex])
-    throw new Error("regional terrain mosaic shared validity conflicts");
-  if (
-    validityClassification[targetIndex] !==
-    sourceValidityClassification[sourceIndex]
-  )
-    throw new Error(
-      "regional terrain mosaic shared validity classification conflicts",
-    );
-  if (validity[targetIndex] === 0) return;
-  if (
-    elevation[targetIndex] !== source.elevation.values[sourceIndex] ||
-    occlusion[targetIndex] !== source.material.occlusion[sourceIndex] ||
-    roughness[targetIndex] !== source.material.roughness[sourceIndex]
-  )
-    throw new Error("regional terrain mosaic shared elevation conflicts");
-  const targetOffset = targetIndex * 3;
-  const sourceOffset = sourceIndex * 3;
-  for (let component = 0; component < 3; component += 1)
+function componentsEqual(
+  left: Float32Array | Int8Array,
+  leftIndex: number,
+  right: Float32Array | Int8Array,
+  rightIndex: number,
+  components: number,
+): boolean {
+  for (let component = 0; component < components; component += 1)
     if (
-      tint[targetOffset + component] !==
-      source.material.tint[sourceOffset + component]
+      left[leftIndex * components + component] !==
+      right[rightIndex * components + component]
     )
-      throw new Error("regional terrain mosaic shared material conflicts");
+      return false;
+  return true;
+}
+
+function validityRank(value: number): number {
+  return value === 1 ? 2 : value === 2 ? 1 : 0;
+}
+
+function nominalMetricSampleArea(field: TerrainFieldSet): number {
+  const metrics = field.relief_metrics;
+  if (!metrics)
+    throw new Error("regional terrain mosaic patch metric spacing is unbound");
+  return metrics.sample_spacing_x_meters * metrics.sample_spacing_y_meters;
+}
+
+function stablePatchIdentity(patch: RegionalTerrainMosaicPatch): string {
+  return [
+    patch.authority.identity,
+    patch.authority.revision,
+    patch.field.field_set_id,
+    patch.field.source_revision,
+  ].join("\u0000");
 }
 
 function copySample(
@@ -592,4 +801,34 @@ function sameNumber(left: number, right: number): boolean {
     Math.abs(left - right) <=
     Math.max(1, Math.abs(left), Math.abs(right)) * 1e-6
   );
+}
+
+function mosaicContentId(
+  channel: string,
+  arrays: readonly (Float32Array | Uint32Array | Uint8Array)[],
+): string {
+  const header = new TextEncoder().encode(
+    JSON.stringify({
+      channel,
+      byte_lengths: arrays.map(({ byteLength }) => byteLength),
+    }),
+  );
+  const bytes = new Uint8Array(
+    header.length +
+      arrays.reduce((total, array) => total + array.byteLength, 0),
+  );
+  bytes.set(header);
+  let offset = header.length;
+  for (const array of arrays) {
+    const content = new Uint8Array(
+      array.buffer,
+      array.byteOffset,
+      array.byteLength,
+    );
+    bytes.set(content, offset);
+    offset += content.length;
+  }
+  return `blake3:${[...blake3(bytes)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")}`;
 }

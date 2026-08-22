@@ -990,7 +990,10 @@ describe("regional scene topology projection", () => {
       terrain_field_id: county.terrain_fields[0]?.field_set_id,
       projection_revision: "rey.atlas-landscape-projector@2",
       gap_policy: "unsupported_remains_transparent",
-      overlap_policy: "qualified_shared_samples_must_match_before_derivation",
+      overlap_policy: "validity_authority_resolution_then_stable_identity",
+      source_contribution_id: expect.stringMatching(/^blake3:/),
+      conflict_id: expect.stringMatching(/^blake3:/),
+      conflict_vertices: 0,
     });
     const transitionAtlas = buildTopologyScene(
       terrainPortfolio,
@@ -1042,7 +1045,7 @@ describe("regional scene topology projection", () => {
       "rey.explorer.regional-terrain-grid@4",
     );
     expect(snapshot.compiler_revisions).toContain(
-      "rey.terrain.regional-mosaic@1",
+      "rey.terrain.regional-mosaic@2",
     );
     expect(snapshot.compiler_revisions).toContain(
       "rey.atlas-landscape-projector@2",

@@ -1,6 +1,7 @@
 import {
   compileLandscapePatchSet,
   summarizeTerrainFieldValidity,
+  TERRAIN_VALIDITY_NO_DATA,
 } from "@rey/explorer";
 import { describe, expect, it } from "vitest";
 import { createFieldGrid } from "../engine/fields";
@@ -27,12 +28,14 @@ describe("regional terrain mosaic", () => {
           member_id: "member:left",
           scene_id: "scene:left",
           role: "detail",
+          authority: patchAuthority("left", 100),
           field: left,
         },
         {
           member_id: "member:right",
           scene_id: "scene:right",
           role: "detail",
+          authority: patchAuthority("right", 100),
           field: right,
         },
       ],
@@ -51,8 +54,10 @@ describe("regional terrain mosaic", () => {
       columns: left.grid.columns + right.grid.columns - 1,
       rows: left.grid.rows,
       shared_vertices: left.grid.rows,
+      overlap_vertices: left.grid.rows,
+      conflict_vertices: 0,
       unsupported_vertices: 0,
-      overlap_policy: "qualified_shared_samples_must_match_before_derivation",
+      overlap_policy: "validity_authority_resolution_then_stable_identity",
       gap_policy: "unsupported_remains_transparent",
     });
     expect(compiled.field.validity.values.every((value) => value === 1)).toBe(
@@ -63,7 +68,7 @@ describe("regional terrain mosaic", () => {
     );
     expect(compileLandscapePatchSet([compiled.field])).toMatchObject({
       patch_ids: [left.field_set_id, right.field_set_id],
-      overlap_policy: "qualified_shared_samples_must_match_before_derivation",
+      overlap_policy: "validity_authority_resolution_then_stable_identity",
       gap_policy: "unsupported_remains_transparent",
     });
   });
@@ -81,12 +86,14 @@ describe("regional terrain mosaic", () => {
           member_id: "member:left",
           scene_id: "scene:left",
           role: "detail",
+          authority: patchAuthority("left", 100),
           field: left,
         },
         {
           member_id: "member:right",
           scene_id: "scene:right",
           role: "detail",
+          authority: patchAuthority("right", 100),
           field: right,
         },
       ],
@@ -114,7 +121,7 @@ describe("regional terrain mosaic", () => {
         ).toBe(0);
   });
 
-  it("rejects shared-sample conflicts, area overlap, and incompatible grids", () => {
+  it("retains conflicts and resolves partial overlap independently from input order", () => {
     const left = regionalPatch("field:left", 100);
     const right = regionalPatch(
       "field:right",
@@ -122,17 +129,33 @@ describe("regional terrain mosaic", () => {
     );
     copySharedColumn(left, left.grid.columns - 1, right, 0);
     right.elevation.values[0] = Math.fround(right.elevation.values[0]! + 0.1);
-    expect(() => compilePair(left, right, "conflict")).toThrow(
-      "shared elevation conflicts",
+    const conflicted = compilePair(left, right, "conflict");
+    expect(conflicted.manifest.conflict_vertices).toBe(1);
+    expect(conflicted.manifest.overlap_decisions).toContainEqual({
+      reason: "stable_source_identity",
+      samples: 1,
+    });
+    expect(conflicted.manifest.source_contribution.content_id).toMatch(
+      /^blake3:[0-9a-f]{64}$/,
     );
 
     const overlapping = regionalPatch(
       "field:overlap",
       left.grid.bounds.x + left.grid.bounds.width / 2,
     );
-    expect(() => compilePair(left, overlapping, "overlap")).toThrow(
-      "does not admit overlapping patch areas",
+    const first = compilePair(left, overlapping, "overlap", false, 100, 200);
+    const replay = compilePair(left, overlapping, "overlap", true, 100, 200);
+    expect(first.manifest.overlap_vertices).toBeGreaterThan(left.grid.rows);
+    expect(first.manifest.conflict_vertices).toBeGreaterThan(0);
+    expect(first.manifest.overlap_decisions).toContainEqual({
+      reason: "higher_declared_authority",
+      samples: first.manifest.conflict_vertices,
+    });
+    expect(replay.manifest.mosaic_id).toBe(first.manifest.mosaic_id);
+    expect(replay.manifest.source_contribution.owner_indices).toEqual(
+      first.manifest.source_contribution.owner_indices,
     );
+    expect(replay.field.elevation.values).toEqual(first.field.elevation.values);
 
     const incompatible = regionalPatch(
       "field:incompatible",
@@ -143,33 +166,97 @@ describe("regional terrain mosaic", () => {
       "patch scale is incompatible",
     );
   });
+
+  it("prefers valid support before higher declared authority", () => {
+    const left = regionalPatch("field:left", 100);
+    const right = regionalPatch(
+      "field:right",
+      left.grid.bounds.x + left.grid.bounds.width / 2,
+    );
+    right.validity.values[0] = 0;
+    right.validity_classification!.values[0] = TERRAIN_VALIDITY_NO_DATA;
+
+    const compiled = compilePair(
+      left,
+      right,
+      "validity-first",
+      false,
+      100,
+      1_000,
+    );
+    const targetColumn = (left.grid.columns - 1) / 2;
+    const targetIndex = targetColumn;
+    expect(compiled.field.validity.values[targetIndex]).toBe(1);
+    expect(
+      compiled.manifest.source_contribution.owner_indices[targetIndex],
+    ).toBe(compiled.manifest.patch_ids.indexOf(left.field_set_id));
+    expect(compiled.manifest.overlap_decisions).toContainEqual({
+      reason: "higher_validity",
+      samples: 1,
+    });
+  });
+
+  it("uses nominal metric spacing before stable identity", () => {
+    const left = regionalPatch("field:left", 100);
+    const right = regionalPatch(
+      "field:right",
+      left.grid.bounds.x + left.grid.bounds.width / 2,
+    );
+    right.relief_metrics = {
+      ...right.relief_metrics!,
+      sample_spacing_x_meters:
+        right.relief_metrics!.sample_spacing_x_meters / 2,
+      sample_spacing_y_meters:
+        right.relief_metrics!.sample_spacing_y_meters / 2,
+    };
+
+    const compiled = compilePair(left, right, "spacing-first");
+    expect(compiled.manifest.overlap_decisions).toContainEqual({
+      reason: "finer_nominal_spacing",
+      samples: compiled.manifest.conflict_vertices,
+    });
+  });
 });
 
 function compilePair(
   left: TerrainFieldSet,
   right: TerrainFieldSet,
   revision: string,
+  reverse = false,
+  leftPriority = 100,
+  rightPriority = 100,
 ) {
+  const patches = [
+    {
+      member_id: "member:left",
+      scene_id: "scene:left",
+      role: "detail" as const,
+      authority: patchAuthority("left", leftPriority),
+      field: left,
+    },
+    {
+      member_id: "member:right",
+      scene_id: "scene:right",
+      role: "detail" as const,
+      authority: patchAuthority("right", rightPriority),
+      field: right,
+    },
+  ];
   return compileRegionalTerrainMosaic(
-    [
-      {
-        member_id: "member:left",
-        scene_id: "scene:left",
-        role: "detail",
-        field: left,
-      },
-      {
-        member_id: "member:right",
-        scene_id: "scene:right",
-        role: "detail",
-        field: right,
-      },
-    ],
+    reverse ? [...patches].reverse() : patches,
     left.field_set_id,
     `composition:${revision}`,
     "native_crs84/shared-landscape-frame",
     `qualified-edge-elevation-meters:composition:${revision}`,
   );
+}
+
+function patchAuthority(identity: string, priority: number) {
+  return {
+    identity: `authority:${identity}`,
+    revision: `authority:${identity}@1`,
+    priority,
+  };
 }
 
 function regionalPatch(

@@ -469,6 +469,16 @@ stricter renderer-neutral alignment contract falls back to the focused patch
 with an explicit omission. Positive-area overlap and admitted overview gap
 coverage remain open.
 
+`rey.terrain.regional-mosaic@2` admits positive-area overlap on the existing
+common aligned lattice. It retains a BLAKE3-identified source-contribution
+raster and conflict mask, then resolves each disagreeing sample by validity,
+declared authority, nominal metric spacing, and stable source identity. Reversed
+input order produces the same mosaic identity, contribution map, and height
+bytes. The Atlas/Landscape transition and accelerated/reference diagnostics
+retain the exact contribution/conflict identities and conflict count. This does
+not yet resample differently aligned or nested grids, feather a mutually valid
+overlap, or admit overview coverage.
+
 ## Geographic Synthesis Boundary
 
 Rey County is fictional semantic geography that an agent may generate and
@@ -677,7 +687,7 @@ and which implementation revisions produced each derived channel.
       vertical reference before resampling. A missing transform or datum
       relationship remains a typed omission and cannot be hidden by visual
       alignment.
-- [ ] Resolve overlaps deterministically from declared authority, validity,
+- [x] Resolve overlaps deterministically from declared authority, validity,
       nominal source spacing, and stable source identity. Retain both inputs,
       the decision map, conflicts, and limits; input array order must not decide
       source truth.

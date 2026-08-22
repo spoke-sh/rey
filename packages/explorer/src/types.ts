@@ -130,7 +130,12 @@ export interface TerrainFieldSetInput {
     bounds: { x: number; y: number; width: number; height: number };
     coordinate_reference: string;
     vertical_reference: string;
-    overlap_policy: "qualified_shared_samples_must_match_before_derivation";
+    overlap_policy:
+      | "qualified_shared_samples_must_match_before_derivation"
+      | "validity_authority_resolution_then_stable_identity";
+    source_contribution_id?: string;
+    conflict_id?: string;
+    conflict_vertices?: number;
     gap_policy: "unsupported_remains_transparent";
   };
 }

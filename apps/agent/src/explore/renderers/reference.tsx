@@ -210,6 +210,13 @@ export function ReferenceRenderer({
       data-landscape-composition={
         scene.atlas_landscape_transition?.composition_revision
       }
+      data-landscape-source-contribution={
+        scene.atlas_landscape_transition?.source_contribution_id
+      }
+      data-landscape-conflict-id={scene.atlas_landscape_transition?.conflict_id}
+      data-landscape-conflict-vertices={
+        scene.atlas_landscape_transition?.conflict_vertices
+      }
       data-landscape-patch-set={scene.atlas_landscape_transition?.patch_set_id}
       data-landscape-primary-patch={
         scene.atlas_landscape_transition?.primary_patch_id

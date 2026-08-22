@@ -53,7 +53,8 @@ export interface LandscapePatchSet {
   bounds: { x: number; y: number; width: number; height: number } | null;
   overlap_policy:
     | "later_patch_wins_with_deterministic_depth_bias"
-    | "qualified_shared_samples_must_match_before_derivation";
+    | "qualified_shared_samples_must_match_before_derivation"
+    | "validity_authority_resolution_then_stable_identity";
   gap_policy: "unsupported_remains_transparent";
 }
 

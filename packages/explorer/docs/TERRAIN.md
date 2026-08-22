@@ -105,14 +105,23 @@ Several admitted regional fields may first enter
 `rey.landscape-mosaic.v1`. The application-owned compiler requires a common
 coordinate reference, vertical reference, projected sample spacing, elevation
 scale, and integer-aligned grid origin. Qualified adjacent patches must carry
-identical validity, elevation, and material at every shared sample. A conflict
-fails the compilation; array order and draw depth cannot resolve it. Positive-
-area overlap is not yet admitted. The output is one regular field with explicit
-invalid cells wherever no admitted patch contributes, so subsequent
+identical validity, elevation, and material at every shared sample when no
+selection is needed. Positive-area overlap on that common lattice is resolved
+validity-first, then by declared authority, finer nominal metric spacing, and
+stable source identity. Input array order and draw depth never decide the
+winner. `rey.landscape-source-contribution.v1` retains the final source index
+for every vertex, while `rey.landscape-overlap-conflicts.v1` retains every
+sample where the candidate height, validity class, or material disagreed; both
+arrays have exact BLAKE3 identities in the compact mosaic binding and browser
+diagnostics. Differently aligned or differently projected grids remain
+rejected pending the nested-resolution resampling contract, and no overlap
+feather is applied yet. The output is one regular field with explicit invalid
+cells wherever no admitted patch contributes, so subsequent
 refinement, normals, drainage, relief, tiling, and rendering operate across
 qualified seams without turning gaps into geography. The compact mosaic
 binding on derived tiles preserves the exact composition, source-patch, focus,
-coordinate, vertical-reference, overlap, and gap identities.
+coordinate, vertical-reference, contribution, conflict, overlap, and gap
+identities.
 The application selects the connected component containing the focused region
 only across retained, terrain-qualified, conflict-free edge seams. A disjoint
 or conflicted region stays outside the field; a component that fails the

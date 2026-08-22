@@ -1084,6 +1084,15 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-landscape-primary-patch-id={
             terrainRenderer.landscape_primary_patch_id
           }
+          data-renderer-landscape-source-contribution-id={
+            terrainRenderer.landscape_source_contribution_id
+          }
+          data-renderer-landscape-conflict-id={
+            terrainRenderer.landscape_conflict_id
+          }
+          data-renderer-landscape-conflict-vertices={
+            terrainRenderer.landscape_conflict_vertices
+          }
           data-renderer-landscape-patch-count={
             terrainRenderer.landscape_patch_count
           }
