@@ -32,6 +32,14 @@ describe("bounded terrain compilation worker", () => {
     expect(result.execution).toBe("main_thread_fallback");
     expect(result.active_tile_ids.length).toBeGreaterThan(1);
     expect(result.compiled_tiles).toHaveLength(result.active_tile_ids.length);
+    expect(result.landscape_pyramids).toHaveLength(1);
+    expect(result.compiled.pyramid_envelopes).toEqual(
+      result.landscape_pyramids,
+    );
+    expect(result.landscape_pyramids[0]).toMatchObject({
+      height_pyramid: { complete: false },
+      relief_pyramid: { complete: false },
+    });
     expect(result.metrics).toMatchObject({
       workload_id: "landscape-seam-fixture",
       decode_ms: 0,

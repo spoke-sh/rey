@@ -43,6 +43,11 @@ export interface AcceleratedTerrainReport {
   landscape_relief_scale_basis:
     "metric_source_spacing" | "presentation_grid_spacing" | "mixed" | "unbound";
   landscape_relief_scale_support: readonly string[];
+  landscape_pyramid_envelope_ids: readonly string[];
+  landscape_height_pyramid_ids: readonly string[];
+  landscape_relief_pyramid_ids: readonly string[];
+  landscape_pyramid_complete: boolean;
+  landscape_pyramid_omissions: readonly string[];
   landscape_patch_set_id: string;
   landscape_mosaic_id: string;
   landscape_composition_revision: string;
@@ -122,6 +127,11 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     landscape_relief_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
     landscape_relief_scale_basis: "unbound",
     landscape_relief_scale_support: Object.freeze([]),
+    landscape_pyramid_envelope_ids: Object.freeze([]),
+    landscape_height_pyramid_ids: Object.freeze([]),
+    landscape_relief_pyramid_ids: Object.freeze([]),
+    landscape_pyramid_complete: false,
+    landscape_pyramid_omissions: Object.freeze([]),
     landscape_patch_set_id: "unbound",
     landscape_mosaic_id: "unbound",
     landscape_composition_revision: "unbound",
@@ -681,6 +691,37 @@ export function AcceleratedTerrainSurface({
       landscape_relief_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
       landscape_relief_scale_basis: landscapeReliefScaleSummary.scale_basis,
       landscape_relief_scale_support: landscapeReliefScaleSummary.scale_support,
+      landscape_pyramid_envelope_ids: Object.freeze(
+        terrainCompilation?.pyramid_envelopes.map(
+          ({ envelope_id }) => envelope_id,
+        ) ?? [],
+      ),
+      landscape_height_pyramid_ids: Object.freeze(
+        terrainCompilation?.pyramid_envelopes.map(
+          ({ height_pyramid }) => height_pyramid.pyramid_id,
+        ) ?? [],
+      ),
+      landscape_relief_pyramid_ids: Object.freeze(
+        terrainCompilation?.pyramid_envelopes.map(
+          ({ relief_pyramid }) => relief_pyramid.pyramid_id,
+        ) ?? [],
+      ),
+      landscape_pyramid_complete:
+        (terrainCompilation?.pyramid_envelopes.length ?? 0) > 0 &&
+        terrainCompilation!.pyramid_envelopes.every(
+          ({ height_pyramid, relief_pyramid }) =>
+            height_pyramid.complete && relief_pyramid.complete,
+        ),
+      landscape_pyramid_omissions: Object.freeze([
+        ...new Set(
+          terrainCompilation?.pyramid_envelopes.flatMap(
+            ({ height_pyramid, relief_pyramid }) => [
+              ...height_pyramid.omissions,
+              ...relief_pyramid.omissions,
+            ],
+          ) ?? [],
+        ),
+      ]),
       landscape_patch_set_id:
         terrainCompilation?.patch_set.patch_set_id ?? "unbound",
       landscape_mosaic_id:

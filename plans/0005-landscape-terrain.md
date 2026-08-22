@@ -433,6 +433,16 @@ budgets now include those sampled derived arrays. This is seam-safe for one
 complete regional field. The following regional-mosaic slice now supplies the
 shared horizontal frame; a metric relief pyramid remains open below.
 
+`rey.terrain.compilation-worker@5` and reference renderer revision 3 now hard-
+cut admitted terrain through `rey.landscape-pyramid-envelope.v1`. The envelope
+binds exact BLAKE3 height, validity-class, hillshade, salience, and tangent
+content to the one-level height/relief contracts before camera tile sampling.
+Both pyramids remain explicitly incomplete: current envelopes retain only the
+complete finest field, report zero source gutter for every relief operator,
+and list absent coarse levels, halos, border digests, MDOW, and SVF as
+omissions. This closes the shared renderer contract boundary without claiming
+the 8.3 hierarchy.
+
 `rey.landscape-relief-engine@3` extends that prototype with
 `rey.terrain-relief-metrics.v1` source-spacing and elevation-range metadata.
 It derives local, midslope, and regional target radii in meters, explicitly
@@ -645,9 +655,10 @@ and CLI evidence are complete.
       `rey.landscape-relief-pyramid.v1`. Each level must retain metric sample
       spacing, dimensions, bounds, validity, source lineage, operator support,
       implementation revision, and exact parent/child identity.
-- [ ] Hard-cut the accelerated and reference paths to those shared contracts
+- [x] Hard-cut the accelerated and reference paths to those shared contracts
       once parity is proved. Keep `rey.landscape-relief-field.v3` labeled as an
-      enabling field-wide prototype until that cutover.
+      enabling field-wide prototype inside the incomplete envelope until 8.3
+      replaces it with the haloed hierarchy.
 - [x] Extend the existing verbose `rey workloads run scene-admission` result
       and structured JSON with patch-set, mosaic, pyramid, conflict, omission,
       source-resolution, and renderer-budget summaries before treating the

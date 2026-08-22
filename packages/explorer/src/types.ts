@@ -114,6 +114,12 @@ export interface TerrainFieldSetInput {
     elevation_range_meters: number;
     authority: string;
   };
+  landscape_reference?: {
+    schema: "rey.landscape-spatial-reference.v1";
+    reference_id: string;
+    coordinate_reference: string;
+    vertical_reference: string;
+  };
   landscape_mosaic?: {
     schema: "rey.landscape-mosaic-binding.v1";
     mosaic_id: string;

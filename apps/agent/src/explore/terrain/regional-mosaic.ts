@@ -412,6 +412,12 @@ export function compileRegionalTerrainMosaic(
     curvature: relief.curvature,
     material,
     relief_metrics: reliefMetrics ?? undefined,
+    landscape_reference: Object.freeze({
+      schema: "rey.landscape-spatial-reference.v1" as const,
+      reference_id: mosaicId,
+      coordinate_reference: coordinateReference,
+      vertical_reference: verticalReference,
+    }),
     field_cells: fieldCellCount(grid),
     field_bytes: fields.reduce(
       (total, channel) => total + fieldByteLength(channel),

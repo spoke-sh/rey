@@ -215,6 +215,7 @@ export function refineRegionalTerrainField(
           authority: `${source.relief_metrics.authority}; refinement spacing includes disclosed presentation-only interpolation and microrelief`,
         })
       : undefined,
+    landscape_reference: source.landscape_reference,
     field_cells: cells,
     field_bytes: fields.reduce(
       (total, field) => total + fieldByteLength(field),

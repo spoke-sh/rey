@@ -66,9 +66,12 @@ import type { AtlasLandscapePresentation } from "../projection/atlas-landscape";
 import { featureVisibleAtLens } from "../engine/cartography";
 import {
   materializeTerrainTile,
+  materializeTerrainTileRelief,
   projectTerrainTilePyramid,
 } from "../terrain/tiles";
-import type { TerrainFieldSet } from "../terrain/compile";
+import { refineRegionalTerrainField } from "../terrain/refinement";
+import { deriveRegionalTerrainGeography } from "../terrain/regional-geography";
+import { compileCurrentLandscapePyramidEnvelope } from "../terrain/pyramid-contracts";
 
 export interface FocusableTopologyObject {
   focus_id: string;
@@ -433,39 +436,47 @@ function stipplePathFromSamples(
 }
 
 function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
-  const fields = useMemo(
+  const renderedFields = useMemo(
     () =>
       scene.terrain_fields
         .filter((field) => field.active_band_ids.includes("admitted_dem"))
+        .map((field) => refineRegionalTerrainField(field))
+        .map((field) => deriveRegionalTerrainGeography(field))
         .flatMap((field) => {
+          const relief = deriveLandscapeReliefField(field);
+          const envelope = compileCurrentLandscapePyramidEnvelope(
+            field,
+            relief,
+          );
           const pyramid = projectTerrainTilePyramid(field);
           return pyramid.tiles
             .filter(({ level }) => level === 0)
-            .map((tile) => materializeTerrainTile(field, tile));
+            .map((tile) => ({
+              field: materializeTerrainTile(field, tile),
+              relief: materializeTerrainTileRelief(field, relief, tile),
+              envelope,
+            }));
         }),
     [scene.terrain_fields],
   );
-  const renderedFields = useMemo(
-    () =>
-      fields.map((field) => ({
-        field,
-        relief: deriveLandscapeReliefField(field),
-      })),
-    [fields],
-  );
-  if (fields.length === 0) return null;
+  if (renderedFields.length === 0) return null;
   return (
     <svg
-      aria-label={`${fields.length} admitted regional terrain field${fields.length === 1 ? "" : "s"}`}
+      aria-label={`${renderedFields.length} admitted regional terrain field${renderedFields.length === 1 ? "" : "s"}`}
       className={sx(styles.worldGeometryLayer)}
       data-landscape-relief-engine={LANDSCAPE_RELIEF_ENGINE_REVISION}
-      data-regional-terrain-reference="rey.reference-regional-terrain@2"
+      data-landscape-pyramid-envelopes={[
+        ...new Set(renderedFields.map(({ envelope }) => envelope.envelope_id)),
+      ].join(",")}
+      data-regional-terrain-reference="rey.reference-regional-terrain@3"
       role="img"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
       <desc>
         Triangles exist only where three admitted source vertices are valid.
-        Explicit no-data vertices remain holes.
+        Explicit no-data vertices remain holes. Unsupported vertices remain
+        holes. Every tile samples one verified complete-field height and relief
+        pyramid envelope.
       </desc>
       {renderedFields.flatMap(({ field, relief }) => {
         const indices = terrainTriangleIndices(field);

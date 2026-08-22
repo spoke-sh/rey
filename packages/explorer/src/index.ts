@@ -86,12 +86,17 @@ export type {
 } from "./three-terrain";
 export {
   finalizeLandscapeHeightPyramid,
+  finalizeLandscapePyramidEnvelope,
   finalizeLandscapeReliefPyramid,
   LANDSCAPE_HEIGHT_PYRAMID_CONTRACT_REVISION,
   LANDSCAPE_HEIGHT_PYRAMID_SCHEMA,
+  LANDSCAPE_PYRAMID_ENVELOPE_REVISION,
+  LANDSCAPE_PYRAMID_ENVELOPE_SCHEMA,
+  landscapePyramidContentId,
   LANDSCAPE_RELIEF_PYRAMID_CONTRACT_REVISION,
   LANDSCAPE_RELIEF_PYRAMID_SCHEMA,
   verifyLandscapeHeightPyramid,
+  verifyLandscapePyramidEnvelope,
   verifyLandscapeReliefPyramid,
 } from "./terrain-pyramid";
 export {
@@ -113,6 +118,7 @@ export type {
   LandscapeHeightPyramidInput,
   LandscapeHeightPyramidLevel,
   LandscapeHeightPyramidLevelInput,
+  LandscapePyramidEnvelope,
   LandscapePyramidBounds,
   LandscapePyramidLineage,
   LandscapePyramidValidity,

@@ -1,13 +1,23 @@
 import { blake3 } from "@noble/hashes/blake3.js";
+import {
+  landscapeReliefFieldByteLength,
+  type LandscapeReliefField,
+} from "./landscape-relief";
+import { summarizeTerrainFieldValidity } from "./terrain-validity";
+import type { TerrainFieldSetInput } from "./types";
 
 export const LANDSCAPE_HEIGHT_PYRAMID_SCHEMA =
   "rey.landscape-height-pyramid.v1" as const;
 export const LANDSCAPE_RELIEF_PYRAMID_SCHEMA =
   "rey.landscape-relief-pyramid.v1" as const;
+export const LANDSCAPE_PYRAMID_ENVELOPE_SCHEMA =
+  "rey.landscape-pyramid-envelope.v1" as const;
 export const LANDSCAPE_HEIGHT_PYRAMID_CONTRACT_REVISION =
   "rey.landscape-height-pyramid-contract@1" as const;
 export const LANDSCAPE_RELIEF_PYRAMID_CONTRACT_REVISION =
   "rey.landscape-relief-pyramid-contract@1" as const;
+export const LANDSCAPE_PYRAMID_ENVELOPE_REVISION =
+  "rey.landscape-pyramid-envelope@1" as const;
 
 export interface LandscapePyramidBounds {
   x: number;
@@ -32,6 +42,7 @@ export interface LandscapePyramidValidity {
 
 export interface LandscapeHeightPyramidLevel {
   level_id: string;
+  height_id: string;
   level: number;
   implementation_revision: string;
   parent_level_id: string | null;
@@ -107,6 +118,16 @@ export interface LandscapeReliefPyramid {
   omissions: readonly string[];
 }
 
+export interface LandscapePyramidEnvelope {
+  schema: typeof LANDSCAPE_PYRAMID_ENVELOPE_SCHEMA;
+  implementation_revision: typeof LANDSCAPE_PYRAMID_ENVELOPE_REVISION;
+  envelope_id: string;
+  field_set_id: string;
+  source_revision: string;
+  height_pyramid: LandscapeHeightPyramid;
+  relief_pyramid: LandscapeReliefPyramid;
+}
+
 export type LandscapeHeightPyramidLevelInput = Omit<
   LandscapeHeightPyramidLevel,
   "level_id" | "parent_level_id" | "child_level_id"
@@ -137,6 +158,97 @@ export type LandscapeReliefPyramidInput = Omit<
 > & {
   levels: readonly LandscapeReliefPyramidLevelInput[];
 };
+
+export function finalizeLandscapePyramidEnvelope(
+  fieldSetId: string,
+  sourceRevision: string,
+  heightPyramid: LandscapeHeightPyramid,
+  reliefPyramid: LandscapeReliefPyramid,
+): LandscapePyramidEnvelope {
+  verifyLandscapeHeightPyramid(heightPyramid);
+  verifyLandscapeReliefPyramid(reliefPyramid, heightPyramid);
+  const identity = {
+    schema: LANDSCAPE_PYRAMID_ENVELOPE_SCHEMA,
+    implementation_revision: LANDSCAPE_PYRAMID_ENVELOPE_REVISION,
+    field_set_id: fieldSetId,
+    source_revision: sourceRevision,
+    height_pyramid_id: heightPyramid.pyramid_id,
+    relief_pyramid_id: reliefPyramid.pyramid_id,
+  };
+  const result = Object.freeze({
+    schema: LANDSCAPE_PYRAMID_ENVELOPE_SCHEMA,
+    implementation_revision: LANDSCAPE_PYRAMID_ENVELOPE_REVISION,
+    envelope_id: semanticDigest(identity),
+    field_set_id: fieldSetId,
+    source_revision: sourceRevision,
+    height_pyramid: heightPyramid,
+    relief_pyramid: reliefPyramid,
+  });
+  verifyLandscapePyramidEnvelope(result);
+  return result;
+}
+
+export function verifyLandscapePyramidEnvelope(
+  envelope: LandscapePyramidEnvelope,
+  field?: TerrainFieldSetInput,
+  relief?: LandscapeReliefField,
+): void {
+  verifyLandscapeHeightPyramid(envelope.height_pyramid);
+  verifyLandscapeReliefPyramid(
+    envelope.relief_pyramid,
+    envelope.height_pyramid,
+  );
+  const expected = semanticDigest({
+    schema: envelope.schema,
+    implementation_revision: envelope.implementation_revision,
+    field_set_id: envelope.field_set_id,
+    source_revision: envelope.source_revision,
+    height_pyramid_id: envelope.height_pyramid.pyramid_id,
+    relief_pyramid_id: envelope.relief_pyramid.pyramid_id,
+  });
+  if (
+    envelope.schema !== LANDSCAPE_PYRAMID_ENVELOPE_SCHEMA ||
+    envelope.implementation_revision !== LANDSCAPE_PYRAMID_ENVELOPE_REVISION ||
+    !envelope.field_set_id ||
+    !envelope.source_revision ||
+    envelope.envelope_id !== expected
+  )
+    throw new Error("landscape pyramid envelope identity changed");
+  if (!field && !relief) return;
+  if (!field || !relief)
+    throw new Error("landscape pyramid envelope binding is incomplete");
+  verifyLandscapePyramidFieldBinding(envelope, field, relief);
+}
+
+export function landscapePyramidContentId(
+  channel: string,
+  arrays: readonly (Float32Array | Int8Array | Uint8Array)[],
+): string {
+  if (!channel || arrays.length === 0)
+    throw new Error("landscape pyramid content identity is incomplete");
+  const header = new TextEncoder().encode(
+    JSON.stringify({
+      channel,
+      byte_lengths: arrays.map(({ byteLength }) => byteLength),
+    }),
+  );
+  const bytes = new Uint8Array(
+    header.length +
+      arrays.reduce((total, array) => total + array.byteLength, 0),
+  );
+  bytes.set(header);
+  let offset = header.length;
+  for (const array of arrays) {
+    const content = new Uint8Array(
+      array.buffer,
+      array.byteOffset,
+      array.byteLength,
+    );
+    bytes.set(content, offset);
+    offset += content.length;
+  }
+  return `blake3:${hex(blake3(bytes))}`;
+}
 
 export function finalizeLandscapeHeightPyramid(
   input: LandscapeHeightPyramidInput,
@@ -235,6 +347,7 @@ export function verifyLandscapeHeightPyramid(
     verifyValidity(level.validity, level.columns * level.rows);
     verifyLineage(level.source_lineage);
     if (
+      !contentId(level.height_id) ||
       !level.implementation_revision ||
       !Number.isFinite(level.elevation_minimum_meters) ||
       !Number.isFinite(level.elevation_maximum_meters) ||
@@ -290,6 +403,7 @@ export function verifyLandscapeReliefPyramid(
       !validByteLength(level.relief_bytes) ||
       level.channel_ids.length === 0 ||
       !canonicalStringOrder(level.channel_ids) ||
+      level.channel_ids.some((channelId) => !channelContentId(channelId)) ||
       level.operator_support.length === 0
     )
       throw new Error("landscape relief pyramid level is invalid");
@@ -302,6 +416,41 @@ export function verifyLandscapeReliefPyramid(
   const expected = semanticDigest(reliefIdentityInput(pyramid));
   if (pyramid.byte_length !== byteLength || pyramid.pyramid_id !== expected)
     throw new Error("landscape relief pyramid identity changed");
+}
+
+function verifyLandscapePyramidFieldBinding(
+  envelope: LandscapePyramidEnvelope,
+  field: TerrainFieldSetInput,
+  relief: LandscapeReliefField,
+): void {
+  const heightLevel = envelope.height_pyramid.levels.at(-1)!;
+  const reliefLevel = envelope.relief_pyramid.levels.at(-1)!;
+  const validity = summarizeTerrainFieldValidity(field);
+  const expectedReliefChannels = canonicalStrings([
+    `hillshade:${landscapePyramidContentId("hillshade", [relief.hillshade])}`,
+    `salience:${landscapePyramidContentId("salience", [relief.salience])}`,
+    `tangent:${landscapePyramidContentId("tangent", [relief.tangent])}`,
+  ]);
+  if (
+    envelope.field_set_id !== field.field_set_id ||
+    envelope.source_revision !== field.source_revision ||
+    relief.field_set_id !== field.field_set_id ||
+    relief.source_field_set_id !== field.field_set_id ||
+    heightLevel.columns !== field.grid.columns ||
+    heightLevel.rows !== field.grid.rows ||
+    JSON.stringify(heightLevel.bounds) !== JSON.stringify(field.grid.bounds) ||
+    JSON.stringify(heightLevel.validity) !==
+      JSON.stringify({ ...validity, policy: "conservative_support_only" }) ||
+    heightLevel.height_id !==
+      landscapePyramidContentId("height", [field.elevation.values]) ||
+    heightLevel.height_bytes !== field.elevation.values.byteLength ||
+    heightLevel.validity_bytes !==
+      field.validity_classification?.values.byteLength ||
+    reliefLevel.relief_bytes !== landscapeReliefFieldByteLength(relief) ||
+    JSON.stringify(reliefLevel.channel_ids) !==
+      JSON.stringify(expectedReliefChannels)
+  )
+    throw new Error("landscape pyramid envelope diverges from its field");
 }
 
 function normalizeHeightLevel(
@@ -440,7 +589,7 @@ function verifyValidity(
   vertices: number,
 ): void {
   if (
-    !validity.validity_id ||
+    !contentId(validity.validity_id) ||
     validity.policy !== "conservative_support_only" ||
     !validCount(validity.valid_vertices) ||
     !validCount(validity.no_data_vertices) ||
@@ -571,6 +720,15 @@ function validCount(value: number): boolean {
 
 function validByteLength(value: number): boolean {
   return Number.isSafeInteger(value) && value > 0;
+}
+
+function contentId(value: string): boolean {
+  return /^blake3:[0-9a-f]{64}$/.test(value);
+}
+
+function channelContentId(value: string): boolean {
+  const separator = value.indexOf(":blake3:");
+  return separator > 0 && contentId(value.slice(separator + 1));
 }
 
 function semanticDigest(value: unknown): string {

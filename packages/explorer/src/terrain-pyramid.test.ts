@@ -81,6 +81,7 @@ function heightInput(): LandscapeHeightPyramidInput {
     levels: [
       {
         level: 0,
+        height_id: `blake3:${"1".repeat(64)}`,
         implementation_revision: "height-level@1",
         sample_spacing_x_meters: 200,
         sample_spacing_y_meters: 200,
@@ -88,7 +89,7 @@ function heightInput(): LandscapeHeightPyramidInput {
         rows: 2,
         bounds: { x: 0, y: 0, width: 400, height: 200 },
         validity: {
-          validity_id: "validity:coarse",
+          validity_id: `blake3:${"2".repeat(64)}`,
           valid_vertices: 4,
           no_data_vertices: 1,
           unsupported_vertices: 1,
@@ -104,6 +105,7 @@ function heightInput(): LandscapeHeightPyramidInput {
       },
       {
         level: 1,
+        height_id: `blake3:${"3".repeat(64)}`,
         implementation_revision: "height-level@1",
         sample_spacing_x_meters: 100,
         sample_spacing_y_meters: 100,
@@ -111,7 +113,7 @@ function heightInput(): LandscapeHeightPyramidInput {
         rows: 3,
         bounds: { x: 0, y: 0, width: 400, height: 200 },
         validity: {
-          validity_id: "validity:fine",
+          validity_id: `blake3:${"4".repeat(64)}`,
           valid_vertices: 12,
           no_data_vertices: 2,
           unsupported_vertices: 1,
@@ -150,7 +152,10 @@ function reliefInput(
       rows: level.rows,
       bounds: level.bounds,
       validity: level.validity,
-      channel_ids: ["svf", "hillshade"],
+      channel_ids: [
+        `svf:blake3:${"5".repeat(64)}`,
+        `hillshade:blake3:${"6".repeat(64)}`,
+      ],
       operator_support: [
         {
           operator_id: "svf",

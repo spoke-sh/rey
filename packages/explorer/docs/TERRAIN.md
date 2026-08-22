@@ -9,6 +9,7 @@ geometry, or application cards into terrain.
 ```text
 TerrainFieldSetInput[]
   → complete-field cartographic relief derivation
+  → verified incomplete height/relief pyramid envelope
   → camera-qualified tile descriptors + bounded worker
   → exact row/column sampling of height and relief into render tiles
   → buildTerrainMeshData(fields, sampled relief)
@@ -74,19 +75,31 @@ every level to retain metric x/y spacing, dimensions, common bounds,
 conservative valid/no-data/unsupported counts, byte cost, exact source
 lineage, and deterministic parent/child level identities.
 
-Height levels additionally retain their vertical range. Relief levels bind one
+Height levels additionally retain an exact BLAKE3 height-channel identity and
+their vertical range. Relief levels bind one
 exact height level and independently content-identify each operator revision,
 metric target and support radius, required source gutter, support decision,
 validity policy, and derived channel set. A supported operator is invalid when
 its gutter is narrower than its kernel support. Relief geometry and validity
 must match the bound height level exactly.
 
-These schemas are a contract gate, not a claim that the renderer already
-builds the hierarchy. The current `rey.terrain-tile-pyramid.v1` remains a
+`rey.landscape-pyramid-envelope.v1` now binds one complete admitted field and
+its relief prototype to those schemas. The envelope content-identifies exact
+height, validity-class, hillshade, salience, and tangent bytes. Both the
+accelerated compiler and deterministic reference path verify the envelope
+before sampling camera tiles; accelerated diagnostics retain its envelope,
+height-pyramid, relief-pyramid, completion, and omission values.
+
+This is a renderer-contract cutover, not a claim that the hierarchy is built.
+Each current envelope has one finest level and `complete: false`; every relief
+operator reports zero retained gutter and therefore cannot claim halo-safe
+pyramid support. The current `rey.terrain-tile-pyramid.v1` remains a
 camera-selection prototype and `rey.landscape-relief-field.v3` remains a
-complete-field relief prototype. Neither is silently relabeled as a height or
-relief pyramid. The application cutover, retained CLI summaries, haloed level
-derivation, residency accounting, and partition qualification remain open.
+complete-field relief prototype inside the envelope. Haloed multilevel data,
+border digests, residency accounting, and hierarchy qualification remain open
+in 8.3. The scene-admission CLI continues to report the truthful earlier
+boundary: contracts are defined but runtime pyramids are not materialized by
+scene admission itself.
 
 Several admitted regional fields may first enter
 `rey.landscape-mosaic.v1`. The application-owned compiler requires a common

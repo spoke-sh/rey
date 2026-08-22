@@ -226,6 +226,18 @@ function compileRegionalTerrainFieldUncached(
     ),
     `${REGIONAL_TERRAIN_SCENE_COMPILER_REVISION}:validity-classification:${dataset.dataset_id}`,
   );
+  const landscapeReference = Object.freeze({
+    schema: "rey.landscape-spatial-reference.v1" as const,
+    reference_id:
+      landscapeFrame?.frame_id ??
+      `rey.regional-terrain-scene-frame.v1:${scene.scene_id}:${dataset.dataset_id}`,
+    coordinate_reference:
+      landscapeFrame?.coordinate_reference ??
+      "native_crs84_projected_to_scene_landscape_frame",
+    vertical_reference:
+      landscapeFrame?.vertical_reference ??
+      `source_elevation_meters:${dataset.dataset_id}`,
+  });
   return Object.freeze({
     schema: TERRAIN_FIELD_SCHEMA,
     field_set_id: `${TERRAIN_FIELD_SCHEMA}|${program.program_id}|${dataset.dataset_id}|${REGIONAL_TERRAIN_SCENE_COMPILER_REVISION}|${landscapeFrame?.frame_id ?? "scene-local-frame"}`,
@@ -263,6 +275,7 @@ function compileRegionalTerrainFieldUncached(
       dataset.rows,
       elevationRange,
     ),
+    landscape_reference: landscapeReference,
     field_cells: cells,
     field_bytes: fields.reduce(
       (total, field) => total + fieldByteLength(field),

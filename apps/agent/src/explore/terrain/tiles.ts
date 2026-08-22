@@ -462,6 +462,7 @@ export function materializeTerrainTile(
     curvature,
     material,
     relief_metrics: source.relief_metrics,
+    landscape_reference: source.landscape_reference,
     field_cells: fieldCellCount(grid),
     field_bytes: fields.reduce(
       (total, field) => total + fieldByteLength(field),

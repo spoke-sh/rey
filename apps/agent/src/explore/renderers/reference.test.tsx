@@ -637,6 +637,10 @@ describe("reference renderer", () => {
     // instant regime flipped to "landscape", regardless of atlas_opacity.
     // It must still be present and carrying the fade here.
     expect(markup).toContain('data-atlas-feature-layer="atlas:1"');
+    expect(markup).toContain("data-landscape-pyramid-envelopes=");
+    expect(markup).toContain(
+      'data-regional-terrain-reference="rey.reference-regional-terrain@3"',
+    );
     expect(markup).toContain('data-semantic-identity="atlas-sector:1"');
     expect(markup).toContain('style="opacity:' + presentation.atlas_opacity);
 

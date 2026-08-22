@@ -4,6 +4,7 @@ import {
   landscapeReliefFieldByteLength,
   terrainNoDataLeakTriangleCount,
   type CompiledContinuousRelief,
+  type LandscapePyramidEnvelope,
   type TerrainLineFeatureInput,
 } from "@rey/explorer";
 import type { LensRegime } from "../engine/camera";
@@ -15,6 +16,7 @@ import {
   type TerrainWorkingSetRequest,
 } from "./compile";
 import type { CompiledTerrainTile } from "./residency";
+import { compileCurrentLandscapePyramidEnvelope } from "./pyramid-contracts";
 import { refineRegionalTerrainField } from "./refinement";
 import {
   deriveRegionalTerrainGeography,
@@ -33,7 +35,7 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@4" as const;
+  "rey.terrain.compilation-worker@5" as const;
 
 export interface TerrainProgramWorkerRequest {
   program: TerrainProgram;
@@ -72,6 +74,7 @@ export interface TerrainCompilationResult {
   worker_revision: typeof TERRAIN_COMPILATION_WORKER_REVISION;
   execution: "dedicated_worker" | "main_thread_fallback";
   pyramids: readonly TerrainTilePyramid[];
+  landscape_pyramids: readonly LandscapePyramidEnvelope[];
   selections: readonly TerrainTileSelection[];
   active_tile_ids: readonly string[];
   compiled_tiles: readonly CompiledTerrainTile[];
@@ -121,6 +124,12 @@ export function executeTerrainCompilationJob(
       field.field_set_id,
       deriveLandscapeReliefField(field),
     ]),
+  );
+  const landscapePyramids = admittedFields.map((field) =>
+    compileCurrentLandscapePyramidEnvelope(
+      field,
+      reliefById.get(field.field_set_id)!,
+    ),
   );
   const compiledTiles = selections.flatMap((selection, pyramidIndex) => {
     const pyramid = pyramids[pyramidIndex]!;
@@ -176,6 +185,7 @@ export function executeTerrainCompilationJob(
     job.maximum_gpu_bytes,
     undefined,
     reliefFields,
+    landscapePyramids,
   );
   const meshPreparationMs = measurementNow() - meshStarted;
   const meshById = new Map(
@@ -200,6 +210,7 @@ export function executeTerrainCompilationJob(
     worker_revision: TERRAIN_COMPILATION_WORKER_REVISION,
     execution,
     pyramids: Object.freeze(pyramids),
+    landscape_pyramids: Object.freeze(landscapePyramids),
     selections: Object.freeze(selections),
     active_tile_ids: Object.freeze(
       selections.flatMap((selection) => selection.tile_ids),

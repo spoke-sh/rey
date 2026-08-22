@@ -35,7 +35,29 @@ export function admittedField(): TerrainFieldSet {
     field_set_id: "admitted:grid:129x65",
     working_set_id: "admitted:grid:129x65",
     active_band_ids: Object.freeze(["admitted_dem"]),
+    source_summary: Object.freeze({
+      columns: field.grid.columns,
+      rows: field.grid.rows,
+      valid_vertices: field.field_cells,
+      no_data_vertices: 0,
+      unsupported_vertices: 0,
+      elevation_minimum: 0,
+      elevation_maximum: 1_000,
+    }),
     validity_classification: validityClassification,
+    landscape_reference: Object.freeze({
+      schema: "rey.landscape-spatial-reference.v1" as const,
+      reference_id: "fixture:regional-landscape",
+      coordinate_reference: "fixture projected metric frame",
+      vertical_reference: "fixture elevation meters",
+    }),
+    relief_metrics: Object.freeze({
+      schema: "rey.terrain-relief-metrics.v1" as const,
+      sample_spacing_x_meters: 150,
+      sample_spacing_y_meters: 150,
+      elevation_range_meters: 1_000,
+      authority: "fixture metric terrain grid",
+    }),
     field_bytes: field.field_bytes + validityClassification.values.byteLength,
   });
 }

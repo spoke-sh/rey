@@ -19,6 +19,10 @@ import type {
   TerrainFieldSetInput,
   TerrainRenderPassSetInput,
 } from "./types";
+import {
+  verifyLandscapePyramidEnvelope,
+  type LandscapePyramidEnvelope,
+} from "./terrain-pyramid";
 
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
   "rey.terrain.tsl-cartographic-relief@4";
@@ -34,6 +38,7 @@ export const TERRAIN_MESH_PARITY_REVISION =
 export interface CompiledContinuousRelief {
   material_revision: string;
   patch_set: ReturnType<typeof compileLandscapePatchSet>;
+  pyramid_envelopes: readonly LandscapePyramidEnvelope[];
   render_passes?: TerrainRenderPassSetInput;
   meshes: readonly {
     field_set_id: string;
@@ -262,11 +267,13 @@ export function compileContinuousRelief(
   gpuBudgetBytes = MAX_ACCELERATED_TERRAIN_GPU_BYTES,
   renderPasses?: TerrainRenderPassSetInput,
   reliefFields?: readonly LandscapeReliefField[],
+  pyramidEnvelopes: readonly LandscapePyramidEnvelope[] = [],
 ): CompiledContinuousRelief {
   const compilationStarted = measurementNow();
   if (!Number.isSafeInteger(gpuBudgetBytes) || gpuBudgetBytes < 1)
     throw new Error("accelerated terrain GPU budget is invalid");
   const resolvedRelief = resolveLandscapeReliefFields(fields, reliefFields);
+  verifyPyramidEnvelopeSet(resolvedRelief, pyramidEnvelopes);
   const meshData = fields.map((field, index) =>
     buildTerrainMeshData(field, resolvedRelief[index]!),
   );
@@ -301,6 +308,7 @@ export function compileContinuousRelief(
   return {
     material_revision: continuousReliefMaterialRevision(renderPasses),
     patch_set: compileLandscapePatchSet(fields),
+    pyramid_envelopes: Object.freeze([...pyramidEnvelopes]),
     render_passes: renderPasses,
     meshes: Object.freeze(
       fields.map((fieldSet, index) =>
@@ -322,6 +330,27 @@ export function compileContinuousRelief(
       geometry_compilation_ms: measurementNow() - compilationStarted,
     }),
   };
+}
+
+function verifyPyramidEnvelopeSet(
+  reliefFields: readonly LandscapeReliefField[],
+  envelopes: readonly LandscapePyramidEnvelope[],
+): void {
+  const reliefSourceIds = new Set(
+    reliefFields.map(({ source_field_set_id }) => source_field_set_id),
+  );
+  if (
+    new Set(envelopes.map(({ field_set_id }) => field_set_id)).size !==
+    envelopes.length
+  )
+    throw new Error("accelerated terrain pyramid envelope set is ambiguous");
+  for (const envelope of envelopes) {
+    verifyLandscapePyramidEnvelope(envelope);
+    if (!reliefSourceIds.has(envelope.field_set_id))
+      throw new Error(
+        "accelerated terrain pyramid envelope has no sampled relief consumer",
+      );
+  }
 }
 
 function resolveLandscapeReliefFields(

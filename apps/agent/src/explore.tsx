@@ -1057,6 +1057,21 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-landscape-relief-scale-support={terrainRenderer.landscape_relief_scale_support.join(
             "|",
           )}
+          data-renderer-landscape-pyramid-envelopes={terrainRenderer.landscape_pyramid_envelope_ids.join(
+            ",",
+          )}
+          data-renderer-landscape-height-pyramids={terrainRenderer.landscape_height_pyramid_ids.join(
+            ",",
+          )}
+          data-renderer-landscape-relief-pyramids={terrainRenderer.landscape_relief_pyramid_ids.join(
+            ",",
+          )}
+          data-renderer-landscape-pyramid-complete={String(
+            terrainRenderer.landscape_pyramid_complete,
+          )}
+          data-renderer-landscape-pyramid-omissions={terrainRenderer.landscape_pyramid_omissions.join(
+            "|",
+          )}
           data-renderer-landscape-patch-set-id={
             terrainRenderer.landscape_patch_set_id
           }
