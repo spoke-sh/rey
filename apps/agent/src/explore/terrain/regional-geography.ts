@@ -214,7 +214,7 @@ export function deriveRegionalTerrainGeography(
     material,
     field_bytes: fields.reduce(
       (total, field) => total + fieldByteLength(field),
-      0,
+      source.validity_classification?.values.byteLength ?? 0,
     ),
   });
 }

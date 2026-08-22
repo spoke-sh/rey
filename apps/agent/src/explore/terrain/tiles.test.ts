@@ -1,6 +1,7 @@
 import {
   buildTerrainMeshData,
   deriveLandscapeReliefField,
+  TERRAIN_VALIDITY_NO_DATA,
   terrainTriangleIndices,
 } from "@rey/explorer";
 import { describe, expect, it } from "vitest";
@@ -20,6 +21,8 @@ describe("admitted terrain tile projection", () => {
     const source = admittedField();
     const seamIndex = 16 * source.grid.columns + 32;
     source.validity.values[seamIndex] = 0;
+    source.validity_classification!.values[seamIndex] =
+      TERRAIN_VALIDITY_NO_DATA;
     const pyramid = projectTerrainTilePyramid(source);
     expect(pyramid.maximum_level).toBe(2);
     const left = tileAt(pyramid, 2, 0, 0);
@@ -94,10 +97,14 @@ describe("admitted terrain tile projection", () => {
 
   it("can only remove support at coarse levels and refines by screen error", () => {
     const source = admittedField();
-    source.validity.values[16 * source.grid.columns + 16] = 0;
+    const noDataIndex = 16 * source.grid.columns + 16;
+    source.validity.values[noDataIndex] = 0;
+    source.validity_classification!.values[noDataIndex] =
+      TERRAIN_VALIDITY_NO_DATA;
     const pyramid = projectTerrainTilePyramid(source);
     const root = tileAt(pyramid, 0, 0, 0);
     expect(root.no_data_vertices).toBeGreaterThan(0);
+    expect(root.unsupported_vertices).toBe(0);
     expect(root.geometric_error).toBeGreaterThan(0);
 
     const overview = selectTerrainTilesForView(pyramid, terrainTileView(0.001));

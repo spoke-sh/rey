@@ -26,11 +26,17 @@ export function admittedField(): TerrainFieldSet {
     detail_authority: "admitted fixture grid",
   });
   field.validity.values.fill(1);
+  const validityClassification = createTerrainValidityClassification(
+    new Uint8Array(field.field_cells).fill(TERRAIN_VALIDITY_VALID),
+    "fixture:admitted-validity-classification@1",
+  );
   return Object.freeze({
     ...field,
     field_set_id: "admitted:grid:129x65",
     working_set_id: "admitted:grid:129x65",
     active_band_ids: Object.freeze(["admitted_dem"]),
+    validity_classification: validityClassification,
+    field_bytes: field.field_bytes + validityClassification.values.byteLength,
   });
 }
 
@@ -45,3 +51,7 @@ export function terrainTileView(renderedScale: number) {
     pan_y: 0,
   };
 }
+import {
+  createTerrainValidityClassification,
+  TERRAIN_VALIDITY_VALID,
+} from "@rey/explorer";

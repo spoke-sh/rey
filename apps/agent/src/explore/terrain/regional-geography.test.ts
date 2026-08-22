@@ -1,3 +1,4 @@
+import { TERRAIN_VALIDITY_NO_DATA } from "@rey/explorer";
 import { describe, expect, it } from "vitest";
 import { refineRegionalTerrainField } from "./refinement";
 import {
@@ -14,6 +15,7 @@ describe("regional terrain geography", () => {
       Math.floor(source.grid.rows / 2) * source.grid.columns +
       Math.floor(source.grid.columns / 2);
     source.validity.values[center] = 0;
+    source.validity_classification!.values[center] = TERRAIN_VALIDITY_NO_DATA;
     const admitted = {
       ...source,
       source_summary: {
@@ -44,6 +46,9 @@ describe("regional terrain geography", () => {
       "support-conservative multiscale topographic tone",
     );
     expect(geography.validity.values).toEqual(refined.validity.values);
+    expect(geography.validity_classification?.values).toEqual(
+      refined.validity_classification?.values,
+    );
     expect(geography.elevation.values).toEqual(replay.elevation.values);
     expect(geography.elevation.values).toEqual(refined.elevation.values);
     expect(geography.flow_accumulation.values).toEqual(

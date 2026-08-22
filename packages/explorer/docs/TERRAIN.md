@@ -23,16 +23,17 @@ TerrainFieldSetInput[]
 
 Each `TerrainFieldSetInput` supplies one bounded regular grid:
 
-| Channel   | Representation                  | Use                                                 |
-| --------- | ------------------------------- | --------------------------------------------------- |
-| Grid      | Columns, rows, and local bounds | Maps cells into local scene coordinates.            |
-| Validity  | `Uint8Array`                    | Determines whether a triangle has admitted support. |
-| Elevation | `Float32Array` plus scale       | Becomes the mesh Y coordinate.                      |
-| Normal    | `Float32Array` or `Int8Array`   | Drives lighting in Three.js coordinates.            |
-| Curvature | `Float32Array`                  | Enhances ridges and valleys.                        |
-| Tint      | RGB `Float32Array`              | Supplies base material color.                       |
-| Occlusion | `Float32Array`                  | Darkens bounded valleys and ambient support.        |
-| Roughness | `Float32Array`                  | Controls the TSL surface response.                  |
+| Channel        | Representation                  | Use                                                            |
+| -------------- | ------------------------------- | -------------------------------------------------------------- |
+| Grid           | Columns, rows, and local bounds | Maps cells into local scene coordinates.                       |
+| Validity       | `Uint8Array`                    | Determines whether a triangle has admitted support.            |
+| Validity class | `Uint8Array`                    | Distinguishes valid, source no-data, and unsupported vertices. |
+| Elevation      | `Float32Array` plus scale       | Becomes the mesh Y coordinate.                                 |
+| Normal         | `Float32Array` or `Int8Array`   | Drives lighting in Three.js coordinates.                       |
+| Curvature      | `Float32Array`                  | Enhances ridges and valleys.                                   |
+| Tint           | RGB `Float32Array`              | Supplies base material color.                                  |
+| Occlusion      | `Float32Array`                  | Darkens bounded valleys and ambient support.                   |
+| Roughness      | `Float32Array`                  | Controls the TSL surface response.                             |
 
 `rey.landscape-relief-field.v3` separately binds renderer-neutral hillshade,
 salience, tangent, metric-scale basis, and operator-support metadata to the
@@ -48,6 +49,15 @@ the bounded kernel, or wider than the complete grid is marked unsupported and
 does not contribute. Renderer diagnostics expose the scale basis and exact
 support decisions. The worker retains both shared-border equality and
 complete-field/partition equality as distinct zero-mismatch diagnostics.
+
+Admitted regional fields also carry
+`rey.terrain-validity-classification.v1`. Its values distinguish supported
+terrain (`1`), source-declared no-data (`2`), and space with no admitted source
+(`0`). The geometry mask remains authoritative for triangle admission, and a
+contract verifier rejects either channel when they disagree. Classification
+is retained through mosaic composition, validity-safe refinement, conservative
+tile projection, and tile materialization. A BLAKE3 validity identity binds
+the exact classification bytes and implementation revision for pyramid use.
 
 This field-wide metric relief is an enabling prototype, not the accepted
 relief hierarchy. It does not yet provide haloed height/relief pyramids,
@@ -102,10 +112,11 @@ retains that omission for the footer, diagnostics, and qualification report.
 - regional terrain datasets produce exact bounded elevation fields with
   source-declared per-vertex validity/no-data.
 
-Field generation, dataset interpretation, hydrology, validity classification,
-LOD selection, worker orchestration, and tile residency remain outside this
-package. Renderer-neutral relief derivation and exact relief sampling are
-package-owned so reference, WebGL2, and WebGPU compilation use one contract.
+Field generation, dataset interpretation, hydrology, classification
+derivation, LOD selection, worker orchestration, and tile residency remain
+application-owned. Validity-class verification and identity, renderer-neutral
+relief derivation, and exact relief sampling are package-owned so reference,
+WebGL2, and WebGPU compilation use one contract.
 `@rey/explorer` sees the same structural field contract in both cases and
 cannot upgrade either source's authority.
 
@@ -115,7 +126,8 @@ axis, so lower-density admitted fields may refine by a bounded integer factor
 while this source stays exact. In a refined field, fully supported cell
 interiors use bilinear sampling; a cell touching no-data uses only fully
 supported source triangles. Every refined point carries an independent
-validity value. Band-limited deterministic microrelief exists only on those
+validity value and its retained no-data or unsupported class. Band-limited
+deterministic microrelief exists only on those
 presentation refinements, is constrained to zero at admitted source vertices,
 and remains explicitly presentation-only. Diagnostics always report the
 original admitted cell counts and elevation range. The reference renderer

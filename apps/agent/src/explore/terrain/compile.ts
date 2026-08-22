@@ -56,12 +56,14 @@ export interface TerrainFieldSet {
     rows: number;
     valid_vertices: number;
     no_data_vertices: number;
+    unsupported_vertices?: number;
     elevation_minimum: number;
     elevation_maximum: number;
   };
   grid: FieldGrid;
   elevation_scale: number;
   validity: MaskField2D;
+  validity_classification?: TerrainFieldSetInput["validity_classification"];
   elevation: ScalarField2D;
   rainfall: ScalarField2D;
   flow_direction: VectorField2D;

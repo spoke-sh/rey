@@ -94,6 +94,20 @@ export {
   verifyLandscapeHeightPyramid,
   verifyLandscapeReliefPyramid,
 } from "./terrain-pyramid";
+export {
+  createTerrainValidityClassification,
+  summarizeTerrainFieldValidity,
+  summarizeTerrainValidityClassification,
+  TERRAIN_VALIDITY_CLASSIFICATION_SCHEMA,
+  TERRAIN_VALIDITY_NO_DATA,
+  TERRAIN_VALIDITY_UNSUPPORTED,
+  TERRAIN_VALIDITY_VALID,
+  verifyTerrainFieldValidityClassification,
+} from "./terrain-validity";
+export type {
+  TerrainValidityClassification,
+  TerrainValiditySummary,
+} from "./terrain-validity";
 export type {
   LandscapeHeightPyramid,
   LandscapeHeightPyramidInput,

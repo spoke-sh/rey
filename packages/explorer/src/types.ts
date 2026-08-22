@@ -89,6 +89,16 @@ export interface TerrainFieldSetInput {
     bounds: { x: number; y: number; width: number; height: number };
   };
   validity: { values: Uint8Array };
+  /**
+   * Preserves why a vertex is invalid. The binary validity mask remains the
+   * geometry authority; this channel prevents source no-data from being
+   * conflated with space for which no terrain source was admitted.
+   */
+  validity_classification?: {
+    schema: "rey.terrain-validity-classification.v1";
+    implementation_revision: string;
+    values: Uint8Array;
+  };
   elevation: { values: Float32Array };
   normal: { values: Float32Array | Int8Array };
   curvature: { values: Float32Array };

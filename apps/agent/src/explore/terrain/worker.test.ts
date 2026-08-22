@@ -1,4 +1,7 @@
-import { deriveLandscapeReliefField } from "@rey/explorer";
+import {
+  deriveLandscapeReliefField,
+  TERRAIN_VALIDITY_NO_DATA,
+} from "@rey/explorer";
 import { describe, expect, it } from "vitest";
 import {
   deriveRegionalTerrainGeography,
@@ -12,7 +15,10 @@ import { admittedField, terrainTileView } from "./tiles.fixture";
 describe("bounded terrain compilation worker", () => {
   it("projects, resamples, and prepares a named tile workload", () => {
     const source = admittedField();
-    source.validity.values[16 * source.grid.columns + 32] = 0;
+    const noDataIndex = 16 * source.grid.columns + 32;
+    source.validity.values[noDataIndex] = 0;
+    source.validity_classification!.values[noDataIndex] =
+      TERRAIN_VALIDITY_NO_DATA;
     const result = executeTerrainCompilationJob({
       job_id: "terrain-job:one",
       workload_id: "landscape-seam-fixture",

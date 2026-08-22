@@ -1,3 +1,8 @@
+import {
+  createTerrainValidityClassification,
+  TERRAIN_VALIDITY_NO_DATA,
+  TERRAIN_VALIDITY_VALID,
+} from "@rey/explorer";
 import type { AdmittedRegionalScene, RegionalBounds } from "../../domain";
 import {
   TERRAIN_FIELD_SCHEMA,
@@ -215,6 +220,12 @@ function compileRegionalTerrainFieldUncached(
     relief.curvature,
     material,
   ] as const;
+  const validityClassification = createTerrainValidityClassification(
+    Uint8Array.from(validityValues, (value) =>
+      value === 0 ? TERRAIN_VALIDITY_NO_DATA : TERRAIN_VALIDITY_VALID,
+    ),
+    `${REGIONAL_TERRAIN_SCENE_COMPILER_REVISION}:validity-classification:${dataset.dataset_id}`,
+  );
   return Object.freeze({
     schema: TERRAIN_FIELD_SCHEMA,
     field_set_id: `${TERRAIN_FIELD_SCHEMA}|${program.program_id}|${dataset.dataset_id}|${REGIONAL_TERRAIN_SCENE_COMPILER_REVISION}|${landscapeFrame?.frame_id ?? "scene-local-frame"}`,
@@ -230,12 +241,14 @@ function compileRegionalTerrainFieldUncached(
       rows: dataset.rows,
       valid_vertices: elevationSummary.valid_count,
       no_data_vertices: cells - elevationSummary.valid_count,
+      unsupported_vertices: 0,
       elevation_minimum: elevationSummary.minimum,
       elevation_maximum: elevationSummary.maximum,
     }),
     grid,
     elevation_scale: elevationScale,
     validity,
+    validity_classification: validityClassification,
     elevation,
     rainfall,
     flow_direction: flowDirection,
@@ -253,7 +266,7 @@ function compileRegionalTerrainFieldUncached(
     field_cells: cells,
     field_bytes: fields.reduce(
       (total, field) => total + fieldByteLength(field),
-      0,
+      validityClassification.values.byteLength,
     ),
   });
 }

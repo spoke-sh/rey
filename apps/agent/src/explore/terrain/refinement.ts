@@ -1,4 +1,11 @@
 import {
+  createTerrainValidityClassification,
+  TERRAIN_VALIDITY_NO_DATA,
+  TERRAIN_VALIDITY_UNSUPPORTED,
+  TERRAIN_VALIDITY_VALID,
+  verifyTerrainFieldValidityClassification,
+} from "@rey/explorer";
+import {
   TERRAIN_FIELD_SCHEMA,
   createFieldGrid,
   fieldByteLength,
@@ -12,7 +19,7 @@ import type { TerrainFieldSet } from "./compile";
 import { deriveTerrainNormals } from "./normals";
 
 export const REGIONAL_TERRAIN_REFINEMENT_REVISION =
-  "rey.terrain.validity-safe-refinement@2" as const;
+  "rey.terrain.validity-safe-refinement@3" as const;
 export const REGIONAL_TERRAIN_PRESENTATION_INTERVALS = 320;
 const MAXIMUM_REFINEMENT_FACTOR = 4;
 const MICRO_RELIEF_AMPLITUDE = 0.007;
@@ -56,6 +63,9 @@ export function refineRegionalTerrainField(
   );
   const cells = fieldCellCount(grid);
   const validityValues = new Uint8Array(cells);
+  const validityClassificationValues = new Uint8Array(cells);
+  const sourceValidityClassification =
+    verifyTerrainFieldValidityClassification(source);
   const elevationValues = new Float32Array(cells);
   const rainfallValues = new Float32Array(cells);
   const flowDirectionValues = new Float32Array(cells * 2);
@@ -72,8 +82,17 @@ export function refineRegionalTerrainField(
       const sourceX = column / factor;
       const index = row * grid.columns + column;
       const sample = sampleSupportedTerrain(source, sourceX, sourceY);
-      if (!sample) continue;
+      if (!sample) {
+        validityClassificationValues[index] = invalidRefinedValidityClass(
+          source,
+          sourceValidityClassification.values,
+          sourceX,
+          sourceY,
+        );
+        continue;
+      }
       validityValues[index] = 1;
+      validityClassificationValues[index] = TERRAIN_VALIDITY_VALID;
       elevationValues[index] = clamp01(
         sample.elevation +
           constrainedMicroRelief(sourceX, sourceY, seed) *
@@ -98,6 +117,10 @@ export function refineRegionalTerrainField(
     `${revision}:validity`,
     grid,
     validityValues,
+  );
+  const validityClassification = createTerrainValidityClassification(
+    validityClassificationValues,
+    `${revision}:validity-classification`,
   );
   const elevation = scalarField(
     "elevation",
@@ -173,6 +196,7 @@ export function refineRegionalTerrainField(
     grid,
     elevation_scale: source.elevation_scale,
     validity,
+    validity_classification: validityClassification,
     elevation,
     rainfall,
     flow_direction: flowDirection,
@@ -194,10 +218,42 @@ export function refineRegionalTerrainField(
     field_cells: cells,
     field_bytes: fields.reduce(
       (total, field) => total + fieldByteLength(field),
-      0,
+      validityClassification.values.byteLength,
     ),
     landscape_mosaic: source.landscape_mosaic,
   });
+}
+
+function invalidRefinedValidityClass(
+  field: TerrainFieldSet,
+  classifications: Uint8Array,
+  x: number,
+  y: number,
+): typeof TERRAIN_VALIDITY_NO_DATA | typeof TERRAIN_VALIDITY_UNSUPPORTED {
+  const roundedColumn = Math.round(x);
+  const roundedRow = Math.round(y);
+  if (Math.abs(x - roundedColumn) < 1e-9 && Math.abs(y - roundedRow) < 1e-9) {
+    const exact =
+      classifications[roundedRow * field.grid.columns + roundedColumn];
+    return exact === TERRAIN_VALIDITY_UNSUPPORTED
+      ? TERRAIN_VALIDITY_UNSUPPORTED
+      : TERRAIN_VALIDITY_NO_DATA;
+  }
+  const left = Math.max(0, Math.min(field.grid.columns - 1, Math.floor(x)));
+  const right = Math.max(0, Math.min(field.grid.columns - 1, Math.ceil(x)));
+  const top = Math.max(0, Math.min(field.grid.rows - 1, Math.floor(y)));
+  const bottom = Math.max(0, Math.min(field.grid.rows - 1, Math.ceil(y)));
+  const neighborhood = [
+    top * field.grid.columns + left,
+    top * field.grid.columns + right,
+    bottom * field.grid.columns + left,
+    bottom * field.grid.columns + right,
+  ];
+  return neighborhood.some(
+    (index) => classifications[index] === TERRAIN_VALIDITY_UNSUPPORTED,
+  )
+    ? TERRAIN_VALIDITY_UNSUPPORTED
+    : TERRAIN_VALIDITY_NO_DATA;
 }
 
 function sampleSupportedTerrain(

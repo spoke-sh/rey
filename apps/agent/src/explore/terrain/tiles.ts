@@ -1,6 +1,12 @@
 import {
+  createTerrainValidityClassification,
   sampleLandscapeReliefField,
+  summarizeTerrainValidityClassification,
+  TERRAIN_VALIDITY_NO_DATA,
+  TERRAIN_VALIDITY_UNSUPPORTED,
+  TERRAIN_VALIDITY_VALID,
   terrainTriangleIndices,
+  verifyTerrainFieldValidityClassification,
   type LandscapeReliefField,
   type TerrainMeshData,
 } from "@rey/explorer";
@@ -35,6 +41,7 @@ export interface TerrainTileDescriptor {
   column_indices: readonly number[];
   row_indices: readonly number[];
   validity_values: Uint8Array;
+  validity_classification_values: Uint8Array;
   bounds: FieldBounds;
   geometric_error: number;
   validity_border: {
@@ -45,6 +52,7 @@ export interface TerrainTileDescriptor {
   };
   valid_vertices: number;
   no_data_vertices: number;
+  unsupported_vertices: number;
   field_cells: number;
   cpu_bytes: number;
   gpu_bytes: number;
@@ -80,6 +88,8 @@ export function projectTerrainTilePyramid(
   const leafColumns = Math.ceil((sourceColumns - 1) / tileIntervals);
   const leafRows = Math.ceil((sourceRows - 1) / tileIntervals);
   const maximumLevel = Math.ceil(Math.log2(Math.max(1, leafColumns, leafRows)));
+  const sourceValidityClassification =
+    verifyTerrainFieldValidityClassification(field);
   const invalidPrefix = invalidPrefixSum(field);
   const tileId = (level: number, column: number, row: number) =>
     [
@@ -128,6 +138,14 @@ export function projectTerrainTilePyramid(
           dimensions.stride,
           invalidPrefix,
         );
+        const validityClassification = tileValidityClassification(
+          field,
+          sourceValidityClassification.values,
+          columnIndices,
+          rowIndices,
+          dimensions.stride,
+          validity,
+        );
         const bounds = tileBounds(
           field.grid.bounds,
           sourceColumns,
@@ -146,9 +164,11 @@ export function projectTerrainTilePyramid(
           },
           validity: { values: validity },
         });
-        const validVertices = validity.reduce(
-          (total, value) => total + (value === 0 ? 0 : 1),
-          0,
+        const validitySummary = summarizeTerrainValidityClassification(
+          createTerrainValidityClassification(
+            validityClassification,
+            `${TERRAIN_TILE_PROJECTION_REVISION}:${field.source_revision}:z${level}:x${column}:y${row}`,
+          ),
         );
         const nextDimensions = levelDimensions[level + 1];
         const childIds = nextDimensions
@@ -189,6 +209,7 @@ export function projectTerrainTilePyramid(
             column_indices: Object.freeze(columnIndices),
             row_indices: Object.freeze(rowIndices),
             validity_values: validity,
+            validity_classification_values: validityClassification,
             bounds,
             geometric_error: tileGeometricError(
               field,
@@ -203,8 +224,9 @@ export function projectTerrainTilePyramid(
             validity_border: Object.freeze(
               validityBorder(validity, columnIndices.length, rowIndices.length),
             ),
-            valid_vertices: validVertices,
-            no_data_vertices: fieldCells - validVertices,
+            valid_vertices: validitySummary.valid_vertices,
+            no_data_vertices: validitySummary.no_data_vertices,
+            unsupported_vertices: validitySummary.unsupported_vertices,
             field_cells: fieldCells,
             cpu_bytes: Math.ceil(
               (field.field_bytes / field.field_cells) * fieldCells,
@@ -388,6 +410,10 @@ export function materializeTerrainTile(
     grid,
     tile.validity_values.slice(),
   );
+  const validityClassification = createTerrainValidityClassification(
+    tile.validity_classification_values.slice(),
+    `${TERRAIN_TILE_PROJECTION_REVISION}:${tile.tile_id}:validity-classification`,
+  );
   const elevation = scalar(source.elevation);
   const rainfall = scalar(source.rainfall);
   const flowDirection = vector(source.flow_direction);
@@ -426,6 +452,7 @@ export function materializeTerrainTile(
     grid,
     elevation_scale: source.elevation_scale,
     validity,
+    validity_classification: validityClassification,
     elevation,
     rainfall,
     flow_direction: flowDirection,
@@ -438,7 +465,7 @@ export function materializeTerrainTile(
     field_cells: fieldCellCount(grid),
     field_bytes: fields.reduce(
       (total, field) => total + fieldByteLength(field),
-      0,
+      validityClassification.values.byteLength,
     ),
     landscape_mosaic: source.landscape_mosaic,
   });
@@ -544,6 +571,53 @@ function tileValidity(
       }),
     ),
   );
+}
+
+function tileValidityClassification(
+  field: TerrainFieldSet,
+  sourceClassification: Uint8Array,
+  columnIndices: readonly number[],
+  rowIndices: readonly number[],
+  stride: number,
+  tileValidityValues: Uint8Array,
+): Uint8Array {
+  const result = new Uint8Array(tileValidityValues.length);
+  const radiusBefore = Math.floor(stride / 2);
+  const radiusAfter = Math.ceil(stride / 2) - 1;
+  let output = 0;
+  for (const row of rowIndices) {
+    for (const column of columnIndices) {
+      if (tileValidityValues[output] !== 0) {
+        result[output] = TERRAIN_VALIDITY_VALID;
+        output += 1;
+        continue;
+      }
+      const left = Math.max(0, column - radiusBefore);
+      const right = Math.min(field.grid.columns - 1, column + radiusAfter);
+      const top = Math.max(0, row - radiusBefore);
+      const bottom = Math.min(field.grid.rows - 1, row + radiusAfter);
+      let unsupported = false;
+      for (
+        let sourceRow = top;
+        sourceRow <= bottom && !unsupported;
+        sourceRow += 1
+      )
+        for (let sourceColumn = left; sourceColumn <= right; sourceColumn += 1)
+          if (
+            sourceClassification[
+              sourceRow * field.grid.columns + sourceColumn
+            ] === TERRAIN_VALIDITY_UNSUPPORTED
+          ) {
+            unsupported = true;
+            break;
+          }
+      result[output] = unsupported
+        ? TERRAIN_VALIDITY_UNSUPPORTED
+        : TERRAIN_VALIDITY_NO_DATA;
+      output += 1;
+    }
+  }
+  return result;
 }
 
 function invalidCount(

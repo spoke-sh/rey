@@ -1,4 +1,10 @@
-import type { TerrainFieldSetInput } from "@rey/explorer";
+import {
+  createTerrainValidityClassification,
+  summarizeTerrainValidityClassification,
+  TERRAIN_VALIDITY_UNSUPPORTED,
+  verifyTerrainFieldValidityClassification,
+  type TerrainFieldSetInput,
+} from "@rey/explorer";
 import {
   TERRAIN_FIELD_SCHEMA,
   createFieldGrid,
@@ -117,6 +123,8 @@ export function compileRegionalTerrainMosaic(
   const elevationScale = ordered[0]!.field.elevation_scale;
   const placements = ordered.map((patch) => {
     const { field } = patch;
+    const validityClassification =
+      verifyTerrainFieldValidityClassification(field);
     if (
       !sameNumber(sampleSpacing(field, "x"), spacingX) ||
       !sameNumber(sampleSpacing(field, "y"), spacingY) ||
@@ -127,6 +135,7 @@ export function compileRegionalTerrainMosaic(
     const rowOffset = alignedOffset(field.grid.bounds.y, bounds.y, spacingY);
     return Object.freeze({
       patch,
+      validity_classification: validityClassification,
       column_offset: columnOffset,
       row_offset: rowOffset,
     });
@@ -139,6 +148,9 @@ export function compileRegionalTerrainMosaic(
   const grid = createFieldGrid(columns, rows, bounds);
   const occupancy = new Int32Array(cells).fill(-1);
   const validityValues = new Uint8Array(cells);
+  const validityClassificationValues = new Uint8Array(cells).fill(
+    TERRAIN_VALIDITY_UNSUPPORTED,
+  );
   const elevationValues = new Float32Array(cells);
   const rainfallValues = new Float32Array(cells);
   const flowDirectionValues = new Float32Array(cells * 2);
@@ -170,12 +182,14 @@ export function compileRegionalTerrainMosaic(
           sharedVertices += 1;
           verifySharedSample(
             validityValues,
+            validityClassificationValues,
             elevationValues,
             tintValues,
             occlusionValues,
             roughnessValues,
             targetIndex,
             source,
+            placement.validity_classification.values,
             sourceIndex,
           );
           continue;
@@ -183,6 +197,7 @@ export function compileRegionalTerrainMosaic(
         occupancy[targetIndex] = patchIndex;
         copySample(
           validityValues,
+          validityClassificationValues,
           elevationValues,
           rainfallValues,
           flowDirectionValues,
@@ -193,6 +208,7 @@ export function compileRegionalTerrainMosaic(
           roughnessValues,
           targetIndex,
           source,
+          placement.validity_classification.values,
           sourceIndex,
         );
       }
@@ -205,6 +221,10 @@ export function compileRegionalTerrainMosaic(
     `${revision}:validity`,
     grid,
     validityValues,
+  );
+  const validityClassification = createTerrainValidityClassification(
+    validityClassificationValues,
+    `${revision}:validity-classification`,
   );
   const elevation = scalarField(
     "elevation",
@@ -265,19 +285,14 @@ export function compileRegionalTerrainMosaic(
     ]),
     `${columns}x${rows}`,
   ].join("|");
-  const validVertices = validityValues.reduce(
-    (total, value) => total + (value === 0 ? 0 : 1),
-    0,
+  const validitySummary = summarizeTerrainValidityClassification(
+    validityClassification,
   );
-  const unsupportedVertices = occupancy.reduce(
-    (total, owner) => total + (owner < 0 ? 1 : 0),
-    0,
-  );
-  const noDataVertices = occupancy.reduce(
-    (total, owner, index) =>
-      total + (owner >= 0 && validityValues[index] === 0 ? 1 : 0),
-    0,
-  );
+  const {
+    valid_vertices: validVertices,
+    no_data_vertices: noDataVertices,
+    unsupported_vertices: unsupportedVertices,
+  } = validitySummary;
   const pairs = Object.freeze(
     [...overlapPairs]
       .sort((left, right) => left.localeCompare(right))
@@ -379,13 +394,15 @@ export function compileRegionalTerrainMosaic(
       columns,
       rows,
       valid_vertices: validVertices,
-      no_data_vertices: noDataVertices + unsupportedVertices,
+      no_data_vertices: noDataVertices,
+      unsupported_vertices: unsupportedVertices,
       elevation_minimum: sourceMinimum,
       elevation_maximum: sourceMaximum,
     }),
     grid,
     elevation_scale: elevationScale,
     validity,
+    validity_classification: validityClassification,
     elevation,
     rainfall,
     flow_direction: flowDirection,
@@ -398,7 +415,7 @@ export function compileRegionalTerrainMosaic(
     field_cells: fieldCellCount(grid),
     field_bytes: fields.reduce(
       (total, channel) => total + fieldByteLength(channel),
-      0,
+      validityClassification.values.byteLength,
     ),
     landscape_mosaic: binding,
   }) satisfies TerrainFieldSet;
@@ -490,16 +507,25 @@ function positiveAreaOverlap(
 
 function verifySharedSample(
   validity: Uint8Array,
+  validityClassification: Uint8Array,
   elevation: Float32Array,
   tint: Float32Array,
   occlusion: Float32Array,
   roughness: Float32Array,
   targetIndex: number,
   source: TerrainFieldSet,
+  sourceValidityClassification: Uint8Array,
   sourceIndex: number,
 ): void {
   if (validity[targetIndex] !== source.validity.values[sourceIndex])
     throw new Error("regional terrain mosaic shared validity conflicts");
+  if (
+    validityClassification[targetIndex] !==
+    sourceValidityClassification[sourceIndex]
+  )
+    throw new Error(
+      "regional terrain mosaic shared validity classification conflicts",
+    );
   if (validity[targetIndex] === 0) return;
   if (
     elevation[targetIndex] !== source.elevation.values[sourceIndex] ||
@@ -519,6 +545,7 @@ function verifySharedSample(
 
 function copySample(
   validity: Uint8Array,
+  validityClassification: Uint8Array,
   elevation: Float32Array,
   rainfall: Float32Array,
   flowDirection: Float32Array,
@@ -529,9 +556,12 @@ function copySample(
   roughness: Float32Array,
   targetIndex: number,
   source: TerrainFieldSet,
+  sourceValidityClassification: Uint8Array,
   sourceIndex: number,
 ): void {
   validity[targetIndex] = source.validity.values[sourceIndex]!;
+  validityClassification[targetIndex] =
+    sourceValidityClassification[sourceIndex]!;
   elevation[targetIndex] = source.elevation.values[sourceIndex]!;
   rainfall[targetIndex] = source.rainfall.values[sourceIndex]!;
   flowAccumulation[targetIndex] = source.flow_accumulation.values[sourceIndex]!;

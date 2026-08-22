@@ -1,4 +1,7 @@
-import { compileLandscapePatchSet } from "@rey/explorer";
+import {
+  compileLandscapePatchSet,
+  summarizeTerrainFieldValidity,
+} from "@rey/explorer";
 import { describe, expect, it } from "vitest";
 import { createFieldGrid } from "../engine/fields";
 import type { TerrainFieldSet } from "./compile";
@@ -94,6 +97,10 @@ describe("regional terrain mosaic", () => {
     );
 
     expect(compiled.manifest.unsupported_vertices).toBe(3 * left.grid.rows);
+    expect(summarizeTerrainFieldValidity(compiled.field)).toMatchObject({
+      no_data_vertices: 0,
+      unsupported_vertices: 3 * left.grid.rows,
+    });
     expect(compiled.manifest.omissions).toEqual([
       `${3 * left.grid.rows} mosaic vertices have no admitted terrain source and remain unsupported`,
     ]);
