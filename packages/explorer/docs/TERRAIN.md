@@ -43,6 +43,19 @@ kernel cannot lose neighbors or renormalize merely because the camera selected
 a different tile partition. The worker retains both shared-border equality and
 complete-field/partition equality as distinct zero-mismatch diagnostics.
 
+Several admitted regional fields may first enter
+`rey.landscape-mosaic.v1`. The application-owned compiler requires a common
+coordinate reference, vertical reference, projected sample spacing, elevation
+scale, and integer-aligned grid origin. Qualified adjacent patches must carry
+identical validity, elevation, and material at every shared sample. A conflict
+fails the compilation; array order and draw depth cannot resolve it. Positive-
+area overlap is not yet admitted. The output is one regular field with explicit
+invalid cells wherever no admitted patch contributes, so subsequent
+refinement, normals, drainage, relief, tiling, and rendering operate across
+qualified seams without turning gaps into geography. The compact mosaic
+binding on derived tiles preserves the exact composition, source-patch, focus,
+coordinate, vertical-reference, overlap, and gap identities.
+
 `@rey/agent` derives these fields from two admitted sources:
 
 - survey terrain programs produce camera-relative, haloed procedural fields;

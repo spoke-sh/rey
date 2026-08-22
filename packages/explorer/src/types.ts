@@ -97,6 +97,19 @@ export interface TerrainFieldSetInput {
     occlusion: Float32Array;
     roughness: Float32Array;
   };
+  landscape_mosaic?: {
+    schema: "rey.landscape-mosaic-binding.v1";
+    mosaic_id: string;
+    composition_revision: string;
+    primary_patch_id: string;
+    patch_ids: readonly string[];
+    overlap_pairs: readonly (readonly [string, string])[];
+    bounds: { x: number; y: number; width: number; height: number };
+    coordinate_reference: string;
+    vertical_reference: string;
+    overlap_policy: "qualified_shared_samples_must_match_before_derivation";
+    gap_policy: "unsupported_remains_transparent";
+  };
 }
 
 export type TerrainExecutablePassId =

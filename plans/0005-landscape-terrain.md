@@ -404,6 +404,17 @@ budgets now include those sampled derived arrays. This is seam-safe for one
 complete regional field, but it is not yet the shared-datum multi-region mosaic
 or metric relief pyramid required below.
 
+`rey.terrain.regional-mosaic@1` now establishes the next renderer-neutral
+enabling contract. It compiles integer-aligned, common-scale regional fields
+into `rey.landscape-mosaic.v1`, requires identical validity, elevation, and
+material at qualified shared samples, rejects positive-area overlap, and
+retains uncovered grid cells as unsupported. The result carries exact source
+placements, revisions, authority, sample spacing, composition, coordinate and
+vertical references, focus patch, limits, and omissions into every sampled
+render tile. It is not yet selected from the retained composition graph or
+projected by `/explore`; until that integration lands, the browser still
+renders the selected single-region field.
+
 ## Geographic Synthesis Boundary
 
 Rey County is fictional semantic geography that an agent may generate and
@@ -571,12 +582,12 @@ and CLI evidence are complete.
 
 #### 8.1 Freeze the renderer-neutral engine contracts
 
-- [ ] Replace patch ordering as composition authority with a versioned mosaic
+- [x] Replace patch ordering as composition authority with a versioned mosaic
       request/result contract. Bind every patch's dataset and implementation
       revisions, native coordinate identity, horizontal units, vertical
       reference, nominal source spacing, validity, authority, bounds, and
       material/vector companions.
-- [ ] Define `rey.landscape-mosaic.v1` as a content-identified height,
+- [x] Define `rey.landscape-mosaic.v1` as a content-identified height,
       validity, source-contribution, conflict, and omission field. Keep the
       selected Atlas member as the focus anchor, not an implicit winner for all
       overlapping terrain.

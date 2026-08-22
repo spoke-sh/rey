@@ -322,7 +322,9 @@ export interface TopologyAtlasLandscapeTransition {
   terrain_field_id: string;
   terrain_field_ids: readonly string[];
   patch_set_id: string;
-  overlap_policy: "later_patch_wins_with_deterministic_depth_bias";
+  overlap_policy:
+    | "later_patch_wins_with_deterministic_depth_bias"
+    | "qualified_shared_samples_must_match_before_derivation";
   gap_policy: "unsupported_remains_transparent";
   projection_revision: typeof ATLAS_LANDSCAPE_PROJECTION_REVISION;
   source_frame: { x: number; y: number; width: number; height: number };

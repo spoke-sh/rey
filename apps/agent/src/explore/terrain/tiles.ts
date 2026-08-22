@@ -439,6 +439,7 @@ export function materializeTerrainTile(
       (total, field) => total + fieldByteLength(field),
       0,
     ),
+    landscape_mosaic: source.landscape_mosaic,
   });
   if (result.field_cells !== tile.field_cells)
     throw new Error("materialized terrain tile shape changed");

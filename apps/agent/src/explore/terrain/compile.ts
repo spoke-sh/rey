@@ -1,4 +1,5 @@
 import type { ProjectionPacket, ProjectionTerrainBand } from "../../domain";
+import type { TerrainFieldSetInput } from "@rey/explorer";
 import {
   TERRAIN_FIELD_SCHEMA,
   createFieldGrid,
@@ -71,6 +72,7 @@ export interface TerrainFieldSet {
   material: MaterialField2D;
   field_cells: number;
   field_bytes: number;
+  landscape_mosaic?: TerrainFieldSetInput["landscape_mosaic"];
 }
 
 export interface TerrainProgramCompilation {

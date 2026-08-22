@@ -186,6 +186,7 @@ export function refineRegionalTerrainField(
       (total, field) => total + fieldByteLength(field),
       0,
     ),
+    landscape_mosaic: source.landscape_mosaic,
   });
 }
 

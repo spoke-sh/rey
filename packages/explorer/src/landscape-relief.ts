@@ -42,7 +42,9 @@ export interface LandscapePatchSet {
   patch_ids: readonly string[];
   overlap_pairs: readonly (readonly [string, string])[];
   bounds: { x: number; y: number; width: number; height: number } | null;
-  overlap_policy: "later_patch_wins_with_deterministic_depth_bias";
+  overlap_policy:
+    | "later_patch_wins_with_deterministic_depth_bias"
+    | "qualified_shared_samples_must_match_before_derivation";
   gap_policy: "unsupported_remains_transparent";
 }
 
@@ -72,6 +74,18 @@ const FILL_LIGHT = normalize3(0.36, 0.28, 0.89);
 export function compileLandscapePatchSet(
   fields: readonly TerrainFieldSetInput[],
 ): LandscapePatchSet {
+  const mosaic = landscapeMosaicBinding(fields);
+  if (mosaic)
+    return Object.freeze({
+      schema: "rey.landscape-patch-set.v1",
+      implementation_revision: LANDSCAPE_PATCH_SET_REVISION,
+      patch_set_id: `${LANDSCAPE_PATCH_SET_REVISION}:${mosaic.mosaic_id}`,
+      patch_ids: mosaic.patch_ids,
+      overlap_pairs: mosaic.overlap_pairs,
+      bounds: mosaic.bounds,
+      overlap_policy: mosaic.overlap_policy,
+      gap_policy: mosaic.gap_policy,
+    });
   const patchIds = fields.map(({ field_set_id }) => field_set_id);
   if (new Set(patchIds).size !== patchIds.length)
     throw new Error("landscape patch set contains duplicate field identity");
@@ -109,6 +123,24 @@ export function compileLandscapePatchSet(
     overlap_policy: "later_patch_wins_with_deterministic_depth_bias",
     gap_policy: "unsupported_remains_transparent",
   });
+}
+
+function landscapeMosaicBinding(
+  fields: readonly TerrainFieldSetInput[],
+): NonNullable<TerrainFieldSetInput["landscape_mosaic"]> | null {
+  const bound = fields.filter((field) => field.landscape_mosaic !== undefined);
+  if (bound.length === 0) return null;
+  if (bound.length !== fields.length)
+    throw new Error("landscape patch set mixes mosaic and unbound fields");
+  const first = bound[0]!.landscape_mosaic!;
+  const identity = JSON.stringify(first);
+  if (
+    !first.mosaic_id ||
+    new Set(first.patch_ids).size !== first.patch_ids.length ||
+    fields.some((field) => JSON.stringify(field.landscape_mosaic) !== identity)
+  )
+    throw new Error("landscape patch set mosaic binding is invalid");
+  return first;
 }
 
 /**
