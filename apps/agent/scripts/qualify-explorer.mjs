@@ -237,24 +237,28 @@ class CdpConnection {
     this.#listeners.set(method, listeners);
   }
 
-  send(method, params = {}) {
+  send(method, params = {}, timeoutMs = 30_000) {
     const id = ++this.#id;
     return new Promise((resolvePromise, reject) => {
       const timer = setTimeout(() => {
         this.#pending.delete(id);
         reject(new Error(`Chrome DevTools command timed out: ${method}`));
-      }, 30_000);
+      }, timeoutMs);
       this.#pending.set(id, { reject, resolve: resolvePromise, timer });
       this.#socket.send(JSON.stringify({ id, method, params }));
     });
   }
 
-  async evaluate(expression) {
-    const response = await this.send("Runtime.evaluate", {
-      awaitPromise: true,
-      expression,
-      returnByValue: true,
-    });
+  async evaluate(expression, timeoutMs = 30_000) {
+    const response = await this.send(
+      "Runtime.evaluate",
+      {
+        awaitPromise: true,
+        expression,
+        returnByValue: true,
+      },
+      timeoutMs,
+    );
     if (response.exceptionDetails) {
       throw new Error(
         response.exceptionDetails.exception?.description ??
@@ -617,7 +621,8 @@ async function verifySmoothWorldWheelZoom(connection, timeoutMs) {
       y: pointer.y,
     });
   await wheel(-100);
-  const animationFrames = await connection.evaluate(`new Promise((resolve) => {
+  const animationFrames = await connection.evaluate(
+    `new Promise((resolve) => {
     const samples = [];
     const sample = () => {
       const viewport = document.querySelector('[role="application"]');
@@ -629,7 +634,9 @@ async function verifySmoothWorldWheelZoom(connection, timeoutMs) {
       else requestAnimationFrame(sample);
     };
     requestAnimationFrame(sample);
-  })`);
+  })`,
+    timeoutMs,
+  );
   await waitFor(
     connection,
     `Number(document.querySelector('[role="application"]')?.getAttribute("data-camera-zoom")) > ${before.zoom + 0.04}`,
@@ -723,7 +730,8 @@ async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
     x: before.bounds.x + before.bounds.width / 2,
     y: before.bounds.y + before.bounds.height / 2,
   };
-  const animationFrames = await connection.evaluate(`new Promise((resolve) => {
+  const animationFrames = await connection.evaluate(
+    `new Promise((resolve) => {
     const viewport = document.querySelector('[role="application"]');
     const samples = [];
     const sample = () => {
@@ -761,7 +769,9 @@ async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
         }));
       }, index * 120);
     }
-  })`);
+  })`,
+    timeoutMs,
+  );
   await waitFor(
     connection,
     `document.querySelector('[data-lens-regime="atlas"]')?.dataset.lensRegime === "atlas"`,
@@ -794,6 +804,7 @@ async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
     pointer,
     25,
     "world",
+    timeoutMs,
   );
   await waitFor(
     connection,
@@ -807,6 +818,7 @@ async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
     pointer,
     -25,
     "atlas",
+    timeoutMs,
   );
   await waitFor(
     connection,
@@ -939,8 +951,10 @@ async function sampleWheelProjectionTransition(
   pointer,
   deltaY,
   targetRegime,
+  timeoutMs,
 ) {
-  return connection.evaluate(`new Promise((resolve) => {
+  return connection.evaluate(
+    `new Promise((resolve) => {
     const viewport = document.querySelector('[role="application"]');
     const samples = [];
     let dispatched = 0;
@@ -985,7 +999,9 @@ async function sampleWheelProjectionTransition(
       } else requestAnimationFrame(sample);
     };
     requestAnimationFrame(sample);
-  })`);
+  })`,
+    timeoutMs,
+  );
 }
 
 function regimeExpression(regime) {
@@ -1344,7 +1360,8 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
       viewport: { width: innerWidth, height: innerHeight, device_pixel_ratio: devicePixelRatio },
     };
   })()`);
-  const frameCadence = await connection.evaluate(`new Promise((resolve) => {
+  const frameCadence = await connection.evaluate(
+    `new Promise((resolve) => {
     const timestamps = [];
     const sample = (timestamp) => {
       timestamps.push(timestamp);
@@ -1363,7 +1380,9 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
       }
     };
     requestAnimationFrame(sample);
-  })`);
+  })`,
+    120_000,
+  );
   const cdpMetrics = await connection.send("Performance.getMetrics");
   const metrics = Object.fromEntries(
     cdpMetrics.metrics.map(({ name, value }) => [name, value]),
@@ -1377,11 +1396,15 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
     script_duration_seconds: metrics.ScriptDuration ?? null,
     task_duration_seconds: metrics.TaskDuration ?? null,
   };
-  const response = await connection.send("Page.captureScreenshot", {
-    captureBeyondViewport: false,
-    format: "png",
-    fromSurface: true,
-  });
+  const response = await connection.send(
+    "Page.captureScreenshot",
+    {
+      captureBeyondViewport: false,
+      format: "png",
+      fromSurface: true,
+    },
+    120_000,
+  );
   const image = Buffer.from(response.data, "base64");
   const file = `${String(CAPTURE_ORDER.indexOf(stage) + 1).padStart(2, "0")}-${stage}.png`;
   await writeFile(join(voyageDirectory, file), image);
