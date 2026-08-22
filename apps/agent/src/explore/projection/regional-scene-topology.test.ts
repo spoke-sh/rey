@@ -131,7 +131,7 @@ const regionalPortfolio = {
       workload: contract("scene-admission", "workload:1"),
       candidate_graph: contract("scene-admission.graph", "graph:1"),
       latest_scene_admission: {
-        schema: "rey.scene-admission-result.v1",
+        schema: "rey.scene-admission-result.v2",
         result_id: "result:1",
         candidate_id: "candidate:1",
         campaign_id: "campaign:1",

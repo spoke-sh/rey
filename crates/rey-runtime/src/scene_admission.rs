@@ -17,10 +17,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
-pub const SCENE_ADMISSION_RESULT_SCHEMA: &str = "rey.scene-admission-result.v1";
+pub const SCENE_ADMISSION_RESULT_SCHEMA: &str = "rey.scene-admission-result.v2";
 pub const SCENE_ADMISSION_CANDIDATE_SCHEMA: &str = "rey.scene-admission-candidate.v1";
 pub const SCENE_ADMISSION_WORKLOAD_ID: &str = "scene-admission";
 pub const SCENE_ADMISSION_OPERATION_ID: &str = "rey.scene-admission.validate";
+pub const SCENE_ADMISSION_REQUESTED_OPERATION: &str = "rey.scene-admission.validate@2";
 pub const RENDER_ADMITTED_REGIONAL_SCENE_OPERATION_ID: &str =
     "rey.admitted-regional-scene.render-lines";
 pub const SCENE_ADMISSION_LANDSCAPE_SUMMARY_SCHEMA: &str =
@@ -171,7 +172,7 @@ impl SceneAdmissionCandidate {
         }
         if self.package_authority != "candidate_only"
             || self.admission_request_package_id != self.package_id
-            || self.requested_operation != "rey.scene-admission.validate@1"
+            || self.requested_operation != SCENE_ADMISSION_REQUESTED_OPERATION
             || self.request_status != "requires_workload"
             || self.request_admitted
         {
@@ -468,7 +469,7 @@ impl SceneAdmissionResult {
 pub fn scene_admission_operation_contract() -> ContractIdentity {
     ContractIdentity::new(
         SCENE_ADMISSION_OPERATION_ID,
-        1,
+        2,
         "validate one exact current editor candidate transfer envelope and emit an accepted regional scene or typed rejection without mutating editor or Explorer state",
     )
 }
@@ -902,7 +903,7 @@ pub fn scene_admission_fixture(
         package_authority: "candidate_only".to_owned(),
         admission_request_id: semantic_digest("rey.fixture.scene-request.v1", "fixture-current"),
         admission_request_package_id: package_id,
-        requested_operation: "rey.scene-admission.validate@1".to_owned(),
+        requested_operation: SCENE_ADMISSION_REQUESTED_OPERATION.to_owned(),
         request_status: "requires_workload".to_owned(),
         request_admitted: false,
         project_id: "fixture-county".to_owned(),
@@ -3127,8 +3128,8 @@ mod tests {
 
     fn contracts() -> [ContractIdentity; 4] {
         [
-            ContractIdentity::new("scene-admission", 1, "fixture"),
-            ContractIdentity::new("scene-admission.graph", 1, "fixture"),
+            ContractIdentity::new("scene-admission", 2, "fixture"),
+            ContractIdentity::new("scene-admission.graph", 2, "fixture"),
             ContractIdentity::new("scene-admission.scenarios", 1, "fixture"),
             ContractIdentity::new("rey.scenario.utf8-exact", 1, "fixture"),
         ]
@@ -3253,6 +3254,12 @@ mod tests {
             result.code,
             result.detail
         );
+        let mut obsolete = result.clone();
+        obsolete.schema = "rey.scene-admission-result.v1".to_owned();
+        assert!(matches!(
+            obsolete.verify(),
+            Err(SceneAdmissionError::ResultSchema)
+        ));
         let landscape = result.landscape.as_ref().expect("landscape summary");
         assert_eq!(landscape.schema, "rey.scene-admission-landscape-summary.v1");
         assert!(landscape.patch_set.patch_ids.is_empty());

@@ -12,8 +12,8 @@ use rey_core::{SemanticDigest, SemanticHasher};
 use rey_diff::DeltaAssessment;
 use rey_mining::RegionalBounds;
 use rey_runtime::{
-    SCENE_ADMISSION_CANDIDATE_SCHEMA, SceneAdmissionCandidate, SceneAdmissionCoordinateSystem,
-    SceneAdmissionFeature, SceneAdmissionSource,
+    SCENE_ADMISSION_CANDIDATE_SCHEMA, SCENE_ADMISSION_REQUESTED_OPERATION, SceneAdmissionCandidate,
+    SceneAdmissionCoordinateSystem, SceneAdmissionFeature, SceneAdmissionSource,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1232,7 +1232,7 @@ impl LocalEditorStore {
                 request_id: digest_placeholder(),
                 package_id: package.package_id.clone(),
                 package_path: package_relative.clone(),
-                requested_operation: "rey.scene-admission.validate@1".to_owned(),
+                requested_operation: SCENE_ADMISSION_REQUESTED_OPERATION.to_owned(),
                 status: "requires_workload".to_owned(),
                 admitted: false,
             };

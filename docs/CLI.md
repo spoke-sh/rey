@@ -371,7 +371,7 @@ lineage. Each explicitly declared native source role remains a separately
 named layer in this output; terrain controls retain candidate-only authority.
 `-vv` prints every layer's exact kind/object membership/source revision and the
 footprint identity, source bindings, native rings, coordinate count, and authority. JSON
-retains the complete `rey.scene-admission-result.v1`. Rejected validation
+retains the complete `rey.scene-admission-result.v2`. Rejected validation
 scenarios are conclusive typed results; no run mutates editor state or admits a
 browser scene.
 
@@ -386,6 +386,10 @@ identity/levels/bytes, fallback state, backend submission, residency, and
 CPU/GPU budgets remain explicitly unavailable with typed omissions. Those
 fields may become populated only by later executions that bind the exact scene
 composition and renderer contracts.
+
+This is a hard-cut contract: only `rey.scene-admission.validate@2` emits
+`rey.scene-admission-result.v2`. Older admission results are not migrated into
+the landscape-bearing shape and must be replaced by admitting a current scene.
 
 ### `rey git`
 

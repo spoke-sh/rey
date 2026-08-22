@@ -361,7 +361,7 @@ export interface AdmittedRegionalScene {
 }
 
 export interface SceneAdmissionResult {
-  schema: "rey.scene-admission-result.v1";
+  schema: "rey.scene-admission-result.v2";
   result_id: string;
   candidate_id: string;
   workload: ContractIdentity;

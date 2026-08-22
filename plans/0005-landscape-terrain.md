@@ -162,11 +162,12 @@ land-cover inputs, a district/transport/label hierarchy, and the explicit
 absence of cross-package stitching. The source is generated reproducibly from
 checked-in boundary, district, feature, highway, hydrology, label, railway,
 road, and terrain-control inputs. It traveled through editor admission as
-`SCENE@11` and passed `scene-admission` run
-`blake3:db4409678341ea7a5c407056172d58c4be139a64f4c970b2a403847b75dd7f60`
-before `/explore` consumption. This improves the default project bearing
-without treating terrain controls as observed height or closing the still-open
-named fidelity matrix.
+`SCENE@12` and passed the hard-cut `rey.scene-admission.validate@2` run
+`blake3:4bdbfb50717ebc9f2c63c8a6902dcd25f7ae13eaec9cc9fdbca4551b3bb5b0fd`
+as `rey.scene-admission-result.v2` before `/explore` consumption. Pre-v2
+admission and atlas history was discarded rather than adapted. This improves
+the default project bearing without treating terrain controls as observed
+height or closing the still-open named fidelity matrix.
 
 That admission exposed a transport boundary. Retaining three 251,001-element
 identity arrays in the v2 result exceeded the 64 MiB workload-state limit and
