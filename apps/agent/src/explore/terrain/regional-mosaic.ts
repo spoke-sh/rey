@@ -783,6 +783,13 @@ export function compileRegionalTerrainMosaic(
         landCoverOwnerIndices.byteLength,
     ),
     landscape_mosaic: binding,
+    landscape_height_sources: Object.freeze({
+      schema: "rey.landscape-height-sources.v1" as const,
+      patch_ids: patchIds,
+      unsupported_index: unsupportedOwner,
+      primary_owner_indices: occupancy,
+      secondary_owner_indices: featherSecondaryOwners,
+    }),
   }) satisfies TerrainFieldSet;
   return Object.freeze({ manifest, field });
 }

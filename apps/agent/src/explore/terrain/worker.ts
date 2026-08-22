@@ -16,6 +16,10 @@ import {
   type TerrainWorkingSetRequest,
 } from "./compile";
 import type { CompiledTerrainTile } from "./residency";
+import {
+  compileLandscapeHeightHierarchy,
+  type MaterializedLandscapeHeightHierarchy,
+} from "./height-pyramid";
 import { compileCurrentLandscapePyramidEnvelope } from "./pyramid-contracts";
 import { refineRegionalTerrainField } from "./refinement";
 import {
@@ -35,7 +39,7 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@5" as const;
+  "rey.terrain.compilation-worker@6" as const;
 
 export interface TerrainProgramWorkerRequest {
   program: TerrainProgram;
@@ -65,6 +69,8 @@ export interface TerrainCompilationMetrics {
   relief_seam_mismatches: number;
   relief_partition_mismatches: number;
   no_data_leak_triangles: number;
+  height_hierarchy_levels: number;
+  height_hierarchy_bytes: number;
   gpu_timing_ms: null;
   gpu_timing_authority: "unavailable_without_capable_gpu_timer";
 }
@@ -75,6 +81,7 @@ export interface TerrainCompilationResult {
   execution: "dedicated_worker" | "main_thread_fallback";
   pyramids: readonly TerrainTilePyramid[];
   landscape_pyramids: readonly LandscapePyramidEnvelope[];
+  height_hierarchies: readonly MaterializedLandscapeHeightHierarchy[];
   selections: readonly TerrainTileSelection[];
   active_tile_ids: readonly string[];
   compiled_tiles: readonly CompiledTerrainTile[];
@@ -100,8 +107,13 @@ export function executeTerrainCompilationJob(
     throw new Error("terrain compilation job bounds are invalid");
 
   const projectionStarted = measurementNow();
-  const admittedFields = job.fields
-    .filter((field) => field.active_band_ids.includes("admitted_dem"))
+  const admittedSourceFields = job.fields.filter((field) =>
+    field.active_band_ids.includes("admitted_dem"),
+  );
+  const heightHierarchies = admittedSourceFields.map(
+    compileLandscapeHeightHierarchy,
+  );
+  const admittedFields = admittedSourceFields
     .map((field) => refineRegionalTerrainField(field))
     .map(deriveRegionalTerrainGeography);
   const passthroughFields = job.fields.filter(
@@ -171,6 +183,10 @@ export function executeTerrainCompilationJob(
   ];
   const cpuBytes =
     fields.reduce((total, field) => total + field.field_bytes, 0) +
+    heightHierarchies.reduce(
+      (total, hierarchy) => total + hierarchy.byte_length,
+      0,
+    ) +
     reliefFields.reduce(
       (total, relief) => total + landscapeReliefFieldByteLength(relief),
       0,
@@ -211,6 +227,7 @@ export function executeTerrainCompilationJob(
     execution,
     pyramids: Object.freeze(pyramids),
     landscape_pyramids: Object.freeze(landscapePyramids),
+    height_hierarchies: Object.freeze(heightHierarchies),
     selections: Object.freeze(selections),
     active_tile_ids: Object.freeze(
       selections.flatMap((selection) => selection.tile_ids),
@@ -249,6 +266,14 @@ export function executeTerrainCompilationJob(
         0,
       ),
       no_data_leak_triangles: noDataLeakTriangles,
+      height_hierarchy_levels: heightHierarchies.reduce(
+        (total, hierarchy) => total + hierarchy.levels.length,
+        0,
+      ),
+      height_hierarchy_bytes: heightHierarchies.reduce(
+        (total, hierarchy) => total + hierarchy.byte_length,
+        0,
+      ),
       gpu_timing_ms: null,
       gpu_timing_authority: "unavailable_without_capable_gpu_timer",
     }),

@@ -1063,6 +1063,21 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-landscape-height-pyramids={terrainRenderer.landscape_height_pyramid_ids.join(
             ",",
           )}
+          data-renderer-landscape-height-hierarchies={terrainRenderer.landscape_height_hierarchy_ids.join(
+            ",",
+          )}
+          data-renderer-landscape-height-hierarchy-levels={
+            terrainRenderer.landscape_height_hierarchy_levels
+          }
+          data-renderer-landscape-height-hierarchy-bytes={
+            terrainRenderer.landscape_height_hierarchy_bytes
+          }
+          data-renderer-landscape-height-hierarchy-complete={String(
+            terrainRenderer.landscape_height_hierarchy_complete,
+          )}
+          data-renderer-landscape-height-hierarchy-omissions={terrainRenderer.landscape_height_hierarchy_omissions.join(
+            "|",
+          )}
           data-renderer-landscape-relief-pyramids={terrainRenderer.landscape_relief_pyramid_ids.join(
             ",",
           )}

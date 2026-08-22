@@ -443,6 +443,17 @@ and list absent coarse levels, halos, border digests, MDOW, and SVF as
 omissions. This closes the shared renderer contract boundary without claiming
 the 8.3 hierarchy.
 
+`rey.terrain.height-hierarchy@1` and
+`rey.terrain.compilation-worker@6` add the first materialized 8.3 slice before
+camera tile projection. They derive bounded dyadic levels from the admitted
+field, require a complete valid child window before any parent becomes valid,
+retain no-data versus unsupported at every level, and encode every sample's
+canonical contributing patch set as exact CSR offsets and indices. Hierarchy
+bytes now participate in the worker CPU limit and both renderer paths expose
+hierarchy identity and level counts. This remains enabling work: the shared
+`rey.landscape-height-pyramid.v1` envelope and camera selection still use the
+finest refined field until haloed relief levels are materialized.
+
 `rey.landscape-relief-engine@3` extends that prototype with
 `rey.terrain-relief-metrics.v1` source-spacing and elevation-range metadata.
 It derives local, midslope, and regional target radii in meters, explicitly

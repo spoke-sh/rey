@@ -222,7 +222,7 @@ export function verifyLandscapePyramidEnvelope(
 
 export function landscapePyramidContentId(
   channel: string,
-  arrays: readonly (Float32Array | Int8Array | Uint8Array)[],
+  arrays: readonly (Float32Array | Int8Array | Uint8Array | Uint32Array)[],
 ): string {
   if (!channel || arrays.length === 0)
     throw new Error("landscape pyramid content identity is incomplete");

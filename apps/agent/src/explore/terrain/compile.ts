@@ -77,6 +77,13 @@ export interface TerrainFieldSet {
   relief_metrics?: TerrainFieldSetInput["relief_metrics"];
   landscape_reference?: TerrainFieldSetInput["landscape_reference"];
   landscape_mosaic?: TerrainFieldSetInput["landscape_mosaic"];
+  landscape_height_sources?: {
+    schema: "rey.landscape-height-sources.v1";
+    patch_ids: readonly string[];
+    unsupported_index: number;
+    primary_owner_indices: Uint32Array;
+    secondary_owner_indices: Uint32Array;
+  };
 }
 
 export interface TerrainProgramCompilation {

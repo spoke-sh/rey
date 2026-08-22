@@ -72,6 +72,7 @@ import {
 import { refineRegionalTerrainField } from "../terrain/refinement";
 import { deriveRegionalTerrainGeography } from "../terrain/regional-geography";
 import { compileCurrentLandscapePyramidEnvelope } from "../terrain/pyramid-contracts";
+import { compileLandscapeHeightHierarchy } from "../terrain/height-pyramid";
 
 export interface FocusableTopologyObject {
   focus_id: string;
@@ -463,9 +464,15 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
     () =>
       scene.terrain_fields
         .filter((field) => field.active_band_ids.includes("admitted_dem"))
-        .map((field) => refineRegionalTerrainField(field))
-        .map((field) => deriveRegionalTerrainGeography(field))
-        .flatMap((field) => {
+        .map((field) => ({
+          field: refineRegionalTerrainField(field),
+          heightHierarchy: compileLandscapeHeightHierarchy(field),
+        }))
+        .map(({ field, heightHierarchy }) => ({
+          field: deriveRegionalTerrainGeography(field),
+          heightHierarchy,
+        }))
+        .flatMap(({ field, heightHierarchy }) => {
           const relief = deriveLandscapeReliefField(field);
           const envelope = compileCurrentLandscapePyramidEnvelope(
             field,
@@ -478,6 +485,7 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
               field: materializeTerrainTile(field, tile),
               relief: materializeTerrainTileRelief(field, relief, tile),
               envelope,
+              heightHierarchy,
             }));
         }),
     [scene.terrain_fields],
@@ -491,6 +499,21 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
       data-landscape-pyramid-envelopes={[
         ...new Set(renderedFields.map(({ envelope }) => envelope.envelope_id)),
       ].join(",")}
+      data-landscape-height-hierarchies={[
+        ...new Set(
+          renderedFields.map(
+            ({ heightHierarchy }) => heightHierarchy.hierarchy_id,
+          ),
+        ),
+      ].join(",")}
+      data-landscape-height-hierarchy-levels={[
+        ...new Map(
+          renderedFields.map(({ heightHierarchy }) => [
+            heightHierarchy.hierarchy_id,
+            heightHierarchy,
+          ]),
+        ).values(),
+      ].reduce((total, hierarchy) => total + hierarchy.levels.length, 0)}
       data-regional-terrain-reference="rey.reference-regional-terrain@3"
       role="img"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}

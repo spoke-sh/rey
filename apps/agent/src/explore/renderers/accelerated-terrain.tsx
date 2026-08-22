@@ -45,6 +45,11 @@ export interface AcceleratedTerrainReport {
   landscape_relief_scale_support: readonly string[];
   landscape_pyramid_envelope_ids: readonly string[];
   landscape_height_pyramid_ids: readonly string[];
+  landscape_height_hierarchy_ids: readonly string[];
+  landscape_height_hierarchy_levels: number;
+  landscape_height_hierarchy_bytes: number;
+  landscape_height_hierarchy_complete: boolean;
+  landscape_height_hierarchy_omissions: readonly string[];
   landscape_relief_pyramid_ids: readonly string[];
   landscape_pyramid_complete: boolean;
   landscape_pyramid_omissions: readonly string[];
@@ -139,6 +144,11 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     landscape_relief_scale_support: Object.freeze([]),
     landscape_pyramid_envelope_ids: Object.freeze([]),
     landscape_height_pyramid_ids: Object.freeze([]),
+    landscape_height_hierarchy_ids: Object.freeze([]),
+    landscape_height_hierarchy_levels: 0,
+    landscape_height_hierarchy_bytes: 0,
+    landscape_height_hierarchy_complete: false,
+    landscape_height_hierarchy_omissions: Object.freeze([]),
     landscape_relief_pyramid_ids: Object.freeze([]),
     landscape_pyramid_complete: false,
     landscape_pyramid_omissions: Object.freeze([]),
@@ -720,6 +730,27 @@ export function AcceleratedTerrainSurface({
           ({ height_pyramid }) => height_pyramid.pyramid_id,
         ) ?? [],
       ),
+      landscape_height_hierarchy_ids: Object.freeze(
+        activeTerrain?.result.height_hierarchies.map(
+          ({ hierarchy_id }) => hierarchy_id,
+        ) ?? [],
+      ),
+      landscape_height_hierarchy_levels:
+        activeTerrain?.result.metrics.height_hierarchy_levels ?? 0,
+      landscape_height_hierarchy_bytes:
+        activeTerrain?.result.metrics.height_hierarchy_bytes ?? 0,
+      landscape_height_hierarchy_complete:
+        (activeTerrain?.result.height_hierarchies.length ?? 0) > 0 &&
+        activeTerrain!.result.height_hierarchies.every(
+          ({ complete }) => complete,
+        ),
+      landscape_height_hierarchy_omissions: Object.freeze([
+        ...new Set(
+          activeTerrain?.result.height_hierarchies.flatMap(
+            ({ omissions }) => omissions,
+          ) ?? [],
+        ),
+      ]),
       landscape_relief_pyramid_ids: Object.freeze(
         terrainCompilation?.pyramid_envelopes.map(
           ({ relief_pyramid }) => relief_pyramid.pyramid_id,

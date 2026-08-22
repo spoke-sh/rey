@@ -33,6 +33,16 @@ describe("bounded terrain compilation worker", () => {
     expect(result.active_tile_ids.length).toBeGreaterThan(1);
     expect(result.compiled_tiles).toHaveLength(result.active_tile_ids.length);
     expect(result.landscape_pyramids).toHaveLength(1);
+    expect(result.height_hierarchies).toHaveLength(1);
+    expect(result.height_hierarchies[0]).toMatchObject({
+      complete: true,
+      levels: expect.arrayContaining([
+        expect.objectContaining({
+          height_id: expect.stringMatching(/^blake3:/),
+          source_contribution_id: expect.stringMatching(/^blake3:/),
+        }),
+      ]),
+    });
     expect(result.compiled.pyramid_envelopes).toEqual(
       result.landscape_pyramids,
     );
@@ -48,6 +58,8 @@ describe("bounded terrain compilation worker", () => {
       relief_seam_mismatches: 0,
       relief_partition_mismatches: 0,
       no_data_leak_triangles: 0,
+      height_hierarchy_levels: result.height_hierarchies[0]!.levels.length,
+      height_hierarchy_bytes: result.height_hierarchies[0]!.byte_length,
       gpu_timing_ms: null,
       gpu_timing_authority: "unavailable_without_capable_gpu_timer",
     });
