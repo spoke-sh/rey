@@ -367,22 +367,51 @@ the next admitted multi-resolution source.
 
 ### Relief-engine rebaseline — 2026-08-21
 
-The operator-supplied Google Maps comparison and the 7:13 PM Rey capture show
-that the latest prototype has recognizable shaded relief but does not yet meet
-the plan's cartographic acceptance bar. The Rey image contains regular
-horizontal and vertical tonal discontinuities, soft local ridges, a broad
-gray-green wash, and a few low-frequency valleys that dominate the frame. The
-comparison is a visual target only; it is neither admitted terrain evidence nor
-an asset that Rey may redistribute.
+The operator-supplied Google Maps terrain comparison (French Pyrenees around
+Pic du Midi de Bigorre, Bagnères-de-Bigorre, and Barèges) and the 7:13 PM Rey
+County Landscape capture were evaluated side by side. The reference is a visual
+acceptance target only; it is neither admitted terrain evidence nor an asset
+that Rey may redistribute. Named techniques below are Rey implementation
+choices selected to close visible gaps; they are not claims about the
+reference product's proprietary rendering pipeline.
 
-The first discontinuity has a concrete implementation cause. The worker
-currently refines the complete field, selects and materializes camera tiles,
-and then runs the multi-scale relief kernels independently on each materialized
-tile. Kernels near a tile boundary therefore lose neighboring samples and
-renormalize differently from the same point in an untiled field. Shared height
-vertices alone cannot prevent these derived-channel seams. Relief must be
-compiled over a shared mosaic or over tiles with sufficient source halos, then
-cropped to render interiors.
+The comparison proves that while Rey's accelerated pipeline executes
+interactive continuous terrain, it fails the cartographic acceptance bar on six
+fundamental dimensions:
+
+| Dimension | Visual acceptance target | Rey County Landscape (7:13 PM Capture) | Gap |
+| --- | --- | --- | --- |
+| **Geomorphic Resolution** | Knife-edge aretes, crags, cirques, couloirs, dendritic avalanche chutes, talus slopes, and incised ravines. | Soft, rounded "puffy dough" mounds; sub-100m features are absent due to ~180m source grid spacing. | Major |
+| **Multi-Scale Hillshade** | Crisp, aspect-balanced relief remains legible across slope directions and scales without blacking out steep faces. Rey will pursue an MDOW-style operator to meet this target. | Fixed 3-point scalar illumination clamped to `[0.42, 1.14]`, producing flat, low-contrast, plastic-looking slopes. | Major |
+| **Topographic Openness** | Deep valleys, ravines, and hollows retain ambient depth. Rey will pursue SVF / positive-negative topographic openness to meet this target. | Weak low-frequency elevation difference; valley bottoms lack ambient occlusion depth. | Major |
+| **Color & Hypsometric Tinting** | Continuous elevation- and slope-graded hypsometric tinting (lush valley greens → warm mid-slopes → slate/grey alpine summits → cliff rock). | Five discrete palette classes mix into a uniform, desaturated olive-grey wash across all elevations. | Major |
+| **Chromatic Lighting** | Two-tone cartographic lighting: warm sunlit highlights on illuminated faces vs. cool ambient sky-fill in shadows. | Monochromatic scalar multiplication (`tint * hillshade * occlusion`) creating dirty grey shadows and washed-out highlights. | Major |
+| **Surface Continuity & Seams** | Seamless, homogeneous terrain field across all viewports and zoom levels without visible tiling artifacts. | Regular horizontal and vertical tonal discontinuities / crosshatch grid lines crossing the entire terrain surface. | Major |
+
+The visual discontinuities and fidelity shortcomings have concrete architectural causes across the pipeline:
+
+1. **Tile-boundary kernel truncation**: Deriving multi-scale relief operators
+   (local: 350m, midslope: 1,400m, regional: 5,600m) over independently
+   materialized tiles truncates support at tile borders, causing neighboring
+   tiles to renormalize differently and producing regular crosshatch banding.
+   Relief must be derived over a unified mosaic or with source gutters satisfying
+   `gutter_radius >= max(operator_support_radius_meters / sample_spacing_meters)`.
+2. **Missing MDOW and Sky-View Factor operators**: The current shader executes
+   a single scalar hillshade multiplier from fixed key/fill/back vectors. It
+   lacks aspect-weighted multi-azimuth illumination (NW 315° primary, SW 225°
+   fill, NE 45° back-rim), slope-adaptive illumination angles (avoiding shadow
+   blackout on steep slopes while preserving flat terrain clarity), and true
+   horizon/sky-view ambient occlusion.
+3. **Monochromatic lighting model**: In `createContinuousReliefMaterial`, the
+   TSL shader computes `clamp(tint * hillshade * occlusion, 0, 1)`. In
+   cartography, scalar multiplication produces muddy greys; realistic shaded
+   relief requires dual-tone chromatic lighting that blends a warm direct sun
+   component with a cool, ambient-sky fill component.
+4. **Coarse source resolution & isotropic synthesis**: Rey County's 501×501
+   packed grid (~167–185m nominal spacing) cannot mathematically represent
+   knife-edge ridges or dendritic ravines. Furthermore, the synthetic geography
+   generator relies on isotropic value noise rather than geomorphological
+   processes (fluvial incision, thermal scree deposition, structural faulting).
 
 `rey.landscape-relief-engine@1` and `rey.landscape-patch-set@1` are enabling
 prototypes, not the completed engine. The former establishes renderer-neutral
@@ -651,8 +680,9 @@ admitted overview source produce deterministic mosaics with no validity gain.
       mosaic. Downsampling must be conservative at validity boundaries and must
       retain the contributing source set for each parent sample.
 - [ ] Give every derivation tile a source gutter at least as wide as the
-      largest active relief operator. Derive channels from the halo, crop only
-      the render interior, and retain border digests for adjacent-tile proof.
+      largest active relief operator (`gutter_radius >= max(operator_support_radius_meters / sample_spacing_meters)`).
+      Derive channels from the halo, crop only the render interior, and retain
+      border digests for adjacent-tile proof.
 - [x] Make whole-field and partitioned compilation equivalent within one named
       numeric tolerance. Moving the camera or changing the active tile
       partition must not change a sample's height, normal, or illumination.
@@ -665,17 +695,24 @@ admitted overview source produce deterministic mosaics with no validity gain.
 
 Acceptance: an untiled reference field and every legal tiling of it have
 identical valid interiors, zero no-data triangle leakage, and no internal-edge
-discontinuity attributable to kernel truncation.
+discontinuity or crosshatch banding attributable to kernel truncation.
 
 #### 8.4 Derive cartographic relief at explicit metric scales
 
 - [ ] Derive metric slope, aspect, and normals from source spacing rather than
       cell count. Produce separately revisioned local, midslope, and regional
-      channels whose support radii are declared in meters.
-- [ ] Add a deterministic multidirectional hillshade, sky-view/openness term,
-      and bounded horizon or cast-shadow term. Every operator must stop at
-      invalid support and report when the source is too coarse for its target
-      scale.
+      channels whose support radii are declared in meters (e.g. local 350m,
+      midslope 1,400m, regional 5,600m).
+- [ ] Implement deterministic Multi-Directional Oblique Weighted (MDOW) Swiss
+      hillshading. Weight illumination across multiple azimuths (NW 315° primary
+      sun, SW 225° fill, NE 45° back-rim) with slope-adaptive contrast to prevent
+      pitch-black shadows on steep faces and washouts on flat plains.
+- [ ] Add a deterministic Sky-View Factor (SVF) / positive-and-negative
+      topographic openness term to naturally darken deep gorges, cirques, and
+      valleys without artificial scalar multiplier hacks.
+- [ ] Blend high-pass profile/plan curvature and slope magnitude into high-frequency
+      ridge salience so micro-scale crests, couloirs, and ravines separate
+      crisply against macroscopic mountain mass illumination.
 - [ ] Apply local contrast and cartographic tone mapping as presentation
       channels in linear color space. Keep one lighting owner so a pre-lit
       relief scalar is not lit again by a physical material.
@@ -689,20 +726,28 @@ discontinuity attributable to kernel truncation.
       absent elevation evidence.
 
 Acceptance: named steep- and low-relief fixtures preserve fine ridges without
-muddy faceting, avoid broad tonal domination, and disclose when the admitted
-spacing cannot support the comparison scale.
+muddy faceting or plastic smoothing, avoid broad tonal domination, and disclose
+when the admitted spacing cannot support the comparison scale.
 
 #### 8.5 Compose a coherent terrain map
 
-- [ ] Compose relief, admitted material/land cover, and water with a restrained
-      scale-aware palette; prevent elevation bands or procedural classes from
-      reading as muddy triangles or imagery claims.
+- [ ] Implement dual-tone cartographic chromatic lighting: blend warm direct
+      sunlit highlights on illuminated slopes with cool, ambient-sky-tinted
+      diffuse fill in shadowed aspects, replacing desaturating grayscale scalar
+      multiplication (`tint * hillshade * occlusion`).
+- [ ] Replace discrete flat palettes with continuous elevation- and slope-graded
+      hypsometric color ramps (lush valley greens → warm mid-elevation montane
+      grasslands → slate/grey alpine crests) with slope-triggered rock/cliff
+      exposure on steep grades.
+- [ ] Render terrain-bound water areas with crisp high-contrast polygon fills
+      and distinct shorelines (e.g. alpine tarns, glacial lakes, and river
+      corridors) draped seamlessly over the relief.
 - [ ] Drive contour interval, weight, and opacity from semantic LOD and metric
-      elevation range. Contours remain subordinate to relief and do not conceal
-      hillshade defects.
-- [ ] Add terrain-bound water, roads, rail, structures, boundaries, and labels
-      only from their exact admitted companions, with independent visibility
-      and invalidation revisions.
+      elevation range. Contours remain thin, crisp, and subordinate to relief,
+      never concealing hillshade defects.
+- [ ] Add terrain-bound roads, rail, structures, boundaries, and labels only
+      from their exact admitted companions, with independent visibility and
+      invalidation revisions.
 - [ ] Keep selection and evidence overlays readable without changing the base
       relief assessment. Preserve the deterministic accessible reference path
       under backend loss.
@@ -742,15 +787,19 @@ entry viewport.
       vectors, stale input, and backend loss.
 - [ ] Assert no validity gain, whole-field/tile derivation equivalence, border
       digest agreement, deterministic overlap decisions, zero unsupported
-      triangles, bounded resident/working bytes, stable picking, and exact
-      revision lineage in unit and integration tests.
+      triangles, zero tile-boundary seam mismatches (`relief_seam_mismatches == 0`),
+      bounded resident/working bytes, stable picking, and exact revision lineage
+      in unit and integration tests.
 - [ ] Retain reference, WebGL2, and WebGPU captures at 1920×1080 and 3840×2160
       for every required row. Compare against the untiled derived-field
       reference numerically and against the operator-supplied consumer-map
-      reference perceptually; do not require or claim pixel equivalence.
-- [ ] Record composition, multi-scale relief, hillshade continuity, land-cover
-      coherence, terrain-bound hydrology, contours, and vector hierarchy with
-      explicit pass/minor/major results. Any major result leaves this plan open.
+      reference (e.g. Google Maps Pyrenees DEM) perceptually; assert absence
+      of crosshatch grid lines, flat scalar mud, and plastic smoothing.
+- [ ] Record composition, multi-scale relief (MDOW), hillshade continuity,
+      Sky-View Factor valley depth, dual-tone chromatic lighting, hypsometric
+      land-cover coherence, terrain-bound hydrology, contours, and vector
+      hierarchy with explicit pass/minor/major results. Any major result leaves
+      this plan open.
 - [ ] Repeat World → Atlas → Landscape → Object → Evidence through
       direct browser transport on one exact machine and retain source, mosaic,
       pyramid, operator, backend, omission, limit, performance, and capture
@@ -758,21 +807,84 @@ entry viewport.
 
 The delivery gates are therefore:
 
-1. seam correctness on one admitted region;
+1. seam correctness and halo-safe derivation on one admitted region;
 2. deterministic validity-safe composition across multiple regions;
-3. source-resolution-aware multi-scale relief;
-4. one shared Atlas/Landscape field and reversible handoff;
-5. cartographic composition and the complete retained qualification matrix.
+3. source-resolution-aware multi-scale MDOW relief and Sky-View Factor occlusion;
+4. dual-tone chromatic lighting, continuous hypsometric tinting, and coherent hydrology;
+5. one shared Atlas/Landscape field and reversible handoff;
+6. cartographic composition and the complete retained qualification matrix.
 
 Do not advance a gate by tuning color around a known seam, hiding unknown
 terrain beneath a skirt, choosing an overlap by draw order, or synthesizing
 detail in the renderer.
 
+## Incremental Implementation And Commit Plan — 2026-08-21
+
+Advance the remaining checklist in the following dependency order. Each
+numbered batch ends in one or more logical commits; a commit must bind one
+reviewable contract or end-to-end proof slice, update the owning documentation
+and checklist, and pass its focused tests before the next batch begins. Visual
+tuning may be captured while an earlier contract is still an enabling
+prototype, but it cannot close a later delivery gate.
+
+1. **Land the current seam-safe metric-relief prototype.** Finish the
+   renderer-neutral metric-spacing metadata, complete-field relief derivation,
+   exact render-tile sampling, sampled-field verification, scale-support
+   disclosure, and WebGL2 capture proof. Keep MDOW, SVF, and the pyramid
+   contracts open. Commit the contract/tests/docs separately from retained
+   qualification artifacts.
+2. **Close the shared contract and CLI boundary (8.1).** Define the height and
+   relief pyramid schemas, their parent/child and operator-support identities,
+   then expose patch, mosaic, source-resolution, pyramid, omission, fallback,
+   and renderer-budget summaries through verbose and structured
+   `rey workloads run scene-admission`. Hard-cut browser paths only after the
+   CLI and renderer consume the same typed contracts.
+3. **Close deterministic composition (8.2).** Add evidence-aware overlap
+   decisions independent of input order, retain decision/conflict maps, permit
+   feathering only inside mutually valid overlap, and fill a gap only from a
+   separately admitted compatible overview DEM. Keep material, water,
+   contours, and vectors independently attributed. Commit each overlap,
+   feather, and overview policy with its own fixtures.
+4. **Close halo-safe hierarchy and residency (8.3).** Build conservative
+   height/validity levels over the shared mosaic, derive every relief tile from
+   a metric source gutter, retain cropped-interior border digests, add derived
+   bytes to LOD/residency accounting, and cache only by exact mosaic, level,
+   tile, operator, and support identity. Whole-field/partition equivalence and
+   zero internal-edge mismatch are required before this gate closes.
+5. **Close the cartographic relief operators (8.4).** Implement separately
+   revisioned metric slope/aspect channels, deterministic slope-adaptive MDOW,
+   SVF/positive-negative openness, high-pass profile/plan curvature and ridge
+   salience, and local contrast/tone mapping in linear space. Each operator
+   receives steep-, low-relief-, hole-, and too-coarse-source fixtures plus
+   reference/WebGL2 parity before being composed with the next operator.
+6. **Close cartographic composition (8.5).** Replace scalar grey multiplication
+   with warm-direct/cool-ambient chromatic lighting, replace discrete material
+   classes with continuous elevation- and slope-graded hypsometry, then
+   qualify crisp terrain-bound water, shoreline, contour, route, boundary, and
+   label hierarchy. Keep every absent source and visibility boundary explicit.
+7. **Close the shared Atlas/Landscape hierarchy (8.6).** Generate Atlas
+   stipples and reveal order from the same mosaic/relief-pyramid samples,
+   retain native sample identity through the morph, prewarm the predicted exact
+   hierarchy, and keep the last compatible submission until its successor is
+   ready. Prove forward, reverse, interrupted, and backend-loss transitions.
+8. **Close the retained fidelity matrix (8.7).** Run every named fixture at
+   1920×1080 and 3840×2160 through reference, WebGL2, and WebGPU on one exact
+   machine. Retain numeric seam/parity/budget results and explicit perceptual
+   pass/minor/major assessments for MDOW, SVF, chromatic lighting, hypsometry,
+   hydrology, contours, vectors, and transition continuity. Any major result
+   keeps this plan active and directs the next smallest commit.
+
 ## Open Choices
 
-- A qualified GeoTIFF/COG or other native raster adapter remains future work;
-  the current GeoJSON grid is the smallest CLI-verifiable admission slice, not
-  the long-term bulk-elevation format.
+- A qualified Cloud-Optimized GeoTIFF (COG), TileDB, or native raster pyramid
+  adapter remains future work; the current GeoJSON grid is the smallest
+  CLI-verifiable admission slice, not the long-term bulk-elevation format.
+  Resolving sub-100m geomorphic features (knife-edge aretes, talus, cirques)
+  requires high-density raster sources (e.g., 10m–30m DEM datasets).
+- Synthetic geography compilers may incorporate physical geomorphological
+  models (hydraulic fluvial incision, thermal weathering, slope-dependent
+  scree accumulation, and tectonic fault lines) rather than relying on
+  isotropic noise octaves.
 - Tile dimensions, geometric-error metric, worker topology, and camera bounds
   must be selected against named workloads rather than by drive-by dependency.
 - Imagery and material inputs require their own provider and license authority;
