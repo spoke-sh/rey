@@ -654,6 +654,8 @@ describe("reference renderer", () => {
     expect(markup).toContain(
       'data-regional-terrain-reference="rey.reference-regional-terrain@4"',
     );
+    expect(markup).toContain("data-height-relief-hierarchy-id=");
+    expect(markup).toContain("data-relief-field-id=");
     expect(markup).toContain('data-semantic-identity="atlas-sector:1"');
     expect(markup).toContain('style="opacity:' + presentation.atlas_opacity);
 

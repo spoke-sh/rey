@@ -833,16 +833,16 @@ from visual composition.
 
 #### 8.6 Make Atlas and Landscape sample the same terrain hierarchy
 
-- [ ] Generate Atlas stipple position, density, salience, and reveal order from
+- [x] Generate Atlas stipple position, density, salience, and reveal order from
       the exact mosaic and relief-pyramid samples that Landscape renders. Do not
       run an independent raw-field relief calculation for Atlas.
-- [ ] Retain source-native sample identity and deterministic seed/order through
+- [x] Retain source-native sample identity and deterministic seed/order through
       every transition frame so stipples can expand into the corresponding
       Landscape support instead of dissolving into unrelated geometry.
-- [ ] Use the selected Atlas member as the camera/focus anchor while allowing
+- [x] Use the selected Atlas member as the camera/focus anchor while allowing
       qualified neighboring and overview patches to reveal from the common
       mosaic. A primary patch is not the boundary of the visible world.
-- [ ] Prewarm the exact mosaic, pyramid levels, relief revision, and material
+- [x] Prewarm the exact mosaic, pyramid levels, relief revision, and material
       revision required by the predicted entry view. Keep the last compatible
       submitted terrain until its successor submits; never flash an empty or
       differently compiled field during handoff.

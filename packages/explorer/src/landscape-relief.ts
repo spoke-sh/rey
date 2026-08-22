@@ -15,7 +15,7 @@ export const LANDSCAPE_RIDGE_SALIENCE_REVISION =
 export const LANDSCAPE_TONE_MAPPING_REVISION =
   "rey.landscape.linear-tone-map@1" as const;
 export const LANDSCAPE_TERRAIN_FABRIC_REVISION =
-  "rey.landscape-terrain-fabric@1" as const;
+  "rey.landscape-terrain-fabric@2" as const;
 export const LANDSCAPE_PATCH_SET_REVISION =
   "rey.landscape-patch-set@1" as const;
 
@@ -65,6 +65,12 @@ export interface LandscapeReliefField {
 }
 
 export interface LandscapeTerrainFabricSample extends PlanarPresentationSample {
+  sample_id: string;
+  source_sample_id: string;
+  source_field_set_id: string;
+  source_relief_field_id: string;
+  source_column: number;
+  source_row: number;
   relief: number;
   tangent_u: number;
   tangent_v: number;
@@ -682,56 +688,68 @@ function effectiveReliefSupportRadius(
 }
 
 /**
- * Projects the same relief field into the Atlas/planar dot vocabulary. The
- * candidate coordinates remain revision-stable; terrain content controls
- * their brightness, contour tangent, mark length, and reveal ordering.
+ * Projects exact valid samples from the supplied Landscape relief level into
+ * the Atlas/planar dot vocabulary. The planar sequence only chooses a bounded
+ * deterministic subset; every emitted position retains its exact source row,
+ * column, field, and relief identity. Terrain content controls density,
+ * brightness, contour tangent, mark length, and reveal ordering.
  */
 export function landscapeTerrainFabricSamples(
   field: TerrainFieldSetInput & { source_revision?: string },
+  relief: LandscapeReliefField,
   candidateCount = 6_000,
 ): readonly LandscapeTerrainFabricSample[] {
-  const relief = deriveLandscapeReliefField(field);
-  const revision = field.source_revision ?? field.field_set_id;
-  const samples = planarPresentationSamples(revision, candidateCount)
-    .flatMap((sample, sequence) => {
-      const column = Math.min(
-        field.grid.columns - 1,
-        Math.max(0, Math.round(sample.u * (field.grid.columns - 1))),
-      );
-      const row = Math.min(
-        field.grid.rows - 1,
-        Math.max(0, Math.round(sample.v * (field.grid.rows - 1))),
-      );
-      const index = row * field.grid.columns + column;
-      if (field.validity.values[index] === 0) return [];
-      const terrainSalience = relief.salience[index]!;
-      const illumination = relief.hillshade[index]!;
-      return [
-        {
-          u: sample.u,
-          v: sample.v,
-          brightness: clamp(
-            illumination * 0.7 + sample.brightness * 0.3,
-            0.28,
-            1,
-          ),
-          relief: terrainSalience,
-          tangent_u: relief.tangent[index * 2]!,
-          tangent_v: relief.tangent[index * 2 + 1]!,
-          length: 0.52 + terrainSalience * 1.72,
-          reveal_priority:
-            terrainSalience * 0.72 +
-            sample.brightness * 0.18 +
-            stableSequenceNoise(sequence, revision) * 0.1,
-        },
-      ];
-    })
+  verifyLandscapeReliefField(field, relief);
+  if (!Number.isSafeInteger(candidateCount) || candidateCount < 1)
+    throw new Error("landscape terrain fabric sample bound is invalid");
+  const revision = `${LANDSCAPE_TERRAIN_FABRIC_REVISION}:${relief.relief_field_id}`;
+  const samplesBySource = new Map<number, LandscapeTerrainFabricSample>();
+  for (const [sequence, sample] of planarPresentationSamples(
+    revision,
+    candidateCount * 4,
+  ).entries()) {
+    const column = Math.min(
+      field.grid.columns - 1,
+      Math.max(0, Math.round(sample.u * (field.grid.columns - 1))),
+    );
+    const row = Math.min(
+      field.grid.rows - 1,
+      Math.max(0, Math.round(sample.v * (field.grid.rows - 1))),
+    );
+    const index = row * field.grid.columns + column;
+    if (field.validity.values[index] === 0 || samplesBySource.has(index))
+      continue;
+    const terrainSalience = relief.salience[index]!;
+    const illumination = relief.hillshade[index]!;
+    const sourceSampleId = `${field.field_set_id}:r${row}:c${column}`;
+    samplesBySource.set(index, {
+      sample_id: `${LANDSCAPE_TERRAIN_FABRIC_REVISION}:${sourceSampleId}`,
+      source_sample_id: sourceSampleId,
+      source_field_set_id: field.field_set_id,
+      source_relief_field_id: relief.relief_field_id,
+      source_column: column,
+      source_row: row,
+      u: column / Math.max(1, field.grid.columns - 1),
+      v: row / Math.max(1, field.grid.rows - 1),
+      brightness: clamp(illumination * 0.7 + sample.brightness * 0.3, 0.28, 1),
+      relief: terrainSalience,
+      tangent_u: relief.tangent[index * 2]!,
+      tangent_v: relief.tangent[index * 2 + 1]!,
+      length: 0.52 + terrainSalience * 1.72,
+      reveal_priority:
+        terrainSalience * 0.72 +
+        sample.brightness * 0.18 +
+        stableSequenceNoise(sequence, revision) * 0.1,
+    });
+  }
+  const samples = [...samplesBySource.values()]
     .sort(
       (left, right) =>
         right.reveal_priority - left.reveal_priority ||
         left.v - right.v ||
         left.u - right.u,
-    );
+    )
+    .slice(0, candidateCount);
   return Object.freeze(samples.map((sample) => Object.freeze(sample)));
 }
 

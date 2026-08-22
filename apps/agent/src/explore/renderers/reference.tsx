@@ -606,23 +606,14 @@ function TerrainMorphFabricLayer({
   progress: number;
   scene: TopologyScene;
 }) {
-  const fields = useMemo(
-    () =>
-      scene.terrain_fields.filter((candidate) =>
-        candidate.active_band_ids.includes("admitted_dem"),
-      ),
-    [scene.terrain_fields],
-  );
   const fabrics = useMemo(
     () =>
-      fields.map((field) => ({
-        field,
-        samples: landscapeTerrainFabricSamples(
-          field,
-          REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT,
-        ),
-      })),
-    [fields],
+      scene.terrain_fields
+        .filter((candidate) =>
+          candidate.active_band_ids.includes("admitted_dem"),
+        )
+        .map((field) => materializedTerrainFabric(field)),
+    [scene.terrain_fields],
   );
   const roundedProgress =
     Math.round(Math.max(0, Math.min(1, progress)) * 50) / 50;
@@ -637,8 +628,10 @@ function TerrainMorphFabricLayer({
       80,
       Math.floor(totalSampleCount / Math.max(1, fabrics.length)),
     );
-    return fabrics.map(({ field, samples }) => ({
+    return fabrics.map(({ field, hierarchy_id, relief_field_id, samples }) => ({
       field_set_id: field.field_set_id,
+      hierarchy_id,
+      relief_field_id,
       path: stipplePathFromSamples(
         samples.slice(0, samplesPerField),
         field.grid.bounds,
@@ -646,7 +639,7 @@ function TerrainMorphFabricLayer({
     }));
   }, [fabrics, roundedProgress]);
   if (
-    fields.length === 0 ||
+    fabrics.length === 0 ||
     paths.every(({ path }) => !path) ||
     progress <= 0 ||
     progress >= 1
@@ -657,19 +650,22 @@ function TerrainMorphFabricLayer({
       aria-hidden="true"
       className={sx(styles.worldGeometryLayer)}
       data-landscape-terrain-fabric={LANDSCAPE_TERRAIN_FABRIC_REVISION}
-      data-landscape-terrain-patches={fields.length}
+      data-landscape-terrain-patches={fabrics.length}
       style={{ opacity: 1 - progress }}
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
-      {paths.map(({ field_set_id: fieldSetId, path }) =>
-        path ? (
-          <path
-            className={sx(styles.regionalTerrainStipple)}
-            d={path}
-            data-field-set-id={fieldSetId}
-            key={fieldSetId}
-          />
-        ) : null,
+      {paths.map(
+        ({ field_set_id: fieldSetId, hierarchy_id, relief_field_id, path }) =>
+          path ? (
+            <path
+              className={sx(styles.regionalTerrainStipple)}
+              d={path}
+              data-field-set-id={fieldSetId}
+              data-height-relief-hierarchy-id={hierarchy_id}
+              data-relief-field-id={relief_field_id}
+              key={fieldSetId}
+            />
+          ) : null,
       )}
     </svg>
   );
@@ -765,16 +761,11 @@ function AtlasFeatureLayer({
   // that (cheap, but not free at ~2,600 segments) work from re-running on
   // every single frame — this was expensive enough to visibly stall the
   // Atlas-to-Landscape morph before this fix.
-  const focusedFullSamples = useMemo(
-    () =>
-      focusedTerrain
-        ? landscapeTerrainFabricSamples(
-            focusedTerrain,
-            REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT,
-          )
-        : null,
+  const focusedFabric = useMemo(
+    () => (focusedTerrain ? materializedTerrainFabric(focusedTerrain) : null),
     [focusedTerrain],
   );
+  const focusedFullSamples = focusedFabric?.samples ?? null;
   const roundedLandscapeMorphProgress =
     Math.round(landscapeMorphProgress * 50) / 50;
   const focusedStipplePath = useMemo(() => {
@@ -801,6 +792,8 @@ function AtlasFeatureLayer({
       data-landscape-terrain-fabric={
         focusedTerrain ? LANDSCAPE_TERRAIN_FABRIC_REVISION : undefined
       }
+      data-landscape-terrain-hierarchy={focusedFabric?.hierarchy_id}
+      data-landscape-terrain-relief={focusedFabric?.relief_field_id}
       role="group"
       style={landscapeOpacity < 1 ? { opacity: landscapeOpacity } : undefined}
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
@@ -938,6 +931,39 @@ function AtlasFeatureLayer({
       </g>
     </svg>
   );
+}
+
+const materializedTerrainFabricCache = new WeakMap<
+  TopologyScene["terrain_fields"][number],
+  ReturnType<typeof compileTerrainFabric>
+>();
+
+function materializedTerrainFabric(
+  source: TopologyScene["terrain_fields"][number],
+) {
+  const retained = materializedTerrainFabricCache.get(source);
+  if (retained) return retained;
+  const compiled = compileTerrainFabric(source);
+  materializedTerrainFabricCache.set(source, compiled);
+  return compiled;
+}
+
+function compileTerrainFabric(source: TopologyScene["terrain_fields"][number]) {
+  const completeField = deriveRegionalTerrainGeography(
+    refineRegionalTerrainField(source),
+  );
+  const pyramid = compileMaterializedLandscapePyramid(completeField);
+  const fine = pyramid.relief_levels.at(-1)!;
+  return Object.freeze({
+    field: fine.field,
+    relief_field_id: fine.relief.relief_field_id,
+    hierarchy_id: pyramid.hierarchy_id,
+    samples: landscapeTerrainFabricSamples(
+      fine.field,
+      fine.relief,
+      REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT,
+    ),
+  });
 }
 
 /**

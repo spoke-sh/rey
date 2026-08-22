@@ -32,7 +32,7 @@ import { LANDSCAPE_HEIGHT_HIERARCHY_REVISION } from "../terrain/height-pyramid";
 import { LANDSCAPE_RELIEF_HIERARCHY_REVISION } from "../terrain/relief-pyramid";
 import { exploreStyles as styles } from "../../stylex/explore.stylex";
 import { className as sx } from "../../stylex/shared.stylex";
-import type { TopologyGlobe } from "../../topology";
+import type { TopologyGlobe, TopologyScene } from "../../topology";
 
 export type { RendererPreference } from "@rey/explorer";
 
@@ -261,6 +261,54 @@ interface ResolvedTerrainCompilation {
   residency: TerrainTileResidencyStats;
 }
 
+/**
+ * Identifies semantic terrain compilation independently from camera-only
+ * working-set changes. Atlas prewarm and Landscape submission calculate this
+ * through the same function so a prewarmed hierarchy remains compatible at
+ * the handoff while changed source, mosaic, operator, or material identity
+ * cannot reuse it.
+ */
+export function terrainCompilationSourceKey(scene: TopologyScene): string {
+  const identities = [
+    LANDSCAPE_RELIEF_ENGINE_REVISION,
+    LANDSCAPE_HEIGHT_HIERARCHY_REVISION,
+    LANDSCAPE_RELIEF_HIERARCHY_REVISION,
+    TERRAIN_TILE_RESIDENCY_REVISION,
+    ...scene.terrain_fields.map((field) =>
+      [
+        "field",
+        field.field_set_id,
+        field.source_revision,
+        field.grid.columns,
+        field.grid.rows,
+        field.grid.bounds.x,
+        field.grid.bounds.y,
+        field.grid.bounds.width,
+        field.grid.bounds.height,
+        field.elevation.implementation_revision,
+        field.material.implementation_revision,
+        field.landscape_mosaic?.mosaic_id ?? "unbound-mosaic",
+        field.landscape_mosaic?.composition_revision ?? "unbound-composition",
+      ].join(":"),
+    ),
+    ...scene.terrain_programs.map((program) =>
+      [
+        "program",
+        program.program_id,
+        program.source_id,
+        program.source_revision,
+      ].join(":"),
+    ),
+  ];
+  return identities.sort((left, right) => left.localeCompare(right)).join("|");
+}
+
+export function retainCompatibleTerrainSubmission<
+  Submission extends { readonly source_key: string },
+>(submission: Submission | null, sourceKey: string): Submission | null {
+  return submission?.source_key === sourceKey ? submission : null;
+}
+
 export function rendererPreference(search: string): RendererPreference {
   const requested = new URLSearchParams(search).get("renderer");
   if (
@@ -465,23 +513,7 @@ export function AcceleratedTerrainSurface({
   const workingSetRevision = workingSetRequests
     .flatMap((requests) => requests.map((request) => request.working_set_id))
     .join("|");
-  const terrainSourceKey = [
-    LANDSCAPE_RELIEF_ENGINE_REVISION,
-    LANDSCAPE_HEIGHT_HIERARCHY_REVISION,
-    LANDSCAPE_RELIEF_HIERARCHY_REVISION,
-    TERRAIN_TILE_RESIDENCY_REVISION,
-    ...snapshot.scene.terrain_fields.map((field) =>
-      [
-        field.field_set_id,
-        field.source_revision,
-        field.landscape_mosaic?.mosaic_id ?? "unbound-mosaic",
-        field.material.implementation_revision,
-      ].join(":"),
-    ),
-    ...snapshot.scene.terrain_programs.map((program) => program.program_id),
-  ]
-    .sort((left, right) => left.localeCompare(right))
-    .join("|");
+  const terrainSourceKey = terrainCompilationSourceKey(snapshot.scene);
   const terrainCompilationView = useMemo(
     () => ({
       ...view,
@@ -595,10 +627,9 @@ export function AcceleratedTerrainSurface({
       });
     return () => abort.abort();
   }, [semanticGlobe, snapshot.snapshot_id, terrainJobId, workingSetRevision]);
-  const activeTerrain =
-    !semanticGlobe && resolvedTerrain?.source_key === terrainSourceKey
-      ? resolvedTerrain
-      : null;
+  const activeTerrain = semanticGlobe
+    ? null
+    : retainCompatibleTerrainSubmission(resolvedTerrain, terrainSourceKey);
   const fieldProjection = useMemo(() => {
     const fields = activeTerrain?.fields ?? [];
     return Object.freeze({

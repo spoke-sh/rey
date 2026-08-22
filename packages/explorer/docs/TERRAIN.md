@@ -359,7 +359,11 @@ When an Atlas contains exactly one admitted regional terrain field, the
 application may mount an invisible `rey.explorer.atlas-terrain-prewarm@1`
 terrain canvas after the Atlas camera has remained stable for 600 milliseconds
 and before selection. Any camera movement cancels and reschedules that idle
-work. It compiles only that already admitted field; it does not select the
+work. Prewarm uses the exact predicted Landscape entry scale, viewport, pitch,
+yaw, mosaic identity, hierarchy/operator revisions, and material revision. The
+source key is shared with the visible renderer, while view-only successor jobs
+retain the last compatible submitted terrain until they submit. It compiles
+only that already admitted field; it does not select the
 County, change the camera, render coverage, execute a locator, or widen
 evidence. The same field identity and resident compilation remain available
 when Atlas-to-Landscape traversal begins, avoiding an avoidable
@@ -367,6 +371,17 @@ first-visible-frame setup stall without racing an active projection morph. The
 application exposes `scheduled`, `mounted`, and `submitted` states so
 qualification can require actual renderer submission instead of inferring
 warmth from elapsed time.
+
+`rey.landscape-terrain-fabric@2` projects Atlas stipples from exact valid
+vertices of the same finest materialized height/relief hierarchy used by
+Landscape. A stipple retains field, relief, row, column, and sample identity;
+its salience, tangent, brightness, length, density, and reveal order come from
+that bound relief sample. The planar sequence only chooses a deterministic
+bounded subset. It cannot create a second raw-field relief calculation or a
+free-floating point unrelated to Landscape support. The selected Atlas member
+anchors the projection, but connected qualified neighboring patches and
+separately admitted compatible overview coverage remain visible through the
+shared mosaic outside the primary patch frame.
 
 ## Bounds And Accounting
 

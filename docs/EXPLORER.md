@@ -368,7 +368,14 @@ Worker loss or budget failure reveals the deterministic reference surface.
 Atlas-to-Landscape continuity is one reversible projection, not a route-time
 scene replacement. The selected Atlas sector, exact primary patch, shared
 regional mosaic, footprint, vectors, and pick identities share one
-source-to-target mapping. Perceptual
+source-to-target mapping. Atlas stipples are a deterministic bounded selection
+of exact valid samples from Landscape's materialized relief hierarchy; they
+retain field, relief, row, column, and sample identity as their density and
+reveal order respond to terrain salience. The selected member anchors the
+camera without clipping qualified neighboring or compatible overview terrain
+from the shared mosaic. One exact source/mosaic/operator/material key binds
+idle Atlas prewarm to the predicted Landscape entry view, and view-only
+successor work retains the last compatible submitted surface. Perceptual
 curves control overlap, elevation rise, and camera tilt without becoming
 semantic LOD. The bounded camera retains an analytic ground target, north/yaw,
 scale, focus, and native-coordinate inverse through both traversal directions.

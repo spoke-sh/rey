@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
+  atlasTerrainPredictedEntryView,
   atlasTerrainPrewarmStatus,
   CanvasFooter,
   CanvasToolbar,
@@ -50,6 +51,41 @@ describe("Explorer canvas toolbar", () => {
         terrain_fields: [],
       } as unknown as TopologyScene),
     ).toBe(false);
+  });
+
+  it("prewarms the exact predicted Landscape entry camera", () => {
+    const scene = {
+      world: { width: 1500, height: 1000 },
+      terrain_fields: [
+        {
+          grid: {
+            bounds: { x: 180, y: 140, width: 720, height: 520 },
+          },
+        },
+      ],
+    } as unknown as TopologyScene;
+    const first = atlasTerrainPredictedEntryView(
+      scene,
+      0.8,
+      { width: 1920, height: 1080 },
+      { pitch_degrees: 88, yaw_degrees: 0 },
+    );
+    const replay = atlasTerrainPredictedEntryView(
+      scene,
+      0.8,
+      { width: 1920, height: 1080 },
+      { pitch_degrees: 88, yaw_degrees: 0 },
+    );
+    expect(replay).toEqual(first);
+    expect(first).toMatchObject({
+      viewport_width: 1920,
+      viewport_height: 1080,
+      pan_x: 0,
+      pan_y: 0,
+      yaw_degrees: 0,
+    });
+    expect(first.rendered_scale).toBeGreaterThan(0.8);
+    expect(first.pitch_degrees).toBeLessThan(90);
   });
 
   it("keeps view controls without exposing projection layer buttons", () => {

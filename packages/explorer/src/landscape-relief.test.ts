@@ -75,8 +75,8 @@ describe("landscape relief engine", () => {
     expect(new Set(first.hillshade).size).toBeGreaterThan(2);
     expect(Math.max(...first.salience)).toBeGreaterThan(0.1);
 
-    const samples = landscapeTerrainFabricSamples(field, 120);
-    expect(samples.length).toBeGreaterThan(20);
+    const samples = landscapeTerrainFabricSamples(field, first, 120);
+    expect(samples).toHaveLength(field.field_cells);
     expect(samples.map(({ reveal_priority }) => reveal_priority)).toEqual(
       [...samples]
         .map(({ reveal_priority }) => reveal_priority)
@@ -85,6 +85,18 @@ describe("landscape relief engine", () => {
     expect(samples.some(({ tangent_v }) => Math.abs(tangent_v) > 0.01)).toBe(
       true,
     );
+    expect(
+      samples.every(
+        (sample) =>
+          sample.u === sample.source_column / (field.grid.columns - 1) &&
+          sample.v === sample.source_row / (field.grid.rows - 1) &&
+          sample.source_field_set_id === field.field_set_id &&
+          sample.source_relief_field_id === first.relief_field_id,
+      ),
+    ).toBe(true);
+    expect(
+      new Set(samples.map(({ source_sample_id }) => source_sample_id)).size,
+    ).toBe(samples.length);
   });
 
   it("samples tiles from one complete relief derivation without reevaluation", () => {
@@ -237,7 +249,7 @@ describe("landscape relief engine", () => {
     expect(relief.hillshade[hole]).toBe(0);
     expect(relief.salience[hole]).toBe(0);
     expect(relief.sky_view_factor[hole]).toBe(0);
-    for (const sample of landscapeTerrainFabricSamples(field, 500)) {
+    for (const sample of landscapeTerrainFabricSamples(field, relief, 500)) {
       const column = Math.round(sample.u * (field.grid.columns - 1));
       const row = Math.round(sample.v * (field.grid.rows - 1));
       expect(field.validity.values[row * field.grid.columns + column]).toBe(1);

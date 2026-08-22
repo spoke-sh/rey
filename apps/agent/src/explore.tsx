@@ -65,6 +65,7 @@ import { invertRegionalTerrainPosition } from "./explore/projection/regional-ter
 import {
   AcceleratedTerrainSurface,
   REFERENCE_TERRAIN_REPORT,
+  terrainCompilationSourceKey,
   type AcceleratedTerrainReport,
 } from "./explore/renderers/accelerated-terrain";
 import {
@@ -313,13 +314,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const sceneProjection = measuredSceneProjection.projection;
   const snapshot = sceneProjection.snapshot;
   const scene = snapshot.scene;
-  const atlasTerrainPrewarmKey = scene.terrain_fields
-    .map(({ field_set_id }) => field_set_id)
-    .join("|");
+  const atlasTerrainPrewarmKey = terrainCompilationSourceKey(scene);
   const atlasTerrainPrewarmEligible =
     scene.regime === "atlas" &&
     scene.atlas_landscape_transition === null &&
-    atlasTerrainPrewarmKey.length > 0;
+    scene.terrain_fields.length > 0;
   useEffect(() => {
     setAtlasTerrainPrewarmSubmitted(false);
     if (!atlasTerrainPrewarmEligible) {
@@ -351,6 +350,30 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     terrainOrbit,
     scene.world,
   );
+  const terrainSurfaceView = atlasTerrainPrewarmEligible
+    ? atlasTerrainPredictedEntryView(
+        scene,
+        fitScale,
+        viewportSize,
+        terrainOrbit,
+      )
+    : {
+        world_width: scene.world.width,
+        world_height: scene.world.height,
+        viewport_width: viewportSize.width,
+        viewport_height: viewportSize.height,
+        rendered_scale: renderedScaleForTerrainSurface(
+          scene,
+          fitScale,
+          zoom,
+          landscapePresentation.composition_scale,
+        ),
+        pan_x: pan.x,
+        pan_y: pan.y,
+        pitch_degrees: landscapePresentation.pitch_degrees,
+        yaw_degrees: landscapePresentation.yaw_degrees,
+        model_transform: landscapePresentation.model_transform,
+      };
   const projectionMorphProgress = worldAtlasMorphProgress(zoom);
   const projectionMorphActive =
     scene.world_atlas_transition !== null &&
@@ -360,13 +383,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     scene.regime === "atlas" &&
     scene.world_atlas_transition !== null &&
     projectionMorphProgress >= 1;
-  const renderedScale =
-    renderedSceneScale(
-      scene.terrain || scene.county_frame !== null,
-      fitScale,
-      zoom,
-      scene.regime,
-    ) * landscapePresentation.composition_scale;
+  const renderedScale = renderedScaleForTerrainSurface(
+    scene,
+    fitScale,
+    zoom,
+    landscapePresentation.composition_scale,
+  );
   const acceleratedReady =
     terrainRenderer.status.lifecycle === "ready" &&
     (terrainRenderer.status.backend === "webgpu" ||
@@ -951,18 +973,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             }}
             renderVisibility={renderVisibility}
             snapshot={snapshot}
-            view={{
-              world_width: scene.world.width,
-              world_height: scene.world.height,
-              viewport_width: viewportSize.width,
-              viewport_height: viewportSize.height,
-              rendered_scale: renderedScale,
-              pan_x: pan.x,
-              pan_y: pan.y,
-              pitch_degrees: landscapePresentation.pitch_degrees,
-              yaw_degrees: landscapePresentation.yaw_degrees,
-              model_transform: landscapePresentation.model_transform,
-            }}
+            view={terrainSurfaceView}
             visible={
               landscapePresentation.terrain_opacity > 0 &&
               !projectionMorphActive
@@ -1318,6 +1329,53 @@ export function shouldMountTerrainSurface(
     (scene.terrain ||
       scene.atlas_landscape_transition !== null ||
       (atlasPrewarmReady && scene.terrain_fields.length > 0))
+  );
+}
+
+export function atlasTerrainPredictedEntryView(
+  scene: TopologyScene,
+  fitScale: number,
+  viewport: { width: number; height: number },
+  orbit: TerrainOrbitView,
+) {
+  const progress = atlasLandscapeMorphProgress(LANDSCAPE_LENS_ZOOM);
+  const fieldBounds = scene.terrain_fields[0]?.grid.bounds;
+  if (!fieldBounds)
+    throw new Error("Atlas terrain prewarm requires an admitted terrain field");
+  const presentation = atlasLandscapePresentation(
+    { source_frame: fieldBounds, target_frame: fieldBounds },
+    progress,
+    orbit,
+    scene.world,
+  );
+  return Object.freeze({
+    world_width: scene.world.width,
+    world_height: scene.world.height,
+    viewport_width: viewport.width,
+    viewport_height: viewport.height,
+    rendered_scale:
+      renderedSceneScale(true, fitScale, LANDSCAPE_LENS_ZOOM, "landscape") *
+      presentation.composition_scale,
+    pan_x: 0,
+    pan_y: 0,
+    pitch_degrees: presentation.pitch_degrees,
+    yaw_degrees: presentation.yaw_degrees,
+  });
+}
+
+function renderedScaleForTerrainSurface(
+  scene: TopologyScene,
+  fitScale: number,
+  zoom: number,
+  compositionScale: number,
+): number {
+  return (
+    renderedSceneScale(
+      scene.terrain || scene.county_frame !== null,
+      fitScale,
+      zoom,
+      scene.regime,
+    ) * compositionScale
   );
 }
 
