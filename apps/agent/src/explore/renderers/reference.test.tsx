@@ -606,6 +606,8 @@ describe("reference renderer", () => {
         source_contribution_id: "blake3:fixture-contribution",
         conflict_id: "blake3:fixture-conflicts",
         conflict_vertices: 0,
+        feather_id: "blake3:fixture-feather",
+        feathered_vertices: 0,
         gap_policy: "unsupported_remains_transparent",
         projection_revision: ATLAS_LANDSCAPE_PROJECTION_REVISION,
         source_frame: { x: 0, y: 0, width: 1500, height: 1000 },

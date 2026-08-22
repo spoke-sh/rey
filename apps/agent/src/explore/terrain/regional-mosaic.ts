@@ -2,6 +2,7 @@ import {
   createTerrainValidityClassification,
   summarizeTerrainValidityClassification,
   TERRAIN_VALIDITY_UNSUPPORTED,
+  TERRAIN_VALIDITY_VALID,
   verifyTerrainFieldValidityClassification,
   type TerrainFieldSetInput,
 } from "@rey/explorer";
@@ -22,7 +23,7 @@ import { deriveTerrainNormals } from "./normals";
 export const REGIONAL_TERRAIN_MOSAIC_SCHEMA =
   "rey.landscape-mosaic.v1" as const;
 export const REGIONAL_TERRAIN_MOSAIC_REVISION =
-  "rey.terrain.regional-mosaic@2" as const;
+  "rey.terrain.regional-mosaic@3" as const;
 export const MAXIMUM_REGIONAL_TERRAIN_MOSAIC_CELLS = 2_000_000;
 
 export interface RegionalTerrainMosaicPatch {
@@ -87,6 +88,15 @@ export interface RegionalTerrainMosaicManifest {
     schema: "rey.landscape-overlap-conflicts.v1";
     content_id: string;
     values: Uint8Array;
+  };
+  feather: {
+    schema: "rey.landscape-overlap-feather.v1";
+    content_id: string;
+    unsupported_index: number;
+    policy: "mutually_valid_equal_authority_equal_spacing_edge_distance";
+    secondary_owner_indices: Uint32Array;
+    primary_weights: Float32Array;
+    feathered_vertices: number;
   };
   overlap_decisions: readonly {
     reason: RegionalTerrainOverlapDecisionReason;
@@ -187,8 +197,11 @@ export function compileRegionalTerrainMosaic(
   const grid = createFieldGrid(columns, rows, bounds);
   const unsupportedOwner = 0xffff_ffff;
   const occupancy = new Uint32Array(cells).fill(unsupportedOwner);
+  const coverageCounts = new Uint8Array(cells);
   const overlapTouched = new Uint8Array(cells);
   const conflictValues = new Uint8Array(cells);
+  const featherSecondaryOwners = new Uint32Array(cells).fill(unsupportedOwner);
+  const featherPrimaryWeights = new Float32Array(cells).fill(1);
   const validityValues = new Uint8Array(cells);
   const validityClassificationValues = new Uint8Array(cells).fill(
     TERRAIN_VALIDITY_UNSUPPORTED,
@@ -220,6 +233,8 @@ export function compileRegionalTerrainMosaic(
           column;
         const owner = occupancy[targetIndex]!;
         if (owner !== unsupportedOwner) {
+          const previousCoverage = coverageCounts[targetIndex]!;
+          coverageCounts[targetIndex] = Math.min(255, previousCoverage + 1);
           const ownerPlacement = placements[owner]!;
           const ownerPatch = ownerPlacement.patch;
           const pair = [
@@ -238,6 +253,12 @@ export function compileRegionalTerrainMosaic(
             placement.column_offset + column - ownerPlacement.column_offset;
           const ownerSourceIndex =
             ownerRow * ownerPatch.field.grid.columns + ownerColumn;
+          if (previousCoverage > 1) {
+            elevationValues[targetIndex] =
+              ownerPatch.field.elevation.values[ownerSourceIndex]!;
+            featherSecondaryOwners[targetIndex] = unsupportedOwner;
+            featherPrimaryWeights[targetIndex] = 1;
+          }
           const identical = samplesEqual(
             ownerPatch.field,
             ownerPlacement.validity_classification.values,
@@ -283,9 +304,59 @@ export function compileRegionalTerrainMosaic(
               sourceIndex,
             );
           }
+          if (
+            !identical &&
+            previousCoverage === 1 &&
+            canFeatherHeight(
+              ownerPlacement,
+              ownerSourceIndex,
+              placement,
+              sourceIndex,
+            )
+          ) {
+            const selectedIsCandidate =
+              decision.selected_patch_index === patchIndex;
+            const primaryPlacement = selectedIsCandidate
+              ? placement
+              : ownerPlacement;
+            const secondaryPlacement = selectedIsCandidate
+              ? ownerPlacement
+              : placement;
+            const primarySourceIndex = selectedIsCandidate
+              ? sourceIndex
+              : ownerSourceIndex;
+            const secondarySourceIndex = selectedIsCandidate
+              ? ownerSourceIndex
+              : sourceIndex;
+            const primaryWeight = overlapPrimaryWeight(
+              primaryPlacement.patch.field,
+              primarySourceIndex,
+              secondaryPlacement.patch.field,
+              secondarySourceIndex,
+            );
+            if (primaryWeight > 0 && primaryWeight < 1) {
+              const primaryHeight =
+                primaryPlacement.patch.field.elevation.values[
+                  primarySourceIndex
+                ]!;
+              const secondaryHeight =
+                secondaryPlacement.patch.field.elevation.values[
+                  secondarySourceIndex
+                ]!;
+              elevationValues[targetIndex] = Math.fround(
+                primaryHeight * primaryWeight +
+                  secondaryHeight * (1 - primaryWeight),
+              );
+              featherSecondaryOwners[targetIndex] = selectedIsCandidate
+                ? owner
+                : patchIndex;
+              featherPrimaryWeights[targetIndex] = primaryWeight;
+            }
+          }
           continue;
         }
         occupancy[targetIndex] = patchIndex;
+        coverageCounts[targetIndex] = 1;
         copySample(
           validityValues,
           validityClassificationValues,
@@ -371,6 +442,10 @@ export function compileRegionalTerrainMosaic(
     occupancy,
   ]);
   const conflictId = mosaicContentId("overlap-conflicts", [conflictValues]);
+  const featherId = mosaicContentId("overlap-feather", [
+    featherSecondaryOwners,
+    featherPrimaryWeights,
+  ]);
   const heightId = mosaicContentId("height", [elevationValues]);
   const mosaicId = [
     REGIONAL_TERRAIN_MOSAIC_SCHEMA,
@@ -392,6 +467,7 @@ export function compileRegionalTerrainMosaic(
     validitySummary.validity_id,
     sourceContributionId,
     conflictId,
+    featherId,
     `${columns}x${rows}`,
   ].join("|");
   const {
@@ -401,6 +477,10 @@ export function compileRegionalTerrainMosaic(
   } = validitySummary;
   const conflictVertices = conflictValues.reduce(
     (total, value) => total + (value === 0 ? 0 : 1),
+    0,
+  );
+  const featheredVertices = featherSecondaryOwners.reduce(
+    (total, owner) => total + (owner === unsupportedOwner ? 0 : 1),
     0,
   );
   const overlapDecisions = Object.freeze(
@@ -430,6 +510,8 @@ export function compileRegionalTerrainMosaic(
     source_contribution_id: sourceContributionId,
     conflict_id: conflictId,
     conflict_vertices: conflictVertices,
+    feather_id: featherId,
+    feathered_vertices: featheredVertices,
   }) satisfies NonNullable<TerrainFieldSetInput["landscape_mosaic"]>;
   const manifest = Object.freeze({
     schema: REGIONAL_TERRAIN_MOSAIC_SCHEMA,
@@ -465,6 +547,16 @@ export function compileRegionalTerrainMosaic(
       schema: "rey.landscape-overlap-conflicts.v1" as const,
       content_id: conflictId,
       values: conflictValues,
+    }),
+    feather: Object.freeze({
+      schema: "rey.landscape-overlap-feather.v1" as const,
+      content_id: featherId,
+      unsupported_index: unsupportedOwner,
+      policy:
+        "mutually_valid_equal_authority_equal_spacing_edge_distance" as const,
+      secondary_owner_indices: featherSecondaryOwners,
+      primary_weights: featherPrimaryWeights,
+      feathered_vertices: featheredVertices,
     }),
     overlap_decisions: overlapDecisions,
     limits: Object.freeze({ maximum_cells: maximumCells }),
@@ -525,7 +617,7 @@ export function compileRegionalTerrainMosaic(
       "admitted_multi_region_mosaic",
     ]),
     detail_authority:
-      "shared-frame mosaic of a connected terrain-qualified regional set; overlap selection is validity-first, then declared-authority, nominal-spacing, and stable-source identity; every source conflict and final contribution is retained, while source no-data and unsupported gaps retain zero geometry validity",
+      "shared-frame mosaic of a connected terrain-qualified regional set; overlap selection is validity-first, then declared-authority, nominal-spacing, and stable-source identity; height feathering is limited to two-source valid/valid overlap at equal authority and nominal spacing, with exact primary/secondary weights retained; every source conflict and final contribution is retained, while source no-data and unsupported gaps retain zero geometry validity",
     source_revision: mosaicId,
     source_summary: Object.freeze({
       columns,
@@ -560,7 +652,9 @@ export function compileRegionalTerrainMosaic(
       (total, channel) => total + fieldByteLength(channel),
       validityClassification.values.byteLength +
         occupancy.byteLength +
-        conflictValues.byteLength,
+        conflictValues.byteLength +
+        featherSecondaryOwners.byteLength +
+        featherPrimaryWeights.byteLength,
     ),
     landscape_mosaic: binding,
   }) satisfies TerrainFieldSet;
@@ -747,6 +841,57 @@ function nominalMetricSampleArea(field: TerrainFieldSet): number {
   if (!metrics)
     throw new Error("regional terrain mosaic patch metric spacing is unbound");
   return metrics.sample_spacing_x_meters * metrics.sample_spacing_y_meters;
+}
+
+function canFeatherHeight(
+  left: RegionalTerrainMosaicPlacement,
+  leftSourceIndex: number,
+  right: RegionalTerrainMosaicPlacement,
+  rightSourceIndex: number,
+): boolean {
+  return (
+    left.patch.role === right.patch.role &&
+    left.validity_classification.values[leftSourceIndex] ===
+      TERRAIN_VALIDITY_VALID &&
+    right.validity_classification.values[rightSourceIndex] ===
+      TERRAIN_VALIDITY_VALID &&
+    left.patch.authority.priority === right.patch.authority.priority &&
+    sameNumber(
+      nominalMetricSampleArea(left.patch.field),
+      nominalMetricSampleArea(right.patch.field),
+    ) &&
+    left.patch.field.elevation.values[leftSourceIndex] !==
+      right.patch.field.elevation.values[rightSourceIndex]
+  );
+}
+
+function overlapPrimaryWeight(
+  primary: TerrainFieldSet,
+  primarySourceIndex: number,
+  secondary: TerrainFieldSet,
+  secondarySourceIndex: number,
+): number {
+  const primaryDistance = sampleBoundaryDistance(primary, primarySourceIndex);
+  const secondaryDistance = sampleBoundaryDistance(
+    secondary,
+    secondarySourceIndex,
+  );
+  const totalDistance = primaryDistance + secondaryDistance;
+  return totalDistance === 0 ? 1 : primaryDistance / totalDistance;
+}
+
+function sampleBoundaryDistance(
+  field: TerrainFieldSet,
+  sourceIndex: number,
+): number {
+  const row = Math.floor(sourceIndex / field.grid.columns);
+  const column = sourceIndex % field.grid.columns;
+  return Math.min(
+    row,
+    column,
+    field.grid.rows - 1 - row,
+    field.grid.columns - 1 - column,
+  );
 }
 
 function stablePatchIdentity(patch: RegionalTerrainMosaicPatch): string {

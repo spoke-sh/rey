@@ -217,6 +217,10 @@ export function ReferenceRenderer({
       data-landscape-conflict-vertices={
         scene.atlas_landscape_transition?.conflict_vertices
       }
+      data-landscape-feather-id={scene.atlas_landscape_transition?.feather_id}
+      data-landscape-feathered-vertices={
+        scene.atlas_landscape_transition?.feathered_vertices
+      }
       data-landscape-patch-set={scene.atlas_landscape_transition?.patch_set_id}
       data-landscape-primary-patch={
         scene.atlas_landscape_transition?.primary_patch_id

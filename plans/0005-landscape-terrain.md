@@ -479,6 +479,16 @@ retain the exact contribution/conflict identities and conflict count. This does
 not yet resample differently aligned or nested grids, feather a mutually valid
 overlap, or admit overview coverage.
 
+`rey.terrain.regional-mosaic@3` adds deterministic height feathering only at
+two-source samples where both sources are valid and have equal declared
+authority, role, and nominal metric spacing. Edge-distance weights hand the
+surface from one patch interior to the other without expanding either source's
+validity. The compiler retains an exact BLAKE3 feather identity,
+secondary-owner raster, primary weights, and feathered count beside the primary
+contribution and conflict rasters. No-data, unsupported, unequal-authority,
+unequal-resolution, and three-or-more-source overlap remains a hard auditable
+selection.
+
 ## Geographic Synthesis Boundary
 
 Rey County is fictional semantic geography that an agent may generate and
@@ -691,7 +701,7 @@ and which implementation revisions produced each derived channel.
       nominal source spacing, and stable source identity. Retain both inputs,
       the decision map, conflicts, and limits; input array order must not decide
       source truth.
-- [ ] Feather height or presentation channels only inside mutually valid
+- [x] Feather height or presentation channels only inside mutually valid
       overlap support. Never extend either patch's validity or blend across a
       no-data boundary.
 - [ ] Fill space between detailed patches only when a separately admitted,

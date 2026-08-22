@@ -339,6 +339,8 @@ export interface TopologyAtlasLandscapeTransition {
   source_contribution_id: string;
   conflict_id: string;
   conflict_vertices: number;
+  feather_id: string;
+  feathered_vertices: number;
   gap_policy: "unsupported_remains_transparent";
   projection_revision: typeof ATLAS_LANDSCAPE_PROJECTION_REVISION;
   source_frame: { x: number; y: number; width: number; height: number };
@@ -723,12 +725,14 @@ function buildAtlasLandscapeTransition(
       source_contribution_id: terrain.manifest.source_contribution.content_id,
       conflict_id: terrain.manifest.conflicts.content_id,
       conflict_vertices: terrain.manifest.conflict_vertices,
+      feather_id: terrain.manifest.feather.content_id,
+      feathered_vertices: terrain.manifest.feather.feathered_vertices,
       gap_policy: patchSet.gap_policy,
       projection_revision: ATLAS_LANDSCAPE_PROJECTION_REVISION,
       source_frame: sourceFrame,
       target_frame: targetFrame,
       authority:
-        "reversible presentation mapping from one exact admitted synthetic Atlas sector to the primary source patch in a shared-frame validity-bounded regional mosaic; only connected terrain-qualified edges enter the mosaic, overlap decisions retain validity, declared authority, nominal spacing, stable source identity, final contribution, and conflicts, unsupported gaps remain transparent, and the mapping grants no geographic relationship between coordinate spaces",
+        "reversible presentation mapping from one exact admitted synthetic Atlas sector to the primary source patch in a shared-frame validity-bounded regional mosaic; only connected terrain-qualified edges enter the mosaic, overlap decisions retain validity, declared authority, nominal spacing, stable source identity, final contribution, conflicts, and mutually-valid height-feather weights, unsupported gaps remain transparent, and the mapping grants no geographic relationship between coordinate spaces",
     }),
     terrain,
   });

@@ -136,6 +136,8 @@ export interface TerrainFieldSetInput {
     source_contribution_id?: string;
     conflict_id?: string;
     conflict_vertices?: number;
+    feather_id?: string;
+    feathered_vertices?: number;
     gap_policy: "unsupported_remains_transparent";
   };
 }

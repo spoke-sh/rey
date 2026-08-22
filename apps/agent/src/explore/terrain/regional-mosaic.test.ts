@@ -56,6 +56,10 @@ describe("regional terrain mosaic", () => {
       shared_vertices: left.grid.rows,
       overlap_vertices: left.grid.rows,
       conflict_vertices: 0,
+      feather: {
+        policy: "mutually_valid_equal_authority_equal_spacing_edge_distance",
+        feathered_vertices: 0,
+      },
       unsupported_vertices: 0,
       overlap_policy: "validity_authority_resolution_then_stable_identity",
       gap_policy: "unsupported_remains_transparent",
@@ -167,6 +171,44 @@ describe("regional terrain mosaic", () => {
     );
   });
 
+  it("feathers height only through mutually valid equal-authority overlap", () => {
+    const left = regionalPatch("field:left", 100);
+    const right = regionalPatch(
+      "field:right",
+      left.grid.bounds.x + left.grid.bounds.width / 2,
+    );
+    const first = compilePair(left, right, "feather");
+    const replay = compilePair(left, right, "feather", true);
+    const row = Math.floor(left.grid.rows / 2);
+    const overlapStart = (left.grid.columns - 1) / 2;
+    const targetColumn = overlapStart + Math.floor(overlapStart / 2);
+    const targetIndex = row * first.field.grid.columns + targetColumn;
+    const leftIndex = row * left.grid.columns + targetColumn;
+    const rightIndex = row * right.grid.columns + targetColumn - overlapStart;
+    const expected = Math.fround(
+      (left.elevation.values[leftIndex]! + right.elevation.values[rightIndex]!) /
+        2,
+    );
+
+    expect(first.manifest.feather.content_id).toMatch(
+      /^blake3:[0-9a-f]{64}$/,
+    );
+    expect(first.manifest.feather.feathered_vertices).toBeGreaterThan(0);
+    expect(first.manifest.feather.secondary_owner_indices[targetIndex]).not.toBe(
+      first.manifest.feather.unsupported_index,
+    );
+    expect(first.manifest.feather.primary_weights[targetIndex]).toBe(0.5);
+    expect(first.field.elevation.values[targetIndex]).toBe(expected);
+    expect(first.field.validity.values[targetIndex]).toBe(1);
+    expect(replay.manifest.mosaic_id).toBe(first.manifest.mosaic_id);
+    expect(replay.manifest.feather.secondary_owner_indices).toEqual(
+      first.manifest.feather.secondary_owner_indices,
+    );
+    expect(replay.manifest.feather.primary_weights).toEqual(
+      first.manifest.feather.primary_weights,
+    );
+  });
+
   it("prefers valid support before higher declared authority", () => {
     const left = regionalPatch("field:left", 100);
     const right = regionalPatch(
@@ -175,6 +217,13 @@ describe("regional terrain mosaic", () => {
     );
     right.validity.values[0] = 0;
     right.validity_classification!.values[0] = TERRAIN_VALIDITY_NO_DATA;
+    const interiorRow = Math.floor(right.grid.rows / 2);
+    const interiorColumn = Math.floor(right.grid.columns / 4);
+    const invalidInteriorIndex =
+      interiorRow * right.grid.columns + interiorColumn;
+    right.validity.values[invalidInteriorIndex] = 0;
+    right.validity_classification!.values[invalidInteriorIndex] =
+      TERRAIN_VALIDITY_NO_DATA;
 
     const compiled = compilePair(
       left,
@@ -192,8 +241,15 @@ describe("regional terrain mosaic", () => {
     ).toBe(compiled.manifest.patch_ids.indexOf(left.field_set_id));
     expect(compiled.manifest.overlap_decisions).toContainEqual({
       reason: "higher_validity",
-      samples: 1,
+      samples: 2,
     });
+    const invalidInteriorTarget =
+      interiorRow * compiled.field.grid.columns +
+      (left.grid.columns - 1) / 2 +
+      interiorColumn;
+    expect(
+      compiled.manifest.feather.secondary_owner_indices[invalidInteriorTarget],
+    ).toBe(compiled.manifest.feather.unsupported_index);
   });
 
   it("uses nominal metric spacing before stable identity", () => {
@@ -215,6 +271,7 @@ describe("regional terrain mosaic", () => {
       reason: "finer_nominal_spacing",
       samples: compiled.manifest.conflict_vertices,
     });
+    expect(compiled.manifest.feather.feathered_vertices).toBe(0);
   });
 });
 
