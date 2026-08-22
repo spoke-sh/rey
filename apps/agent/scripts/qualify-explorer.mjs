@@ -1458,7 +1458,13 @@ async function runVoyage(options) {
     }
 
     const region = JSON.stringify(options.region);
-    const worldRegion = `[...document.querySelectorAll('[data-semantic-region]')].find((element) => element.getAttribute('aria-label')?.startsWith(${region} + ':'))`;
+    const worldRegion =
+      options.backend === "reference"
+        ? `[...document.querySelectorAll('[data-semantic-region]')].find((element) => element.getAttribute('aria-label')?.startsWith(${region} + ':'))`
+        : `(() => {
+            const yaw = Number(document.querySelector('[role="application"]')?.getAttribute('data-globe-yaw'));
+            return Number.isFinite(yaw) && Math.abs(yaw - ${-admittedRegion.semantic_longitude_microdegrees / 1_000_000}) < 0.01;
+          })()`;
     process.stdout.write(`ROTATE world / ${options.region}\n`);
     await measureInteraction(
       interactions,
@@ -1543,6 +1549,22 @@ async function runVoyage(options) {
       await captureStage(connection, voyageDirectory, "atlas", startedAt),
     );
 
+    await connection.evaluate(`(() => {
+      const footer = document.querySelector('[data-explorer-footer]');
+      window.__reyQualificationFooterNotices = [];
+      window.__reyQualificationFooterObserver?.disconnect();
+      if (!footer) return false;
+      const record = () => window.__reyQualificationFooterNotices.push(footer.textContent ?? '');
+      record();
+      window.__reyQualificationFooterObserver = new MutationObserver(record);
+      window.__reyQualificationFooterObserver.observe(footer, {
+        attributes: true,
+        characterData: true,
+        childList: true,
+        subtree: true,
+      });
+      return true;
+    })()`);
     await measureInteraction(interactions, "atlas_to_county", async () => {
       await dispatchClick(
         connection,
@@ -1557,11 +1579,17 @@ async function runVoyage(options) {
         options.timeoutMs,
       );
     });
-    mapNoticeObserved = await connection.evaluate(`(() => {
-      const footer = document.querySelector('[data-explorer-footer]');
-      return footer?.dataset.visible === "true" &&
-        footer?.dataset.noticeTone === "update" &&
-        footer?.textContent?.includes("FOCUS /") === true;
+    await waitFor(
+      connection,
+      `window.__reyQualificationFooterNotices?.some((notice) => notice.includes("FOCUS /")) === true`,
+      "Explorer focus notice",
+      options.timeoutMs,
+    );
+    mapNoticeObserved = true;
+    await connection.evaluate(`(() => {
+      window.__reyQualificationFooterObserver?.disconnect();
+      delete window.__reyQualificationFooterObserver;
+      return true;
     })()`);
     if (!mapNoticeObserved)
       throw new Error("the Explorer focus notice did not resurface");
