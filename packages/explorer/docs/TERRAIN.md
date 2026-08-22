@@ -8,8 +8,10 @@ geometry, or application cards into terrain.
 
 ```text
 TerrainFieldSetInput[]
-  → camera-qualified tiles + bounded worker
-  → buildTerrainMeshData
+  → complete-field cartographic relief derivation
+  → camera-qualified tile descriptors + bounded worker
+  → exact row/column sampling of height and relief into render tiles
+  → buildTerrainMeshData(fields, sampled relief)
   → verifyTerrainMeshParity
   → enforce GPU byte budget
   → CompiledContinuousRelief + revisioned render-pass set
@@ -32,6 +34,15 @@ Each `TerrainFieldSetInput` supplies one bounded regular grid:
 | Occlusion | `Float32Array`                  | Darkens bounded valleys and ambient support.        |
 | Roughness | `Float32Array`                  | Controls the TSL surface response.                  |
 
+`rey.landscape-relief-field.v2` separately binds renderer-neutral hillshade,
+salience, and tangent arrays to the exact field identity. Regional terrain
+derives those arrays once over the complete refined field before camera tile
+materialization. Each render tile samples that field-wide result by original
+row/column identity. Relief is never re-evaluated on a cropped tile, so a
+kernel cannot lose neighbors or renormalize merely because the camera selected
+a different tile partition. The worker retains both shared-border equality and
+complete-field/partition equality as distinct zero-mismatch diagnostics.
+
 `@rey/agent` derives these fields from two admitted sources:
 
 - survey terrain programs produce camera-relative, haloed procedural fields;
@@ -39,8 +50,9 @@ Each `TerrainFieldSetInput` supplies one bounded regular grid:
   source-declared per-vertex validity/no-data.
 
 Field generation, dataset interpretation, hydrology, validity classification,
-LOD selection, halo evaluation, worker orchestration, and tile residency remain
-outside this package.
+LOD selection, worker orchestration, and tile residency remain outside this
+package. Renderer-neutral relief derivation and exact relief sampling are
+package-owned so reference, WebGL2, and WebGPU compilation use one contract.
 `@rey/explorer` sees the same structural field contract in both cases and
 cannot upgrade either source's authority.
 
@@ -86,24 +98,24 @@ occlusion, roughness, curvature, and indices. Upload storage is disposable and
 cannot mutate the authoritative CPU fields.
 
 `verifyTerrainMeshParity` checks every uploaded field sample after the
-coordinate transform and rejects any index touching invalid support. The
-current parity identity is `rey.terrain.cpu-mesh-upload-parity@1`.
+coordinate transform, checks the supplied relief channels, and rejects any
+index touching invalid support. The current parity identity is
+`rey.terrain.cpu-mesh-upload-parity@2`.
 
 ## Material And Lighting
 
-`createContinuousReliefMaterial` produces a `MeshStandardNodeMaterial` with
-TSL. Its separately revisioned pass inputs gate:
+`createContinuousReliefMaterial` produces a `MeshBasicNodeMaterial` with TSL.
+The renderer-neutral relief engine owns illumination; the material therefore
+does not apply a second physical light response. Its separately revisioned pass
+inputs gate:
 
 - source tint;
-- world-space multidirectional hillshade;
+- field-wide multidirectional hillshade;
 - explicit occlusion;
-- curvature-based ridge brightening and valley darkening; and
-- bounded roughness.
+- and a restrained cartographic tint composition.
 
-`ContinuousReliefScene` shares the material across compiled meshes and adds
-warm and cool directional lights plus ambient fill. Material revision 2 keeps
-that fill subordinate to the normal response so broad illumination cannot wash
-out admitted fine relief. Regional geography blends the admitted material
+`ContinuousReliefScene` shares the material across compiled meshes without
+adding another lighting owner. Regional geography blends the admitted material
 class with deterministic moisture, elevation, slope, exposure, and
 validity-bounded drainage fields; a bounded fine land-cover modulation breaks
 up flat color washes without changing elevation or source support. Its

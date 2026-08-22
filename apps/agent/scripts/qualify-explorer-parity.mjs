@@ -105,6 +105,8 @@ function stableEvidence(capture) {
       source_elevation_span: capture.renderer?.source_elevation_span,
       source_no_data_vertices: capture.renderer?.source_no_data_vertices,
       source_valid_vertices: capture.renderer?.source_valid_vertices,
+      relief_partition_mismatches:
+        capture.renderer?.terrain_relief_partition_mismatches,
       tile_seam_mismatches: capture.renderer?.terrain_tile_seam_mismatches,
     },
   };

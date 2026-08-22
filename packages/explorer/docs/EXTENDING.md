@@ -39,7 +39,7 @@ alone does not prove a continuous projection.
 Measured CPU submission time and Three.js draw-call counts are retained only
 under their exact meanings. They are not GPU execution or frame-rate evidence.
 
-The versioned `rey.explorer.landscape-fidelity@2` suite defines seven separately
+The versioned `rey.explorer.landscape-fidelity@3` suite defines seven separately
 admitted browser workloads at 1920×1080 and 3840×2160: steep relief, low relief,
 coastline/water, dense vectors, explicit holes, stale data, and backend loss.
 Selecting one with `--landscape-workload` binds its source-controlled suite

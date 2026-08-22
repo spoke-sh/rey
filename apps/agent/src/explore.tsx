@@ -1131,6 +1131,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-terrain-no-data-leak-triangles={
             terrainRenderer.terrain_no_data_leak_triangles
           }
+          data-renderer-terrain-relief-seam-mismatches={
+            terrainRenderer.terrain_relief_seam_mismatches
+          }
+          data-renderer-terrain-relief-partition-mismatches={
+            terrainRenderer.terrain_relief_partition_mismatches
+          }
           data-renderer-terrain-tile-seam-mismatches={
             terrainRenderer.terrain_tile_seam_mismatches
           }

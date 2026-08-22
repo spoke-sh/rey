@@ -1,3 +1,4 @@
+import { landscapeReliefFieldByteLength } from "@rey/explorer";
 import { describe, expect, it } from "vitest";
 import { TerrainTileResidency } from "./residency";
 import { executeTerrainCompilationJob } from "./worker";
@@ -17,10 +18,9 @@ describe("terrain tile residency", () => {
     });
     const [first, second] = result.compiled_tiles;
     if (!first || !second) throw new Error("fixture needs multiple tiles");
-    const cpuBudget = Math.max(
-      first.fields.field_bytes,
-      second.fields.field_bytes,
-    );
+    const cpuBytes = (tile: typeof first) =>
+      tile.fields.field_bytes + landscapeReliefFieldByteLength(tile.relief);
+    const cpuBudget = Math.max(cpuBytes(first), cpuBytes(second));
     const gpuBytes = (tile: typeof first) =>
       tile.mesh.positions.byteLength +
       tile.mesh.normals.byteLength +
@@ -61,7 +61,10 @@ describe("terrain tile residency", () => {
     const [first, second] = result.compiled_tiles;
     if (!first || !second) throw new Error("fixture needs multiple tiles");
     expect(() =>
-      new TerrainTileResidency(first.fields.field_bytes, 8 * 1024 * 1024).admit(
+      new TerrainTileResidency(
+        first.fields.field_bytes + landscapeReliefFieldByteLength(first.relief),
+        8 * 1024 * 1024,
+      ).admit(
         [first, second],
         [first.descriptor.tile_id, second.descriptor.tile_id],
       ),

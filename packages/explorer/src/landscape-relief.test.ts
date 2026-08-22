@@ -4,6 +4,8 @@ import {
   compileLandscapePatchSet,
   deriveLandscapeReliefField,
   landscapeTerrainFabricSamples,
+  sampleLandscapeReliefField,
+  verifyLandscapeReliefField,
 } from "./landscape-relief";
 
 describe("landscape relief engine", () => {
@@ -49,6 +51,14 @@ describe("landscape relief engine", () => {
 
     const first = deriveLandscapeReliefField(field);
     const replay = deriveLandscapeReliefField(field);
+    expect(first).toMatchObject({
+      schema: "rey.landscape-relief-field.v2",
+      field_set_id: field.field_set_id,
+      source_field_set_id: field.field_set_id,
+      source_relief_field_id: null,
+      derivation_scope: "complete_field",
+      maximum_support_radius_cells: 8,
+    });
     expect(first.hillshade).toEqual(replay.hillshade);
     expect(first.salience).toEqual(replay.salience);
     expect(new Set(first.hillshade).size).toBeGreaterThan(2);
@@ -64,6 +74,49 @@ describe("landscape relief engine", () => {
     expect(samples.some(({ tangent_v }) => Math.abs(tangent_v) > 0.01)).toBe(
       true,
     );
+  });
+
+  it("samples tiles from one complete relief derivation without reevaluation", () => {
+    const field = terrainFieldFixture();
+    const complete = deriveLandscapeReliefField(field);
+    const columns = [0, 2, 4];
+    const rows = [1, 3];
+    const tile = sampleLandscapeReliefField(
+      complete,
+      field,
+      "terrain:fixture:tile",
+      columns,
+      rows,
+    );
+
+    expect(tile).toMatchObject({
+      schema: "rey.landscape-relief-field.v2",
+      field_set_id: "terrain:fixture:tile",
+      source_field_set_id: field.field_set_id,
+      source_relief_field_id: complete.relief_field_id,
+      derivation_scope: "sampled_from_complete_field",
+    });
+    const expectedIndices = rows.flatMap((row) =>
+      columns.map((column) => row * field.grid.columns + column),
+    );
+    expect([...tile.hillshade]).toEqual(
+      expectedIndices.map((index) => complete.hillshade[index]),
+    );
+    expect([...tile.salience]).toEqual(
+      expectedIndices.map((index) => complete.salience[index]),
+    );
+    expect(() => verifyLandscapeReliefField(field, tile)).toThrow(
+      "does not match terrain input",
+    );
+    expect(() =>
+      sampleLandscapeReliefField(
+        tile,
+        field,
+        "terrain:fixture:nested-tile",
+        columns,
+        rows,
+      ),
+    ).toThrow("complete source field");
   });
 
   it("does not derive fabric samples or multiscale spill inside no-data", () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { deriveLandscapeReliefField } from "./landscape-relief";
 import {
   buildTerrainMeshData,
   compileContinuousRelief,
@@ -38,7 +39,7 @@ describe("accelerated continuous terrain compiler", () => {
       vertices: fieldSet.field_cells,
       field_bytes: fieldSet.field_bytes,
       gpu_budget_bytes: 64 * 1024 * 1024,
-      parity_revision: "rey.terrain.cpu-mesh-upload-parity@1",
+      parity_revision: "rey.terrain.cpu-mesh-upload-parity@2",
       parity_samples: fieldSet.field_cells,
     });
     expect(compiled.statistics.triangles).toBeGreaterThan(0);
@@ -143,7 +144,7 @@ describe("accelerated continuous terrain compiler", () => {
     const passes = terrainRenderPassFixture();
     const material = createContinuousReliefMaterial(passes);
     expect(material.name).toBe(
-      "rey.terrain.tsl-cartographic-relief@4:rey.landscape-relief-engine@1",
+      "rey.terrain.tsl-cartographic-relief@4:rey.landscape-relief-engine@2",
     );
     expect(material.colorNode).not.toBeNull();
     material.dispose();
@@ -192,6 +193,25 @@ describe("accelerated continuous terrain compiler", () => {
     expect(() => verifyTerrainMeshParity(fieldSet, mesh)).toThrow(
       "diverges from CPU fields at sample 2",
     );
+  });
+
+  it("uploads an explicitly supplied field-wide relief projection", () => {
+    const fieldSet = terrainFieldFixture();
+    const relief = deriveLandscapeReliefField(fieldSet);
+    relief.hillshade[6] = Math.fround(0.731);
+    const compiled = compileContinuousRelief(
+      [fieldSet],
+      64 * 1024 * 1024,
+      undefined,
+      [relief],
+    );
+    expect(compiled.meshes[0]?.data.hillshade[6]).toBe(relief.hillshade[6]);
+
+    expect(() =>
+      compileContinuousRelief([fieldSet], 64 * 1024 * 1024, undefined, [
+        { ...relief, field_set_id: "terrain:other" },
+      ]),
+    ).toThrow("relief omitted terrain:fixture");
   });
 
   it("counts any triangle that leaks across explicit no-data", () => {

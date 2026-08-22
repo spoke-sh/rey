@@ -224,6 +224,14 @@ function summarizeVoyage(document, path) {
         ),
       ),
     ),
+    terrain_relief_partition_mismatches: maximum(
+      captures.map((capture) =>
+        finiteNumber(
+          capture.renderer?.terrain_relief_partition_mismatches,
+          `${path} terrain relief partition mismatches`,
+        ),
+      ),
+    ),
     terrain_no_data_leak_triangles: maximum(
       captures.map((capture) =>
         finiteNumber(

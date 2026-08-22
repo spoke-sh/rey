@@ -5,16 +5,23 @@ import {
 import type { TerrainFieldSetInput } from "./types";
 
 export const LANDSCAPE_RELIEF_ENGINE_REVISION =
-  "rey.landscape-relief-engine@1" as const;
+  "rey.landscape-relief-engine@2" as const;
 export const LANDSCAPE_TERRAIN_FABRIC_REVISION =
   "rey.landscape-terrain-fabric@1" as const;
 export const LANDSCAPE_PATCH_SET_REVISION =
   "rey.landscape-patch-set@1" as const;
 
 export interface LandscapeReliefField {
-  schema: "rey.landscape-relief-field.v1";
+  schema: "rey.landscape-relief-field.v2";
   implementation_revision: typeof LANDSCAPE_RELIEF_ENGINE_REVISION;
+  relief_field_id: string;
   field_set_id: string;
+  source_field_set_id: string;
+  source_relief_field_id: string | null;
+  derivation_scope: "complete_field" | "sampled_from_complete_field";
+  maximum_support_radius_cells: number;
+  columns: number;
+  rows: number;
   hillshade: Float32Array;
   salience: Float32Array;
   tangent: Float32Array;
@@ -39,8 +46,20 @@ export interface LandscapePatchSet {
   gap_policy: "unsupported_remains_transparent";
 }
 
+export function landscapeReliefFieldByteLength(
+  relief: LandscapeReliefField,
+): number {
+  return (
+    relief.hillshade.byteLength +
+    relief.salience.byteLength +
+    relief.tangent.byteLength
+  );
+}
+
 const RELIEF_RADII = Object.freeze([0, 2, 8] as const);
 const RELIEF_WEIGHTS = Object.freeze([0.56, 0.29, 0.15] as const);
+export const LANDSCAPE_RELIEF_MAXIMUM_SUPPORT_RADIUS_CELLS =
+  RELIEF_RADII.at(-1)!;
 const KEY_LIGHT = normalize3(-0.48, -0.44, 0.76);
 const FILL_LIGHT = normalize3(0.36, 0.28, 0.89);
 
@@ -215,13 +234,107 @@ export function deriveLandscapeReliefField(
   }
 
   return Object.freeze({
-    schema: "rey.landscape-relief-field.v1",
+    schema: "rey.landscape-relief-field.v2",
     implementation_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
+    relief_field_id: [
+      LANDSCAPE_RELIEF_ENGINE_REVISION,
+      field.field_set_id,
+      field.source_revision ?? "source-revision:unbound",
+      `${columns}x${rows}`,
+    ].join("|"),
     field_set_id: field.field_set_id,
+    source_field_set_id: field.field_set_id,
+    source_relief_field_id: null,
+    derivation_scope: "complete_field",
+    maximum_support_radius_cells: LANDSCAPE_RELIEF_MAXIMUM_SUPPORT_RADIUS_CELLS,
+    columns,
+    rows,
     hillshade,
     salience,
     tangent,
   });
+}
+
+/**
+ * Samples render-tile relief from one field-wide derivation. This is
+ * deliberately not another relief evaluation: internal tile borders retain
+ * the exact neighborhood support and values of the complete source field.
+ */
+export function sampleLandscapeReliefField(
+  relief: LandscapeReliefField,
+  source: TerrainFieldSetInput,
+  targetFieldSetId: string,
+  columnIndices: readonly number[],
+  rowIndices: readonly number[],
+): LandscapeReliefField {
+  if (relief.derivation_scope !== "complete_field")
+    throw new Error("landscape relief tiles require a complete source field");
+  verifyLandscapeReliefField(source, relief);
+  if (!targetFieldSetId)
+    throw new Error("landscape relief tile identity is required");
+  verifySampleIndices(columnIndices, source.grid.columns, "column");
+  verifySampleIndices(rowIndices, source.grid.rows, "row");
+  const cells = columnIndices.length * rowIndices.length;
+  const result = Object.freeze({
+    schema: "rey.landscape-relief-field.v2" as const,
+    implementation_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
+    relief_field_id: `${relief.relief_field_id}|sample:${targetFieldSetId}`,
+    field_set_id: targetFieldSetId,
+    source_field_set_id: relief.source_field_set_id,
+    source_relief_field_id: relief.relief_field_id,
+    derivation_scope: "sampled_from_complete_field" as const,
+    maximum_support_radius_cells: relief.maximum_support_radius_cells,
+    columns: columnIndices.length,
+    rows: rowIndices.length,
+    hillshade: sampleReliefComponents(
+      relief.hillshade,
+      source.grid.columns,
+      columnIndices,
+      rowIndices,
+      1,
+    ),
+    salience: sampleReliefComponents(
+      relief.salience,
+      source.grid.columns,
+      columnIndices,
+      rowIndices,
+      1,
+    ),
+    tangent: sampleReliefComponents(
+      relief.tangent,
+      source.grid.columns,
+      columnIndices,
+      rowIndices,
+      2,
+    ),
+  });
+  if (
+    result.hillshade.length !== cells ||
+    result.salience.length !== cells ||
+    result.tangent.length !== cells * 2
+  )
+    throw new Error("sampled landscape relief shape changed");
+  return result;
+}
+
+export function verifyLandscapeReliefField(
+  field: TerrainFieldSetInput,
+  relief: LandscapeReliefField,
+): void {
+  verifyTerrainFieldShape(field);
+  if (
+    relief.schema !== "rey.landscape-relief-field.v2" ||
+    relief.implementation_revision !== LANDSCAPE_RELIEF_ENGINE_REVISION ||
+    relief.field_set_id !== field.field_set_id ||
+    relief.maximum_support_radius_cells !==
+      LANDSCAPE_RELIEF_MAXIMUM_SUPPORT_RADIUS_CELLS ||
+    relief.columns !== field.grid.columns ||
+    relief.rows !== field.grid.rows ||
+    relief.hillshade.length !== field.field_cells ||
+    relief.salience.length !== field.field_cells ||
+    relief.tangent.length !== field.field_cells * 2
+  )
+    throw new Error("landscape relief field does not match terrain input");
 }
 
 /**
@@ -345,6 +458,45 @@ function verifyTerrainFieldShape(field: TerrainFieldSetInput): void {
     field.curvature.values.length !== cells
   )
     throw new Error("landscape relief input shape is invalid");
+}
+
+function verifySampleIndices(
+  indices: readonly number[],
+  bound: number,
+  axis: string,
+): void {
+  if (
+    indices.length === 0 ||
+    indices.some(
+      (index, sequence) =>
+        !Number.isInteger(index) ||
+        index < 0 ||
+        index >= bound ||
+        (sequence > 0 && index <= indices[sequence - 1]!),
+    )
+  )
+    throw new Error(`landscape relief ${axis} samples are invalid`);
+}
+
+function sampleReliefComponents(
+  values: Float32Array,
+  sourceColumns: number,
+  columnIndices: readonly number[],
+  rowIndices: readonly number[],
+  components: number,
+): Float32Array {
+  const result = new Float32Array(
+    columnIndices.length * rowIndices.length * components,
+  );
+  let output = 0;
+  for (const row of rowIndices) {
+    for (const column of columnIndices) {
+      const sourceOffset = (row * sourceColumns + column) * components;
+      for (let component = 0; component < components; component += 1)
+        result[output++] = values[sourceOffset + component]!;
+    }
+  }
+  return result;
 }
 
 function minimumSupported(values: Float32Array, validity: Uint8Array): number {

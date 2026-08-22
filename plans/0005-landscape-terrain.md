@@ -124,7 +124,7 @@ provider or license authority is admitted, so the engine renders admitted
 material and discloses the absence instead of fabricating familiar map imagery.
 
 Fidelity qualification is now executable but has not yet been retained for the
-complete matrix. `rey.explorer.landscape-fidelity@2` names steep relief, low
+complete matrix. `rey.explorer.landscape-fidelity@3` names steep relief, low
 relief, coastline/water, dense vectors, explicit holes, stale data, and backend
 loss at 1920×1080 and 3840×2160. Browser captures retain source terrain counts
 and relief span, pass-set identity and kinds, maximum screen-space error, seam
@@ -345,15 +345,15 @@ reported submission took 4 ms under SwiftShader; those transient values are
 not hardware performance claims. The visual result remains subordinate to the
 open fidelity gap.
 
-| Dimension      | Minimum acceptance read                                      | Current Rey County read                                                | Gap   |
-| -------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- | ----- |
-| Composition    | Continuous, overhead geography fills the map viewport.       | One attached near-north-up surface fills the usable canvas.            | Minor |
-| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Denser local ridges and valleys read, but long soft tonal bands remain. | Major |
+| Dimension      | Minimum acceptance read                                      | Current Rey County read                                                            | Gap   |
+| -------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------- | ----- |
+| Composition    | Continuous, overhead geography fills the map viewport.       | One attached near-north-up surface fills the usable canvas.                        | Minor |
+| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Denser local ridges and valleys read, but long soft tonal bands remain.            | Major |
 | Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Higher-density normals separate form, but the image stays soft and locally banded. | Major |
-| Land cover     | Coherent local classes with terrain-following boundaries.    | Five admitted classes remain coherent but read as a broad low-frequency wash. | Major |
-| Water          | Continuous areas and terrain-following river hierarchy.      | Exact clipped river/wetland areas and tributaries retain shorelines.   | Major |
-| Contours       | Scale-aware hierarchy reveals form without dominating it.    | Metric contours are subordinate but lack reference-level density.      | Major |
-| Vectors/labels | Roads, rail, structures, and labels resolve by semantic LOD. | Accelerated vectors no longer receive a duplicate SVG drawing.         | Major |
+| Land cover     | Coherent local classes with terrain-following boundaries.    | Five admitted classes remain coherent but read as a broad low-frequency wash.      | Major |
+| Water          | Continuous areas and terrain-following river hierarchy.      | Exact clipped river/wetland areas and tributaries retain shorelines.               | Major |
+| Contours       | Scale-aware hierarchy reveals form without dominating it.    | Metric contours are subordinate but lack reference-level density.                  | Major |
+| Vectors/labels | Roads, rail, structures, and labels resolve by semantic LOD. | Accelerated vectors no longer receive a duplicate SVG drawing.                     | Major |
 
 This matrix keeps the side-by-side delivery item open. Repeated object-per-cell
 browser transport is now replaced by a compact renderer-neutral payload that
@@ -392,6 +392,17 @@ shared-datum multi-region mosaic, haloed derivation, deterministic evidence-
 aware overlap resolution, or an admitted overview source for terrain between
 regional patches. The rendering engine must close those contracts before
 additional contrast tuning can count as fidelity progress.
+
+The next engine revision closes the known single-field tile-kernel defect.
+`rey.landscape-relief-engine@2` derives `rey.landscape-relief-field.v2` once
+over each complete refined regional field before camera selection, then samples
+the retained hillshade, salience, and tangent arrays into render tiles by exact
+source row/column identity. `rey.terrain.compilation-worker@4` retains both
+shared relief-border mismatches and complete-field/partition mismatches; the
+fidelity suite requires the latter to remain zero. Residency and worker CPU
+budgets now include those sampled derived arrays. This is seam-safe for one
+complete regional field, but it is not yet the shared-datum multi-region mosaic
+or metric relief pyramid required below.
 
 ## Geographic Synthesis Boundary
 
@@ -574,8 +585,8 @@ and CLI evidence are complete.
       spacing, dimensions, bounds, validity, source lineage, operator support,
       implementation revision, and exact parent/child identity.
 - [ ] Hard-cut the accelerated and reference paths to those shared contracts
-      once parity is proved. Keep `rey.landscape-relief-field.v1` labeled as an
-      enabling single-tile prototype until that cutover.
+      once parity is proved. Keep `rey.landscape-relief-field.v2` labeled as an
+      enabling field-wide prototype until that cutover.
 - [ ] Extend the existing verbose `rey workloads run scene-admission` result
       and structured JSON with patch-set, mosaic, pyramid, conflict, omission,
       source-resolution, and renderer-budget summaries before treating the
@@ -620,7 +631,7 @@ admitted overview source produce deterministic mosaics with no validity gain.
 - [ ] Give every derivation tile a source gutter at least as wide as the
       largest active relief operator. Derive channels from the halo, crop only
       the render interior, and retain border digests for adjacent-tile proof.
-- [ ] Make whole-field and partitioned compilation equivalent within one named
+- [x] Make whole-field and partitioned compilation equivalent within one named
       numeric tolerance. Moving the camera or changing the active tile
       partition must not change a sample's height, normal, or illumination.
 - [ ] Select pyramid levels with stable screen-space error and compatible

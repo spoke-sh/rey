@@ -1,5 +1,10 @@
+import { deriveLandscapeReliefField } from "@rey/explorer";
 import { describe, expect, it } from "vitest";
-import { REGIONAL_TERRAIN_GEOGRAPHY_REVISION } from "./regional-geography";
+import {
+  deriveRegionalTerrainGeography,
+  REGIONAL_TERRAIN_GEOGRAPHY_REVISION,
+} from "./regional-geography";
+import { refineRegionalTerrainField } from "./refinement";
 import { TerrainCompilationWorkerClient } from "./worker-client";
 import { executeTerrainCompilationJob } from "./worker";
 import { admittedField, terrainTileView } from "./tiles.fixture";
@@ -26,6 +31,8 @@ describe("bounded terrain compilation worker", () => {
       decode_ms: 0,
       maximum_screen_error_pixels: expect.any(Number),
       tile_seam_mismatches: 0,
+      relief_seam_mismatches: 0,
+      relief_partition_mismatches: 0,
       no_data_leak_triangles: 0,
       gpu_timing_ms: null,
       gpu_timing_authority: "unavailable_without_capable_gpu_timer",
@@ -41,13 +48,49 @@ describe("bounded terrain compilation worker", () => {
     expect(
       result.derived_lines.some(({ kind }) => kind === "derived_contour"),
     ).toBe(true);
+    const completeField = deriveRegionalTerrainGeography(
+      refineRegionalTerrainField(source),
+    );
+    const completeRelief = deriveLandscapeReliefField(completeField);
+    let independentlyDerivedTileDiffers = false;
     for (const tile of result.compiled_tiles) {
       expect(tile.fields.normal.implementation_revision).toContain(
         REGIONAL_TERRAIN_GEOGRAPHY_REVISION,
       );
+      expect(tile.relief).toMatchObject({
+        source_field_set_id: completeField.field_set_id,
+        source_relief_field_id: completeRelief.relief_field_id,
+        derivation_scope: "sampled_from_complete_field",
+      });
+      const independent = deriveLandscapeReliefField(tile.fields);
+      let tileIndex = 0;
+      for (const row of tile.descriptor.row_indices) {
+        for (const column of tile.descriptor.column_indices) {
+          const sourceIndex = row * completeField.grid.columns + column;
+          expect(tile.relief.hillshade[tileIndex]).toBe(
+            completeRelief.hillshade[sourceIndex],
+          );
+          expect(tile.relief.salience[tileIndex]).toBe(
+            completeRelief.salience[sourceIndex],
+          );
+          expect(tile.mesh.hillshade[tileIndex]).toBe(
+            completeRelief.hillshade[sourceIndex],
+          );
+          expect(tile.mesh.salience[tileIndex]).toBe(
+            completeRelief.salience[sourceIndex],
+          );
+          independentlyDerivedTileDiffers ||=
+            independent.hillshade[tileIndex] !==
+              completeRelief.hillshade[sourceIndex] ||
+            independent.salience[tileIndex] !==
+              completeRelief.salience[sourceIndex];
+          tileIndex += 1;
+        }
+      }
       for (const index of tile.mesh.indices)
         expect(tile.fields.validity.values[index]).toBe(1);
     }
+    expect(independentlyDerivedTileDiffers).toBe(true);
   });
 
   it("rejects CPU overflow and cancels before fallback evaluation", async () => {

@@ -1,4 +1,9 @@
-import { terrainMeshByteLength, type TerrainMeshData } from "@rey/explorer";
+import {
+  landscapeReliefFieldByteLength,
+  terrainMeshByteLength,
+  type LandscapeReliefField,
+  type TerrainMeshData,
+} from "@rey/explorer";
 import type { TerrainFieldSet } from "./compile";
 import type { TerrainTileDescriptor } from "./tiles";
 
@@ -10,6 +15,7 @@ export const MAX_TERRAIN_TILE_GPU_BYTES = 64 * 1024 * 1024;
 export interface CompiledTerrainTile {
   descriptor: TerrainTileDescriptor;
   fields: TerrainFieldSet;
+  relief: LandscapeReliefField;
   mesh: TerrainMeshData;
 }
 
@@ -74,7 +80,7 @@ export class TerrainTileResidency {
       return tile;
     });
     const activeCpuBytes = requestedTiles.reduce(
-      (total, tile) => total + tile.fields.field_bytes,
+      (total, tile) => total + terrainTileCpuBytes(tile),
       0,
     );
     const activeGpuBytes = requestedTiles.reduce(
@@ -95,7 +101,7 @@ export class TerrainTileResidency {
       }
       const tile = compiledById.get(tileId);
       if (!tile) throw new Error("terrain residency preflight changed");
-      const cpuBytes = tile.fields.field_bytes;
+      const cpuBytes = terrainTileCpuBytes(tile);
       const gpuBytes = terrainMeshByteLength(tile.mesh);
       if (cpuBytes > this.#maximumCpuBytes || gpuBytes > this.#maximumGpuBytes)
         throw new Error("one terrain tile exceeds its residency budgets");
@@ -154,9 +160,15 @@ export class TerrainTileResidency {
       )
         break;
       this.#entries.delete(tileId);
-      this.#cpuBytes -= tile.fields.field_bytes;
+      this.#cpuBytes -= terrainTileCpuBytes(tile);
       this.#gpuBytes -= terrainMeshByteLength(tile.mesh);
       this.#evictions += 1;
     }
   }
+}
+
+function terrainTileCpuBytes(
+  tile: Pick<CompiledTerrainTile, "fields" | "relief">,
+): number {
+  return tile.fields.field_bytes + landscapeReliefFieldByteLength(tile.relief);
 }

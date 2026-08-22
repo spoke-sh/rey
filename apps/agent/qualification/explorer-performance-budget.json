@@ -16,6 +16,7 @@
     "resident_gpu_bytes": 67108864,
     "render_pass_lines": 2048,
     "terrain_screen_error_pixels": 1.5,
+    "terrain_relief_partition_mismatches": 0,
     "terrain_tile_seam_mismatches": 0,
     "terrain_no_data_leak_triangles": 0,
     "label_candidates": 96,

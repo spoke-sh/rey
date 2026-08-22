@@ -1,10 +1,17 @@
-import { terrainTriangleIndices } from "@rey/explorer";
+import {
+  buildTerrainMeshData,
+  deriveLandscapeReliefField,
+  terrainTriangleIndices,
+} from "@rey/explorer";
 import { describe, expect, it } from "vitest";
 import { admittedField, terrainTileView } from "./tiles.fixture";
 import {
   materializeTerrainTile,
+  materializeTerrainTileRelief,
   projectTerrainTilePyramid,
   selectTerrainTilesForView,
+  terrainTileReliefPartitionMismatchCount,
+  terrainTileReliefSeamMismatchCount,
   terrainTileSeamMismatchCount,
 } from "./tiles";
 
@@ -40,6 +47,40 @@ describe("admitted terrain tile projection", () => {
       validity_border: { ...right.validity_border, west: "0" },
     };
     expect(terrainTileSeamMismatchCount([left, mismatched])).toBe(1);
+  });
+
+  it("samples relief from complete-field support across render-tile seams", () => {
+    const source = admittedField();
+    const pyramid = projectTerrainTilePyramid(source);
+    const descriptors = [tileAt(pyramid, 2, 0, 0), tileAt(pyramid, 2, 1, 0)];
+    const completeRelief = deriveLandscapeReliefField(source);
+    const sampled = descriptors.map((descriptor) => {
+      const fields = materializeTerrainTile(source, descriptor);
+      const relief = materializeTerrainTileRelief(
+        source,
+        completeRelief,
+        descriptor,
+      );
+      return {
+        descriptor,
+        mesh: buildTerrainMeshData(fields, relief),
+      };
+    });
+    const independentlyDerived = descriptors.map((descriptor) => {
+      const fields = materializeTerrainTile(source, descriptor);
+      return { descriptor, mesh: buildTerrainMeshData(fields) };
+    });
+
+    expect(terrainTileReliefSeamMismatchCount(sampled)).toBe(0);
+    expect(
+      terrainTileReliefPartitionMismatchCount(completeRelief, sampled),
+    ).toBe(0);
+    expect(
+      terrainTileReliefPartitionMismatchCount(
+        completeRelief,
+        independentlyDerived,
+      ),
+    ).toBeGreaterThan(0);
   });
 
   it("can only remove support at coarse levels and refines by screen error", () => {

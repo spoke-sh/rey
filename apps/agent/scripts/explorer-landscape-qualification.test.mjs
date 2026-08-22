@@ -7,7 +7,7 @@ import {
 } from "./explorer-landscape-qualification.mjs";
 
 const suite = {
-  schema: "rey.explorer-landscape-workloads.v1",
+  schema: "rey.explorer-landscape-workloads.v2",
   suite_id: "suite:fixture",
   target_viewports: ["1920x1080"],
   workloads: [
@@ -18,6 +18,7 @@ const suite = {
         minimum_source_no_data_vertices: 1,
         minimum_render_pass_areas: 1,
         maximum_no_data_leak_triangles: 0,
+        maximum_relief_partition_mismatches: 0,
         maximum_tile_seam_mismatches: 0,
         required_render_passes: ["validity_background", "base_terrain"],
       },
@@ -47,6 +48,7 @@ const capture = {
     source_no_data_vertices: "1",
     source_elevation_span: "80",
     terrain_maximum_screen_error_pixels: "1.25",
+    terrain_relief_partition_mismatches: "0",
     terrain_tile_seam_mismatches: "0",
     terrain_no_data_leak_triangles: "0",
   },
@@ -114,6 +116,7 @@ describe("Landscape browser workload qualification", () => {
       checks: {
         exact_scene_lineage: true,
         no_data_leakage_respected: true,
+        relief_partition_respected: true,
         tile_seams_respected: true,
       },
     });

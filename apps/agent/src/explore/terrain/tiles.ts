@@ -1,4 +1,9 @@
-import { terrainTriangleIndices } from "@rey/explorer";
+import {
+  sampleLandscapeReliefField,
+  terrainTriangleIndices,
+  type LandscapeReliefField,
+  type TerrainMeshData,
+} from "@rey/explorer";
 import {
   createFieldGrid,
   fieldByteLength,
@@ -290,6 +295,64 @@ export function terrainTileSeamMismatchCount(
   return mismatches;
 }
 
+export function terrainTileReliefSeamMismatchCount(
+  tiles: readonly {
+    descriptor: TerrainTileDescriptor;
+    mesh: Pick<TerrainMeshData, "hillshade" | "salience">;
+  }[],
+): number {
+  const indexed = new Map(
+    tiles.map((tile) => [
+      `${tile.descriptor.level}:${tile.descriptor.column}:${tile.descriptor.row}`,
+      tile,
+    ]),
+  );
+  let mismatches = 0;
+  for (const tile of tiles) {
+    const { descriptor } = tile;
+    const east = indexed.get(
+      `${descriptor.level}:${descriptor.column + 1}:${descriptor.row}`,
+    );
+    if (east && !reliefBordersMatch(tile, "east", east, "west"))
+      mismatches += 1;
+    const south = indexed.get(
+      `${descriptor.level}:${descriptor.column}:${descriptor.row + 1}`,
+    );
+    if (south && !reliefBordersMatch(tile, "south", south, "north"))
+      mismatches += 1;
+  }
+  return mismatches;
+}
+
+export function terrainTileReliefPartitionMismatchCount(
+  source: LandscapeReliefField,
+  tiles: readonly {
+    descriptor: TerrainTileDescriptor;
+    mesh: Pick<TerrainMeshData, "hillshade" | "salience">;
+  }[],
+): number {
+  if (source.derivation_scope !== "complete_field")
+    throw new Error("terrain relief partition requires complete-field support");
+  let mismatches = 0;
+  for (const tile of tiles) {
+    if (tile.descriptor.field_set_id !== source.field_set_id)
+      throw new Error("terrain relief partition changed source identity");
+    let tileIndex = 0;
+    for (const row of tile.descriptor.row_indices) {
+      for (const column of tile.descriptor.column_indices) {
+        const sourceIndex = row * source.columns + column;
+        if (
+          tile.mesh.hillshade[tileIndex] !== source.hillshade[sourceIndex] ||
+          tile.mesh.salience[tileIndex] !== source.salience[sourceIndex]
+        )
+          mismatches += 1;
+        tileIndex += 1;
+      }
+    }
+  }
+  return mismatches;
+}
+
 export function materializeTerrainTile(
   source: TerrainFieldSet,
   tile: TerrainTileDescriptor,
@@ -380,6 +443,25 @@ export function materializeTerrainTile(
   if (result.field_cells !== tile.field_cells)
     throw new Error("materialized terrain tile shape changed");
   return result;
+}
+
+export function materializeTerrainTileRelief(
+  source: TerrainFieldSet,
+  relief: LandscapeReliefField,
+  tile: TerrainTileDescriptor,
+): LandscapeReliefField {
+  if (
+    tile.field_set_id !== source.field_set_id ||
+    tile.source_revision !== source.source_revision
+  )
+    throw new Error("terrain tile relief is not bound to its source field");
+  return sampleLandscapeReliefField(
+    relief,
+    source,
+    tile.tile_id,
+    tile.column_indices,
+    tile.row_indices,
+  );
 }
 
 function sampleIndices(start: number, end: number, stride: number): number[] {
@@ -658,4 +740,46 @@ function sampleComponents<T extends Float32Array | Int8Array>(
     }
   }
   return result;
+}
+
+function reliefBordersMatch(
+  left: {
+    descriptor: TerrainTileDescriptor;
+    mesh: Pick<TerrainMeshData, "hillshade" | "salience">;
+  },
+  leftEdge: "north" | "east" | "south" | "west",
+  right: {
+    descriptor: TerrainTileDescriptor;
+    mesh: Pick<TerrainMeshData, "hillshade" | "salience">;
+  },
+  rightEdge: "north" | "east" | "south" | "west",
+): boolean {
+  const leftIndices = reliefBorderIndices(left.descriptor, leftEdge);
+  const rightIndices = reliefBorderIndices(right.descriptor, rightEdge);
+  if (leftIndices.length !== rightIndices.length) return false;
+  return leftIndices.every(
+    (leftIndex, sequence) =>
+      left.mesh.hillshade[leftIndex] ===
+        right.mesh.hillshade[rightIndices[sequence]!] &&
+      left.mesh.salience[leftIndex] ===
+        right.mesh.salience[rightIndices[sequence]!],
+  );
+}
+
+function reliefBorderIndices(
+  tile: TerrainTileDescriptor,
+  edge: "north" | "east" | "south" | "west",
+): readonly number[] {
+  const columns = tile.column_indices.length;
+  const rows = tile.row_indices.length;
+  if (edge === "north")
+    return Array.from({ length: columns }, (_, column) => column);
+  if (edge === "south")
+    return Array.from(
+      { length: columns },
+      (_, column) => (rows - 1) * columns + column,
+    );
+  if (edge === "west")
+    return Array.from({ length: rows }, (_, row) => row * columns);
+  return Array.from({ length: rows }, (_, row) => row * columns + columns - 1);
 }

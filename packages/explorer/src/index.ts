@@ -15,8 +15,12 @@ export {
   deriveLandscapeReliefField,
   LANDSCAPE_PATCH_SET_REVISION,
   LANDSCAPE_RELIEF_ENGINE_REVISION,
+  LANDSCAPE_RELIEF_MAXIMUM_SUPPORT_RADIUS_CELLS,
   LANDSCAPE_TERRAIN_FABRIC_REVISION,
+  landscapeReliefFieldByteLength,
   landscapeTerrainFabricSamples,
+  sampleLandscapeReliefField,
+  verifyLandscapeReliefField,
 } from "./landscape-relief";
 export type {
   LandscapePatchSet,

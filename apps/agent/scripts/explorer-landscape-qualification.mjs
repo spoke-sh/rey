@@ -1,4 +1,4 @@
-export const LANDSCAPE_WORKLOAD_SCHEMA = "rey.explorer-landscape-workloads.v1";
+export const LANDSCAPE_WORKLOAD_SCHEMA = "rey.explorer-landscape-workloads.v2";
 
 export function validateLandscapeWorkloadSuite(document) {
   if (document?.schema !== LANDSCAPE_WORKLOAD_SCHEMA)
@@ -87,6 +87,10 @@ export function evaluateLandscapeCapture(
       requirements.maximum_tile_seam_mismatches === undefined ||
       number("terrain_tile_seam_mismatches") <=
         requirements.maximum_tile_seam_mismatches,
+    relief_partition_respected:
+      requirements.maximum_relief_partition_mismatches === undefined ||
+      number("terrain_relief_partition_mismatches") <=
+        requirements.maximum_relief_partition_mismatches,
     no_data_leakage_respected:
       requirements.maximum_no_data_leak_triangles === undefined ||
       number("terrain_no_data_leak_triangles") <=
@@ -145,6 +149,9 @@ export function evaluateLandscapeCapture(
       render_pass_areas: number("render_pass_area_count"),
       render_pass_lines: number("render_pass_line_count"),
       screen_error_pixels: number("terrain_maximum_screen_error_pixels"),
+      relief_partition_mismatches: number(
+        "terrain_relief_partition_mismatches",
+      ),
       tile_seam_mismatches: number("terrain_tile_seam_mismatches"),
       valid_vertices: number("source_valid_vertices"),
     },

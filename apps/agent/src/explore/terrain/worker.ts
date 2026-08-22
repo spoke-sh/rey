@@ -1,5 +1,7 @@
 import {
   compileContinuousRelief,
+  deriveLandscapeReliefField,
+  landscapeReliefFieldByteLength,
   terrainNoDataLeakTriangleCount,
   type CompiledContinuousRelief,
   type TerrainLineFeatureInput,
@@ -20,15 +22,18 @@ import {
 } from "./regional-geography";
 import {
   materializeTerrainTile,
+  materializeTerrainTileRelief,
   projectTerrainTilePyramid,
   selectTerrainTilesForView,
+  terrainTileReliefPartitionMismatchCount,
+  terrainTileReliefSeamMismatchCount,
   terrainTileSeamMismatchCount,
   type TerrainTilePyramid,
   type TerrainTileSelection,
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@3" as const;
+  "rey.terrain.compilation-worker@4" as const;
 
 export interface TerrainProgramWorkerRequest {
   program: TerrainProgram;
@@ -55,6 +60,8 @@ export interface TerrainCompilationMetrics {
   mesh_preparation_ms: number;
   maximum_screen_error_pixels: number;
   tile_seam_mismatches: number;
+  relief_seam_mismatches: number;
+  relief_partition_mismatches: number;
   no_data_leak_triangles: number;
   gpu_timing_ms: null;
   gpu_timing_authority: "unavailable_without_capable_gpu_timer";
@@ -109,15 +116,30 @@ export function executeTerrainCompilationJob(
   const fieldById = new Map(
     admittedFields.map((field) => [field.field_set_id, field]),
   );
+  const reliefById = new Map(
+    admittedFields.map((field) => [
+      field.field_set_id,
+      deriveLandscapeReliefField(field),
+    ]),
+  );
   const compiledTiles = selections.flatMap((selection, pyramidIndex) => {
     const pyramid = pyramids[pyramidIndex]!;
     const source = fieldById.get(pyramid.field_set_id);
     if (!source) throw new Error("terrain tile pyramid lost its source field");
+    const sourceRelief = reliefById.get(pyramid.field_set_id);
+    if (!sourceRelief)
+      throw new Error("terrain tile pyramid lost its source relief field");
     return selection.tiles.map((descriptor) => {
       const fields = materializeTerrainTile(source, descriptor);
+      const relief = materializeTerrainTileRelief(
+        source,
+        sourceRelief,
+        descriptor,
+      );
       return Object.freeze({
         descriptor,
         fields,
+        relief,
       });
     });
   });
@@ -133,16 +155,28 @@ export function executeTerrainCompilationJob(
     ...passthroughFields,
     ...evaluatedFields,
   ];
-  const cpuBytes = fields.reduce(
-    (total, field) => total + field.field_bytes,
-    0,
-  );
+  const reliefFields = [
+    ...compiledTiles.map((tile) => tile.relief),
+    ...passthroughFields.map(deriveLandscapeReliefField),
+    ...evaluatedFields.map(deriveLandscapeReliefField),
+  ];
+  const cpuBytes =
+    fields.reduce((total, field) => total + field.field_bytes, 0) +
+    reliefFields.reduce(
+      (total, relief) => total + landscapeReliefFieldByteLength(relief),
+      0,
+    );
   if (cpuBytes > job.maximum_cpu_bytes)
     throw new Error(
       `terrain worker output ${cpuBytes} exceeds CPU budget ${job.maximum_cpu_bytes}`,
     );
   const meshStarted = measurementNow();
-  const compiled = compileContinuousRelief(fields, job.maximum_gpu_bytes);
+  const compiled = compileContinuousRelief(
+    fields,
+    job.maximum_gpu_bytes,
+    undefined,
+    reliefFields,
+  );
   const meshPreparationMs = measurementNow() - meshStarted;
   const meshById = new Map(
     compiled.meshes.map((mesh) => [mesh.field_set_id, mesh.data]),
@@ -189,6 +223,18 @@ export function executeTerrainCompilationJob(
       tile_seam_mismatches: selections.reduce(
         (total, selection) =>
           total + terrainTileSeamMismatchCount(selection.tiles),
+        0,
+      ),
+      relief_seam_mismatches: terrainTileReliefSeamMismatchCount(tiles),
+      relief_partition_mismatches: [...reliefById].reduce(
+        (total, [fieldSetId, relief]) =>
+          total +
+          terrainTileReliefPartitionMismatchCount(
+            relief,
+            tiles.filter(
+              ({ descriptor }) => descriptor.field_set_id === fieldSetId,
+            ),
+          ),
         0,
       ),
       no_data_leak_triangles: noDataLeakTriangles,

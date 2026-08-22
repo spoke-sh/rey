@@ -11,6 +11,8 @@ import {
   compileLandscapePatchSet,
   deriveLandscapeReliefField,
   LANDSCAPE_RELIEF_ENGINE_REVISION,
+  verifyLandscapeReliefField,
+  type LandscapeReliefField,
 } from "./landscape-relief";
 import type {
   TerrainCameraView,
@@ -27,7 +29,7 @@ const CONTINUOUS_RELIEF_MATERIAL_STAGES = Object.freeze([
 ] as const);
 export const MAX_ACCELERATED_TERRAIN_GPU_BYTES = 64 * 1024 * 1024;
 export const TERRAIN_MESH_PARITY_REVISION =
-  "rey.terrain.cpu-mesh-upload-parity@1";
+  "rey.terrain.cpu-mesh-upload-parity@2";
 
 export interface CompiledContinuousRelief {
   material_revision: string;
@@ -92,7 +94,9 @@ export function terrainMeshByteLength(mesh: TerrainMeshData): number {
 export function verifyTerrainMeshParity(
   fields: TerrainFieldSetInput,
   mesh: TerrainMeshData,
+  relief: LandscapeReliefField = deriveLandscapeReliefField(fields),
 ): number {
+  verifyLandscapeReliefField(fields, relief);
   if (
     mesh.positions.length !== fields.field_cells * 3 ||
     mesh.normals.length !== fields.field_cells * 3 ||
@@ -106,7 +110,6 @@ export function verifyTerrainMeshParity(
     throw new Error("accelerated terrain mesh shape diverges from CPU fields");
   if (terrainNoDataLeakTriangleCount(fields, mesh) > 0)
     throw new Error("accelerated terrain mesh indexes invalid CPU support");
-  const relief = deriveLandscapeReliefField(fields);
   for (let row = 0; row < fields.grid.rows; row += 1) {
     for (let column = 0; column < fields.grid.columns; column += 1) {
       const index = row * fields.grid.columns + column;
@@ -171,7 +174,9 @@ export function terrainNoDataLeakTriangleCount(
 
 export function buildTerrainMeshData(
   fields: TerrainFieldSetInput,
+  relief: LandscapeReliefField = deriveLandscapeReliefField(fields),
 ): TerrainMeshData {
+  verifyLandscapeReliefField(fields, relief);
   const { grid } = fields;
   const positions = new Float32Array(fields.field_cells * 3);
   const normals = new Float32Array(fields.normal.values.length);
@@ -191,7 +196,6 @@ export function buildTerrainMeshData(
   }
 
   const indices = terrainTriangleIndices(fields);
-  const relief = deriveLandscapeReliefField(fields);
   return {
     positions,
     normals,
@@ -199,8 +203,8 @@ export function buildTerrainMeshData(
     occlusion: fields.material.occlusion.slice(),
     roughness: fields.material.roughness.slice(),
     curvature: fields.curvature.values.slice(),
-    hillshade: relief.hillshade,
-    salience: relief.salience,
+    hillshade: relief.hillshade.slice(),
+    salience: relief.salience.slice(),
     indices,
   };
 }
@@ -257,14 +261,23 @@ export function compileContinuousRelief(
   fields: readonly TerrainFieldSetInput[],
   gpuBudgetBytes = MAX_ACCELERATED_TERRAIN_GPU_BYTES,
   renderPasses?: TerrainRenderPassSetInput,
+  reliefFields?: readonly LandscapeReliefField[],
 ): CompiledContinuousRelief {
   const compilationStarted = measurementNow();
   if (!Number.isSafeInteger(gpuBudgetBytes) || gpuBudgetBytes < 1)
     throw new Error("accelerated terrain GPU budget is invalid");
-  const meshData = fields.map(buildTerrainMeshData);
+  const resolvedRelief = resolveLandscapeReliefFields(fields, reliefFields);
+  const meshData = fields.map((field, index) =>
+    buildTerrainMeshData(field, resolvedRelief[index]!),
+  );
   const paritySamples = fields.reduce(
     (total, fieldSet, index) =>
-      total + verifyTerrainMeshParity(fieldSet, meshData[index]!),
+      total +
+      verifyTerrainMeshParity(
+        fieldSet,
+        meshData[index]!,
+        resolvedRelief[index]!,
+      ),
     0,
   );
   const gpuBytes = meshData.reduce(
@@ -309,6 +322,30 @@ export function compileContinuousRelief(
       geometry_compilation_ms: measurementNow() - compilationStarted,
     }),
   };
+}
+
+function resolveLandscapeReliefFields(
+  fields: readonly TerrainFieldSetInput[],
+  reliefFields?: readonly LandscapeReliefField[],
+): readonly LandscapeReliefField[] {
+  if (!reliefFields) return fields.map(deriveLandscapeReliefField);
+  const byFieldSetId = new Map(
+    reliefFields.map((relief) => [relief.field_set_id, relief]),
+  );
+  if (
+    reliefFields.length !== fields.length ||
+    byFieldSetId.size !== reliefFields.length
+  )
+    throw new Error("accelerated terrain relief field set is invalid");
+  return fields.map((field) => {
+    const relief = byFieldSetId.get(field.field_set_id);
+    if (!relief)
+      throw new Error(
+        `accelerated terrain relief omitted ${field.field_set_id}`,
+      );
+    verifyLandscapeReliefField(field, relief);
+    return relief;
+  });
 }
 
 function measurementNow(): number {

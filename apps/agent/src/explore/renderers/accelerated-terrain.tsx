@@ -78,6 +78,8 @@ export interface AcceleratedTerrainReport {
   terrain_tile_projection_ms: number;
   terrain_maximum_screen_error_pixels: number;
   terrain_tile_seam_mismatches: number;
+  terrain_relief_seam_mismatches: number;
+  terrain_relief_partition_mismatches: number;
   terrain_no_data_leak_triangles: number;
   terrain_worker_execution:
     "dedicated_worker" | "main_thread_fallback" | "none";
@@ -150,6 +152,8 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     terrain_tile_projection_ms: 0,
     terrain_maximum_screen_error_pixels: 0,
     terrain_tile_seam_mismatches: 0,
+    terrain_relief_seam_mismatches: 0,
+    terrain_relief_partition_mismatches: 0,
     terrain_no_data_leak_triangles: 0,
     terrain_worker_execution: "none",
     terrain_worker_revision: "unbound",
@@ -701,6 +705,10 @@ export function AcceleratedTerrainSurface({
       terrain_maximum_screen_error_pixels:
         terrainMetrics?.maximum_screen_error_pixels ?? 0,
       terrain_tile_seam_mismatches: terrainMetrics?.tile_seam_mismatches ?? 0,
+      terrain_relief_seam_mismatches:
+        terrainMetrics?.relief_seam_mismatches ?? 0,
+      terrain_relief_partition_mismatches:
+        terrainMetrics?.relief_partition_mismatches ?? 0,
       terrain_no_data_leak_triangles:
         terrainMetrics?.no_data_leak_triangles ?? 0,
       terrain_worker_execution:
