@@ -391,6 +391,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     scene.world_atlas_transition !== null &&
     projectionMorphProgress > 0 &&
     projectionMorphProgress < 1;
+  const deferAcceleratedProjectionMorph =
+    requestedRendererPreference === "webgpu" && projectionMorphActive;
   const wrappedAtlasActive =
     scene.regime === "atlas" &&
     scene.world_atlas_transition !== null &&
@@ -1022,11 +1024,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
                 pan_x: pan.x,
                 pan_y: pan.y,
               }}
-              visible
+              visible={!deferAcceleratedProjectionMorph}
             />
           ) : null}
           <ReferenceRenderer
-            accelerated={acceleratedReady}
+            accelerated={acceleratedReady && !deferAcceleratedProjectionMorph}
             terrainAccelerated={terrainAcceleratedReady}
             atlasLandscapeMorphProgress={atlasLandscapeProgress}
             atlasLandscapePresentation={landscapePresentation}

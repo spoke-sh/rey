@@ -290,7 +290,7 @@ export function ExplorerCanvas({
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || rootGeneration === 0) return;
+    if (!root || rootGeneration === 0 || !visible) return;
     if (renderFrameInvalidation(lastFrameRef.current, frame).length === 0)
       return;
     lastFrameRef.current = Object.freeze({ ...frame });
@@ -302,6 +302,7 @@ export function ExplorerCanvas({
     frame.snapshot_id,
     rootGeneration,
     sceneElement,
+    visible,
   ]);
 
   return (

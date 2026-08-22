@@ -464,6 +464,11 @@ A rendering change is incomplete until its human journey is qualified.
   initializing a second hidden WebGPU renderer; its first visible Landscape
   submission remains deferred behind the retained reference surface. The
   diagnostic lifecycle calls this state `prepared`, not `submitted`.
+- While WebGPU crosses the World/Mercator projection boundary, the exact
+  reference projection remains the foreground presentation and hidden WebGPU
+  frame submissions pause. The initialized WebGPU renderer is retained and
+  submits the latest exact endpoint when the morph settles, avoiding pipeline
+  work that can starve the camera transition without changing scene identity.
 - Named Landscape captures separately qualify steep relief, low relief,
   coastline/water, dense vectors, explicit holes, stale data, and backend loss
   at both target viewports. A capture binds a real admitted fixture; the harness
