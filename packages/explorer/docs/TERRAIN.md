@@ -54,6 +54,30 @@ relief hierarchy. It does not yet provide haloed height/relief pyramids,
 slope-adaptive MDOW, SVF/openness, high-pass curvature, or the qualified linear
 tone and chromatic composition required by Plan 0005.
 
+## Height And Relief Pyramid Contracts
+
+`rey.landscape-height-pyramid.v1` and
+`rey.landscape-relief-pyramid.v1` are now executable, content-identified
+contract schemas. Their finalizers canonicalize lineage, channels, operators,
+and omissions before assigning BLAKE3 identities. Their verifiers require
+every level to retain metric x/y spacing, dimensions, common bounds,
+conservative valid/no-data/unsupported counts, byte cost, exact source
+lineage, and deterministic parent/child level identities.
+
+Height levels additionally retain their vertical range. Relief levels bind one
+exact height level and independently content-identify each operator revision,
+metric target and support radius, required source gutter, support decision,
+validity policy, and derived channel set. A supported operator is invalid when
+its gutter is narrower than its kernel support. Relief geometry and validity
+must match the bound height level exactly.
+
+These schemas are a contract gate, not a claim that the renderer already
+builds the hierarchy. The current `rey.terrain-tile-pyramid.v1` remains a
+camera-selection prototype and `rey.landscape-relief-field.v3` remains a
+complete-field relief prototype. Neither is silently relabeled as a height or
+relief pyramid. The application cutover, retained CLI summaries, haloed level
+derivation, residency accounting, and partition qualification remain open.
+
 Several admitted regional fields may first enter
 `rey.landscape-mosaic.v1`. The application-owned compiler requires a common
 coordinate reference, vertical reference, projected sample spacing, elevation

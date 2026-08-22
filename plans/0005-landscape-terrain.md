@@ -641,7 +641,7 @@ and CLI evidence are complete.
       validity, source-contribution, conflict, and omission field. Keep the
       selected Atlas member as the focus anchor, not an implicit winner for all
       overlapping terrain.
-- [ ] Define `rey.landscape-height-pyramid.v1` and
+- [x] Define `rey.landscape-height-pyramid.v1` and
       `rey.landscape-relief-pyramid.v1`. Each level must retain metric sample
       spacing, dimensions, bounds, validity, source lineage, operator support,
       implementation revision, and exact parent/child identity.

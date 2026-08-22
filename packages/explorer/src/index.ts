@@ -85,6 +85,31 @@ export type {
   TerrainMeshData,
 } from "./three-terrain";
 export {
+  finalizeLandscapeHeightPyramid,
+  finalizeLandscapeReliefPyramid,
+  LANDSCAPE_HEIGHT_PYRAMID_CONTRACT_REVISION,
+  LANDSCAPE_HEIGHT_PYRAMID_SCHEMA,
+  LANDSCAPE_RELIEF_PYRAMID_CONTRACT_REVISION,
+  LANDSCAPE_RELIEF_PYRAMID_SCHEMA,
+  verifyLandscapeHeightPyramid,
+  verifyLandscapeReliefPyramid,
+} from "./terrain-pyramid";
+export type {
+  LandscapeHeightPyramid,
+  LandscapeHeightPyramidInput,
+  LandscapeHeightPyramidLevel,
+  LandscapeHeightPyramidLevelInput,
+  LandscapePyramidBounds,
+  LandscapePyramidLineage,
+  LandscapePyramidValidity,
+  LandscapeReliefOperatorSupport,
+  LandscapeReliefOperatorSupportInput,
+  LandscapeReliefPyramid,
+  LandscapeReliefPyramidInput,
+  LandscapeReliefPyramidLevel,
+  LandscapeReliefPyramidLevelInput,
+} from "./terrain-pyramid";
+export {
   THREE_RENDERER_REVISION,
   WEBGPU_DEVICE_LOSS_QUALIFICATION_EVENT,
 } from "./three-webgpu";
