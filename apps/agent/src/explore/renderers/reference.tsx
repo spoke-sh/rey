@@ -221,6 +221,15 @@ export function ReferenceRenderer({
       data-landscape-feathered-vertices={
         scene.atlas_landscape_transition?.feathered_vertices
       }
+      data-landscape-overview-coverage-id={
+        scene.atlas_landscape_transition?.overview_coverage_id
+      }
+      data-landscape-overview-covered-vertices={
+        scene.atlas_landscape_transition?.overview_covered_vertices
+      }
+      data-landscape-overview-policy={
+        scene.atlas_landscape_transition?.overview_policy
+      }
       data-landscape-patch-set={scene.atlas_landscape_transition?.patch_set_id}
       data-landscape-primary-patch={
         scene.atlas_landscape_transition?.primary_patch_id

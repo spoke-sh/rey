@@ -125,6 +125,118 @@ describe("regional terrain mosaic", () => {
         ).toBe(0);
   });
 
+  it("fills only otherwise unsupported space from an admitted overview DEM", () => {
+    const left = regionalPatch("field:left", 100);
+    const overview = regionalPatch(
+      "field:overview",
+      left.grid.bounds.x + left.grid.bounds.width,
+    );
+    const right = regionalPatch(
+      "field:right",
+      overview.grid.bounds.x + overview.grid.bounds.width,
+    );
+    const boundaryRow = Math.floor(left.grid.rows / 2);
+    const detailNoDataIndex =
+      boundaryRow * left.grid.columns + left.grid.columns - 1;
+    left.validity.values[detailNoDataIndex] = 0;
+    left.validity_classification!.values[detailNoDataIndex] =
+      TERRAIN_VALIDITY_NO_DATA;
+    const patches = [
+      {
+        member_id: "member:left",
+        scene_id: "scene:left",
+        role: "detail" as const,
+        authority: patchAuthority("left", 100),
+        field: left,
+      },
+      {
+        member_id: "member:overview",
+        scene_id: "scene:overview",
+        role: "overview" as const,
+        authority: patchAuthority("overview", 10_000),
+        field: overview,
+      },
+      {
+        member_id: "member:right",
+        scene_id: "scene:right",
+        role: "detail" as const,
+        authority: patchAuthority("right", 100),
+        field: right,
+      },
+    ];
+    const compile = (reverse: boolean) =>
+      compileRegionalTerrainMosaic(
+        reverse ? [...patches].reverse() : patches,
+        left.field_set_id,
+        "composition:overview-gap",
+        "native_crs84/shared-landscape-frame",
+        "qualified-edge-elevation-meters:composition:overview-gap",
+      );
+    const first = compile(false);
+    const replay = compile(true);
+    const expectedOverviewVertices =
+      (overview.grid.columns - 2) * overview.grid.rows;
+    const overviewCenterColumn =
+      left.grid.columns - 1 + Math.floor((overview.grid.columns - 1) / 2);
+    const overviewCenterIndex =
+      boundaryRow * first.field.grid.columns + overviewCenterColumn;
+    const detailBoundaryIndex =
+      boundaryRow * first.field.grid.columns + left.grid.columns - 1;
+
+    expect(first.manifest).toMatchObject({
+      unsupported_vertices: 0,
+      no_data_vertices: 1,
+      overview_covered_vertices: expectedOverviewVertices,
+      overview_coverage: {
+        policy: "separately_admitted_compatible_overview_only",
+        patch_ids: [overview.field_set_id],
+        covered_vertices: expectedOverviewVertices,
+      },
+    });
+    expect(first.manifest.overview_coverage.values[overviewCenterIndex]).toBe(
+      1,
+    );
+    expect(
+      first.manifest.source_contribution.owner_indices[overviewCenterIndex],
+    ).toBe(first.manifest.patch_ids.indexOf(overview.field_set_id));
+    expect(first.manifest.overview_coverage.values[detailBoundaryIndex]).toBe(
+      0,
+    );
+    expect(
+      first.field.validity_classification!.values[detailBoundaryIndex],
+    ).toBe(TERRAIN_VALIDITY_NO_DATA);
+    expect(first.manifest.feather.feathered_vertices).toBe(0);
+    expect(first.manifest.overlap_decisions).toContainEqual({
+      reason: "detail_source_boundary",
+      samples: left.grid.rows + right.grid.rows,
+    });
+    expect(replay.manifest.mosaic_id).toBe(first.manifest.mosaic_id);
+    expect(replay.manifest.overview_coverage.values).toEqual(
+      first.manifest.overview_coverage.values,
+    );
+
+    const incompatibleOverview = regionalPatch(
+      "field:overview-incompatible",
+      left.grid.bounds.x + left.grid.bounds.width,
+      left.grid.bounds.width * 0.75,
+    );
+    expect(() =>
+      compileRegionalTerrainMosaic(
+        [
+          patches[0]!,
+          {
+            ...patches[1]!,
+            field: incompatibleOverview,
+          },
+        ],
+        left.field_set_id,
+        "composition:overview-incompatible",
+        "native_crs84/shared-landscape-frame",
+        "qualified-edge-elevation-meters:composition:overview-incompatible",
+      ),
+    ).toThrow("patch scale is incompatible");
+  });
+
   it("retains conflicts and resolves partial overlap independently from input order", () => {
     const left = regionalPatch("field:left", 100);
     const right = regionalPatch(
@@ -186,17 +298,16 @@ describe("regional terrain mosaic", () => {
     const leftIndex = row * left.grid.columns + targetColumn;
     const rightIndex = row * right.grid.columns + targetColumn - overlapStart;
     const expected = Math.fround(
-      (left.elevation.values[leftIndex]! + right.elevation.values[rightIndex]!) /
+      (left.elevation.values[leftIndex]! +
+        right.elevation.values[rightIndex]!) /
         2,
     );
 
-    expect(first.manifest.feather.content_id).toMatch(
-      /^blake3:[0-9a-f]{64}$/,
-    );
+    expect(first.manifest.feather.content_id).toMatch(/^blake3:[0-9a-f]{64}$/);
     expect(first.manifest.feather.feathered_vertices).toBeGreaterThan(0);
-    expect(first.manifest.feather.secondary_owner_indices[targetIndex]).not.toBe(
-      first.manifest.feather.unsupported_index,
-    );
+    expect(
+      first.manifest.feather.secondary_owner_indices[targetIndex],
+    ).not.toBe(first.manifest.feather.unsupported_index);
     expect(first.manifest.feather.primary_weights[targetIndex]).toBe(0.5);
     expect(first.field.elevation.values[targetIndex]).toBe(expected);
     expect(first.field.validity.values[targetIndex]).toBe(1);

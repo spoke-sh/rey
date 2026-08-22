@@ -1099,6 +1099,15 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-landscape-feathered-vertices={
             terrainRenderer.landscape_feathered_vertices
           }
+          data-renderer-landscape-overview-coverage-id={
+            terrainRenderer.landscape_overview_coverage_id
+          }
+          data-renderer-landscape-overview-covered-vertices={
+            terrainRenderer.landscape_overview_covered_vertices
+          }
+          data-renderer-landscape-overview-policy={
+            terrainRenderer.landscape_overview_policy
+          }
           data-renderer-landscape-patch-count={
             terrainRenderer.landscape_patch_count
           }

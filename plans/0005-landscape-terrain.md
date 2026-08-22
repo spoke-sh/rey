@@ -489,6 +489,15 @@ contribution and conflict rasters. No-data, unsupported, unequal-authority,
 unequal-resolution, and three-or-more-source overlap remains a hard auditable
 selection.
 
+`rey.terrain.regional-mosaic@4` treats a `role: overview` DEM as separately
+admitted supplemental evidence. Compatible overview samples may own only grid
+space not already supported by a detail source; valid detail samples and
+explicit detail no-data boundaries win regardless of overview priority. The
+compiler retains a BLAKE3 overview-coverage identity, exact coverage raster,
+source patch set, and covered count through the Atlas/Landscape transition and
+both renderer diagnostics. An absent, invalid, or incompatible overview source
+leaves the existing unsupported hole unchanged.
+
 ## Geographic Synthesis Boundary
 
 Rey County is fictional semantic geography that an agent may generate and
@@ -704,7 +713,7 @@ and which implementation revisions produced each derived channel.
 - [x] Feather height or presentation channels only inside mutually valid
       overlap support. Never extend either patch's validity or blend across a
       no-data boundary.
-- [ ] Fill space between detailed patches only when a separately admitted,
+- [x] Fill space between detailed patches only when a separately admitted,
       compatible overview DEM covers that space. Without that evidence, retain
       an explicit hole through the mosaic, pyramid, mesh, and shading paths.
 - [ ] Keep land cover, water, contours, and vectors as independently

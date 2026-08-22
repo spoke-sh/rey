@@ -57,6 +57,10 @@ export interface AcceleratedTerrainReport {
   landscape_conflict_vertices: number;
   landscape_feather_id: string;
   landscape_feathered_vertices: number;
+  landscape_overview_coverage_id: string;
+  landscape_overview_covered_vertices: number;
+  landscape_overview_policy:
+    "separately_admitted_compatible_overview_only" | "unbound";
   landscape_patch_count: number;
   landscape_overlap_count: number;
   landscape_gap_policy: "unsupported_remains_transparent" | "unbound";
@@ -146,6 +150,9 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     landscape_conflict_vertices: 0,
     landscape_feather_id: "unbound",
     landscape_feathered_vertices: 0,
+    landscape_overview_coverage_id: "unbound",
+    landscape_overview_covered_vertices: 0,
+    landscape_overview_policy: "unbound",
     landscape_patch_count: 0,
     landscape_overlap_count: 0,
     landscape_gap_policy: "unbound",
@@ -758,6 +765,15 @@ export function AcceleratedTerrainSurface({
       landscape_feathered_vertices:
         snapshot.scene.terrain_fields.find((field) => field.landscape_mosaic)
           ?.landscape_mosaic?.feathered_vertices ?? 0,
+      landscape_overview_coverage_id:
+        snapshot.scene.terrain_fields.find((field) => field.landscape_mosaic)
+          ?.landscape_mosaic?.overview_coverage_id ?? "unbound",
+      landscape_overview_covered_vertices:
+        snapshot.scene.terrain_fields.find((field) => field.landscape_mosaic)
+          ?.landscape_mosaic?.overview_covered_vertices ?? 0,
+      landscape_overview_policy:
+        snapshot.scene.terrain_fields.find((field) => field.landscape_mosaic)
+          ?.landscape_mosaic?.overview_policy ?? "unbound",
       landscape_patch_count:
         terrainCompilation?.patch_set.patch_ids.length ?? 0,
       landscape_overlap_count:
