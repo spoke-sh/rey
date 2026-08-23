@@ -1352,6 +1352,26 @@ prefix is selected. The live fraction is retained in browser transition
 diagnostics; forward and reverse WebGPU qualification must still demonstrate
 enough distinct dissolve/depth frames before the stall is considered closed.
 
+The exact-revision replacement voyage passed as
+`sha256:4e5bab7db47db1d98aa2fe58701531d3e86b07edeb6abd533715de4efec63c17`.
+World ↔ Atlas retained ten distinct intermediate projection frames, five
+entering and five exiting repeat-dissolve/depth frames, and a 119.4 ms maximum
+sampled transition gap instead of the prior roughly 690 ms stall. The complete
+fulfilled-transport WebGPU journey then reached Evidence and proved stable
+mosaic, composition, primary-patch, height-hierarchy, relief-pyramid, terrain
+source, validity, and content-derived Atlas-fabric identities across forward,
+reverse, interrupted, re-entry, and same-document back-navigation samples,
+with no empty terrain frame. Its 1920×1080 steep-relief Landscape capture is
+`sha256:392df80283ec9aa15d6d1381f61127629d11da6ef09004e2ca4f49a942914ce7`:
+12 level-9 tiles, zero screen error, zero tile, relief-seam, partition, and
+no-data-leak mismatches, 62,172,000 resident CPU bytes, and 46,851,876 resident
+GPU bytes. This closes the projection-stall and WebGPU handoff mechanism; it
+does not close direct transport, the remaining matrix rows, visual fidelity,
+or performance. The 193,289 ms voyage and 516.6/1,583.3 ms Landscape median/p95
+presentation cadence remain failures, while the capture still exhibits broad
+source-scale bands, muddy low-contrast County form, and oversmoothed Uplands
+landforms relative to the operator reference.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence
