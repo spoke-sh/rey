@@ -1246,6 +1246,22 @@ cells with a genuine downhill receiver; the retained count for flat-escape
 incision is exactly zero. No source sample or validity class changes. A fresh
 scene and capture must prove that the visible tree scars are gone.
 
+`SCENE@20` and accepted scene-admission result
+`blake3:951636433b8f6fb845f7acb3d656046ef8404ba789405ff6744fbb9871ee704d`
+hard-cut revision 14 through admission
+`blake3:83947535f66ce31222b7e067a94969152437bbbe46c8460c97ba8a8c1baa2a61`.
+Its 1920×1080 WebGPU steep-relief voyage passed in manifest
+`sha256:92fbade9e245e11d1e03f0218627f949370c4342f07d5fc73fb83bae916eeef7`
+with 88 tiles, 153,321 line segments, two areas, and zero validity or seam
+failures. The vertical tree bands remain. Because source revision 14 records
+zero flat-escape height displacements, this falsifies the source-elevation
+hypothesis. Inspection of `rey.terrain.regional-geography@7` identifies the
+remaining mechanism: browser land cover consumes accumulation propagated
+directly through its priority-flood traversal tree. That derived presentation
+channel, not the admitted DEM, is making escape topology visible. The next
+smallest engine commit must hard-cut accumulation to genuine downhill flow and
+leave sinks as sinks.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
