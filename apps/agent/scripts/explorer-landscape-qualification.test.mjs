@@ -56,7 +56,7 @@ const capture = {
     landscape_composition_revision: "composition:fixture",
     landscape_primary_patch_id: "patch:fixture",
     terrain_source_key: "source-key:fixture",
-    landscape_relief_revision: "rey.landscape-relief-engine@4",
+    landscape_relief_revision: "rey.landscape-relief-engine@5",
     landscape_pyramid_envelopes: "envelope:fixture",
     landscape_height_hierarchies: "height-hierarchy:fixture",
     landscape_height_hierarchy_complete: "true",

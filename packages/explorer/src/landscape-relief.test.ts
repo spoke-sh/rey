@@ -69,7 +69,7 @@ describe("landscape relief engine", () => {
       mdow: "rey.landscape.mdow@1",
       openness: "rey.landscape.openness@1",
       ridge_salience: "rey.landscape.ridge-salience@1",
-      tone_mapping: "rey.landscape.linear-tone-map@1",
+      tone_mapping: "rey.landscape.linear-tone-map@2",
       lighting_owner: "renderer_neutral_relief_field",
     });
     expect(new Set(first.hillshade).size).toBeGreaterThan(2);
@@ -206,6 +206,13 @@ describe("landscape relief engine", () => {
     );
     const steepRelief = deriveLandscapeReliefField(steep);
     const lowRelief = deriveLandscapeReliefField(low);
+    const supportedRange = (
+      values: Float32Array,
+      validity: Uint8Array,
+    ) => {
+      const supported = [...values].filter((_, index) => validity[index] !== 0);
+      return Math.max(...supported) - Math.min(...supported);
+    };
 
     expect(Math.max(...steepRelief.slope)).toBeGreaterThan(
       Math.max(...lowRelief.slope) * 4,
@@ -219,7 +226,12 @@ describe("landscape relief engine", () => {
           Boolean(steep.validity.values[index]),
         ),
       ),
-    ).toBeGreaterThanOrEqual(0.28);
+    ).toBeGreaterThanOrEqual(Math.fround(0.32));
+    expect(
+      supportedRange(steepRelief.hillshade, steep.validity.values),
+    ).toBeGreaterThan(
+      supportedRange(lowRelief.hillshade, low.validity.values) * 2,
+    );
   });
 
   it("darkens a valid enclosed valley with deterministic sky-view support", () => {
@@ -238,6 +250,9 @@ describe("landscape relief engine", () => {
     expect(valleyRelief.openness[center]).toBeLessThan(0);
     expect(valleyRelief.hillshade[center]).toBeLessThan(
       flatRelief.hillshade[center]!,
+    );
+    expect(valleyRelief.hillshade[center]).toBeLessThan(
+      flatRelief.hillshade[center]! * 0.9,
     );
   });
 

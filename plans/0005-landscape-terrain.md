@@ -470,6 +470,14 @@ SVF/openness, high-pass curvature/ridge salience, and linear local tone arrays
 are now shared by both render paths. Chromatic lighting and final map
 composition remain in 8.5.
 
+`rey.landscape-relief-engine@5` replaces the final Reinhard shoulder with
+`rey.landscape.linear-tone-map@2`. The prior shoulder compressed most valid
+MDOW samples toward the same middle value after the metric, openness, and
+local-contrast operators had separated them. Revision 5 retains the neutral
+flat response while expanding locally normalized shadow and highlight
+separation within a `[0.32, 1.24]` nonblack bound. It changes no elevation,
+validity, metric support, source identity, or lighting ownership.
+
 `rey.terrain.regional-mosaic@1` now establishes and executes the next
 renderer-neutral contract. It compiles integer-aligned, common-scale regional fields
 into `rey.landscape-mosaic.v1`, requires identical validity, elevation, and
@@ -877,8 +885,15 @@ paths. A fulfilled-transport 1920×1080 WebGPU steep-relief voyage passed with
 manifest `sha256:80b83f666670a4d07736a5c2b6932bfe9f90b8af84ed54c89ed36f0ff031263b`.
 Its Landscape capture has measurably deeper enclosed terrain and less pale
 linear-color wash, but broad tonal bands and insufficient local form remain a
-major perceptual gap. The directed correction therefore does not close a
-perceptual item.
+major perceptual gap. `rey.landscape-relief-engine@5` then removed the
+remaining Reinhard compression and passed a second 1920×1080 WebGPU voyage in
+manifest `sha256:d2a3826e5c9d939ae398ed36dd56f5ee4e4d6b580cdbb30ef5d84be00377dd58`.
+Across the fixed 1750×750 canvas crop, mean display luminance moved from
+`0.7271` in the pre-correction capture to `0.6388`, while standard deviation
+increased from `0.0394` to `0.0635`. These image statistics demonstrate that
+the pale compression changed; they are not a perceptual acceptance result.
+The remaining broad source-scale bands and insufficient geomorphic detail keep
+the explicit major judgments open.
 
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted

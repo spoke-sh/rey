@@ -5,7 +5,7 @@ import {
 import type { TerrainFieldSetInput } from "./types";
 
 export const LANDSCAPE_RELIEF_ENGINE_REVISION =
-  "rey.landscape-relief-engine@4" as const;
+  "rey.landscape-relief-engine@5" as const;
 export const LANDSCAPE_METRIC_GRADIENT_REVISION =
   "rey.landscape.metric-gradient@1" as const;
 export const LANDSCAPE_MDOW_REVISION = "rey.landscape.mdow@1" as const;
@@ -13,7 +13,7 @@ export const LANDSCAPE_OPENNESS_REVISION = "rey.landscape.openness@1" as const;
 export const LANDSCAPE_RIDGE_SALIENCE_REVISION =
   "rey.landscape.ridge-salience@1" as const;
 export const LANDSCAPE_TONE_MAPPING_REVISION =
-  "rey.landscape.linear-tone-map@1" as const;
+  "rey.landscape.linear-tone-map@2" as const;
 export const LANDSCAPE_TERRAIN_FABRIC_REVISION =
   "rey.landscape-terrain-fabric@2" as const;
 export const LANDSCAPE_PATCH_SET_REVISION =
@@ -437,16 +437,22 @@ export function deriveLandscapeReliefField(
         );
       }
       localContrast[index] = Math.fround(contrast);
-      const contrastIllumination = 0.62 + contrast * 0.76;
-      const ambientSky = 0.58 + skyViewFactor[index]! * 0.42;
-      const opennessFill = 0.94 + openness[index]! * 0.06;
+      const contrastIllumination = 0.42 + contrast * 0.96;
+      const ambientSky = 0.52 + skyViewFactor[index]! * 0.48;
+      const opennessFill = 0.9 + openness[index]! * 0.1;
       const linear =
-        (mdow[index]! * 0.7 + contrastIllumination * 0.3) *
+        (mdow[index]! * 0.72 + contrastIllumination * 0.28) *
           ambientSky *
           opennessFill +
-        salience[index]! * 0.04;
-      const reinhard = linear / (linear + 0.35);
-      hillshade[index] = Math.fround(clamp(reinhard / (1 / 1.35), 0.28, 1.2));
+        salience[index]! * 0.035;
+      // A Reinhard shoulder compressed nearly every supported sample toward
+      // the same pale middle value. Keep the MDOW neutral point stable while
+      // expanding locally normalized shadow/highlight separation. This is a
+      // bounded cartographic tone curve, not a second light or invented
+      // surface detail.
+      hillshade[index] = Math.fround(
+        clamp(0.54 + (linear - 0.62) * 1.35, 0.32, 1.24),
+      );
     }
   }
 

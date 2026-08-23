@@ -50,9 +50,12 @@ rim with slope-adaptive contrast and a nonblack ambient floor. Directional
 positive/negative horizons derive sky-view and openness from admitted metric
 elevation. High-pass profile/plan curvature, metric slope, and local position
 produce ridge salience; a validity-safe local statistic then applies
-linear-space contrast and deterministic tone mapping. The complete support
-radius includes this contrast neighborhood as well as the largest metric
-operator.
+linear-space contrast and deterministic tone mapping.
+`rey.landscape.linear-tone-map@2` keeps the flat MDOW neutral point stable but
+expands locally normalized shadows and highlights between a nonblack floor and
+a bounded highlight ceiling; it does not add another light or synthesize
+surface detail. The complete support radius includes this contrast
+neighborhood as well as the largest metric operator.
 
 Regional terrain derives every relief array over the complete refined field
 before camera tile materialization. Each render tile samples that result by
