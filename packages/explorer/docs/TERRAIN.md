@@ -178,17 +178,14 @@ WebGL2, and WebGPU compilation use one contract.
 `@rey/explorer` sees the same structural field contract in both cases and
 cannot upgrade either source's authority.
 
-The source-controlled `rey.agent-geography.rey-county@11` field is 705×626 and
-uses no renderer refinement. `SCENE@17` and scene-admission result
-`blake3:ebd0fa454becd58f694cf8447428559c4ac0538c38e0f93009e63c5ac0e01d2d`
+The source-controlled `rey.agent-geography.rey-county@12` field is 705×626 and
+uses no renderer refinement. `SCENE@18` and scene-admission result
+`blake3:a5d4d21586751260b7600d6edce92be932c8bcc9d4b1ca476ec577ecea038ecd`
 qualify its exact native bytes as the current working field. This revision
-replaces global fingerprint-like ridge emphasis with irregular mountain mass
-and conditions drainage incision on unfilled local slope. Later source edits
-remain candidates until the editor and workload repeat that boundary.
-The checked-in `rey.agent-geography.rey-county@12` source is currently such a
-candidate. It applies validity-contained convex/concave separation before a
-stronger slope-conditioned drainage pass; neither operation adds a sample or
-changes the exact no-data mask.
+applies validity-contained convex/concave separation before a stronger
+slope-conditioned drainage pass; neither operation adds a sample or changes
+the exact no-data mask. Later source edits remain candidates until the editor
+and workload repeat that boundary.
 The density policy targets at least 320 intervals per axis, so lower-density
 admitted fields may refine by a bounded integer factor while this source stays
 exact.

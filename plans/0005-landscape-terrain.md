@@ -1200,6 +1200,22 @@ exact grid and 317,297-valid / 124,033-no-data mask do not change. This is
 authored source geometry rather than renderer sharpening and remains a
 candidate until a new scene admission and capture bind the bytes.
 
+`SCENE@18` and accepted scene-admission result
+`blake3:a5d4d21586751260b7600d6edce92be932c8bcc9d4b1ca476ec577ecea038ecd`
+now hard-cut revision 12 through admission
+`blake3:5db0ccd4afbbbf2101abb351f5aac8c3df88597fb5d5a38335847b5586b7acb8`.
+Its 1920×1080 WebGPU steep-relief voyage passed in manifest
+`sha256:021199353b50cca2ce57ff09cc2370f4ff5a0d5f74ed2d8f093fd24a262262e4`
+with 88 tiles, 148,331 line segments, two areas, and zero tile seams, relief
+seams, partition mismatches, or unsupported triangles. The cold Landscape
+hierarchy miss took 15.30 seconds. The source pass visibly sharpens local
+terrain, but inspection also shows that pre-drainage convex/concave separation
+amplifies short-wavelength random texture rather than organizing the surface
+around drainage divides. It therefore does not close the major geomorphic
+judgment. The next source revision must let a validity-contained fluvial model
+form valleys first and sharpen that resulting landform, while reducing
+unstructured fine-noise amplitude.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
