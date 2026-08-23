@@ -1142,6 +1142,23 @@ supported samples. These are deterministic source diagnostics, not Earth DEM
 observations or perceptual proof. The revision remains a candidate until a new
 hard-cut scene admission and browser capture bind its exact bytes.
 
+`SCENE@16` and accepted scene-admission result
+`blake3:55081f5edc158b9a2bd83224eff3e96fb4e2e2c8eed42a96e9e8617e0fa40de5`
+now hard-cut the browser to that exact revision through admission
+`blake3:87debf32d5ab1515de7b75b78c74dc103bb4e39b503a395f8dc369d4872f0e9b`.
+The 1920×1080 WebGPU steep-relief voyage passed in manifest
+`sha256:94cc758d1cc206646c5233fb2e91178433a8ed89e343c1ba427f5bf9c22e3514`
+with 88 tiles, 169,081 line segments, two areas, stable handoff identity, and
+zero tile seams, relief seams, partition mismatches, or unsupported triangles.
+The capture shows materially stronger local relief and the shallow waterway
+conditioning no longer dominates the entire corridor. It also exposes the
+next source defect clearly: the globally repeated hybrid ridge signal reads as
+fingerprint bands, while low-slope priority-flood escape paths leave
+rectilinear/diagonal scars across Runtime Basin. The perceptual result remains
+major; the next candidate must localize ridge emphasis, restore irregular
+non-ridged mountain mass, and make incision respond to physical local slope so
+flat drainage topology cannot become visible height.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
