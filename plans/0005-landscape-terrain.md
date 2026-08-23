@@ -77,7 +77,7 @@ remove support but cannot gain it. A cancellable dedicated worker owns tile
 projection, resampling, relief derivation, procedural field evaluation, parity
 checking, and mesh preparation; environments without workers disclose a
 main-thread fallback. Deterministic residency retains compiled tiles under
-separate 48 MiB CPU and 64 MiB GPU budgets.
+separate 64 MiB CPU and GPU budgets.
 
 A selected regional Atlas member now retains one
 `rey.atlas-landscape-transition.v3` binding from its exact synthetic sector
@@ -1341,6 +1341,20 @@ did not reach Landscape: the pre-terrain World↔Atlas sampler observed only one
 reverse dissolve frame amid roughly 690 ms presentation gaps. That transition
 stall remains open, and no multi-region browser-capture or fidelity checkbox
 advances from these attempts.
+
+Reference voyage
+`sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
+then completed the full World → Atlas → Landscape → Object → Evidence
+traversal over the exact two-region mosaic. It retained zero partition, relief,
+tile-seam, and no-data-leak mismatches, but did not qualify: the 48 MiB CPU
+resident ceiling forced uniform hierarchy level 8, 15,543,000 CPU bytes, and
+244.376 screen-error pixels. The next finer exact level is approximately four
+times that CPU footprint and remains below 64 MiB. The named local ceiling,
+`rey.terrain.tile-residency@3`, and `rey.terrain.compilation-worker@18`
+therefore raise only resident CPU capacity to 64 MiB, matching the existing
+GPU ceiling; the 112 MiB exact hierarchy cache and 160 MiB transient output
+ceiling do not change. A replacement voyage must still prove the 1.5-pixel
+fidelity requirement before any capture or matrix item closes.
 
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted

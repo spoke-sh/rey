@@ -8,8 +8,8 @@ import type { TerrainFieldSet } from "./compile";
 import type { TerrainTileDescriptor } from "./tiles";
 
 export const TERRAIN_TILE_RESIDENCY_REVISION =
-  "rey.terrain.tile-residency@2" as const;
-export const MAX_TERRAIN_TILE_CPU_BYTES = 48 * 1024 * 1024;
+  "rey.terrain.tile-residency@3" as const;
+export const MAX_TERRAIN_TILE_CPU_BYTES = 64 * 1024 * 1024;
 export const MAX_TERRAIN_TILE_GPU_BYTES = 64 * 1024 * 1024;
 
 export interface CompiledTerrainTile {

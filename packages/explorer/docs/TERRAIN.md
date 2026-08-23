@@ -387,18 +387,18 @@ screen error would exceed the retained tile budgets, selection falls back to
 the finest visible uniform level that fits and discloses the resulting error
 instead of failing residency or silently raising a budget.
 
-`rey.terrain.compilation-worker@17` runs hierarchy projection, haloed relief
+`rey.terrain.compilation-worker@18` runs hierarchy projection, haloed relief
 derivation, exact relief sampling, procedural field evaluation, partition and
 border parity checking, and mesh preparation in a cancellable dedicated
 worker. `rey.terrain.regional-mosaic@8` hashes every composed typed channel,
 grid/frame parameter, source owner, and compiler revision into an exact field
 content identity before the field reaches that worker. Its complete hierarchy
 plus selected-tile output has a separate
-160 MiB bound; that transient compilation-output bound is not the 48 MiB
+160 MiB bound; that transient compilation-output bound is not the 64 MiB
 resident-tile budget. The deterministic reference field remains visible while work is
 pending or after failure. A disclosed main-thread fallback exists where
-`Worker` is unavailable. `rey.terrain.tile-residency@2` retains compiled tiles
-under independent 48 MiB CPU and 64 MiB GPU budgets, rejects a tile whose
+`Worker` is unavailable. `rey.terrain.tile-residency@3` retains compiled tiles
+under independent 64 MiB CPU and GPU budgets, rejects a tile whose
 compiled relief differs from its cache identity, and evicts the oldest
 unrequested exact identity first. The worker also retains a separately bounded
 112 MiB exact materialized-pyramid cache keyed from every contributing typed

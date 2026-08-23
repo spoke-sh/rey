@@ -1,6 +1,6 @@
 {
   "schema": "rey.explorer-performance-budget.v1",
-  "budget_id": "rey.explorer.local-software-renderer-ceiling@1",
+  "budget_id": "rey.explorer.local-software-renderer-ceiling@2",
   "authority": "qualification ceilings for one named local Chrome machine; not semantic evidence, a hardware-GPU target, or a frame-rate claim",
   "required_backends": ["reference", "webgl2", "webgpu"],
   "required_viewports": ["1920x1080", "3840x2160"],
@@ -12,7 +12,7 @@
     "render_submission_ms": 500,
     "draw_calls": 16,
     "gpu_upload_bytes": 67108864,
-    "resident_cpu_bytes": 50331648,
+    "resident_cpu_bytes": 67108864,
     "resident_gpu_bytes": 67108864,
     "render_pass_lines": 2048,
     "terrain_screen_error_pixels": 1.5,

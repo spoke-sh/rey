@@ -1,10 +1,23 @@
 import { landscapeReliefFieldByteLength } from "@rey/explorer";
 import { describe, expect, it } from "vitest";
-import { TerrainTileResidency } from "./residency";
+import {
+  MAX_TERRAIN_TILE_CPU_BYTES,
+  MAX_TERRAIN_TILE_GPU_BYTES,
+  TERRAIN_TILE_RESIDENCY_REVISION,
+  TerrainTileResidency,
+} from "./residency";
 import { executeTerrainCompilationJob } from "./worker";
 import { admittedField, terrainTileView } from "./tiles.fixture";
 
 describe("terrain tile residency", () => {
+  it("retains the multi-region resident ceilings", () => {
+    expect(TERRAIN_TILE_RESIDENCY_REVISION).toBe(
+      "rey.terrain.tile-residency@3",
+    );
+    expect(MAX_TERRAIN_TILE_CPU_BYTES).toBe(64 * 1024 * 1024);
+    expect(MAX_TERRAIN_TILE_GPU_BYTES).toBe(64 * 1024 * 1024);
+  });
+
   it("evicts the oldest unrequested tile deterministically", () => {
     const result = executeTerrainCompilationJob({
       job_id: "terrain-job:residency",
