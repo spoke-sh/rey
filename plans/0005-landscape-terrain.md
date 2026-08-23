@@ -1590,6 +1590,26 @@ coherent drainage basins, and County remains low-contrast and broadly banded.
 The 210,502 ms voyage and 583.3/1,499.9 ms Landscape median/p95 presentation
 cadence remain explicit failures.
 
+The exact v9 `steep-relief@1920x1080` matrix row is now retained across
+reference
+`sha256:9ede0d7927f9661df3eb53fdf77e835320a37bee088ba3fffe98c7a993240b57`,
+WebGL2
+`sha256:6290d2d0b26cc1b87bcf4d812fc8e8450b94d46b8fb20c0dec6216d34b1a25cf`,
+and WebGPU
+`sha256:66e4052f12a42abd71f20faf81cc1192769d04a1a1aa60e10801fd3cca5821a1`.
+Rendered parity
+`sha256:0638f2555e9765cb10696086fddc3e957af3a8e63d1cc572bab46f19513e7ea8`
+passes semantic equality and bounds accelerated maximum normalized RMSE to
+0.0130586 under the 0.02 limit. Perceptual assessment
+`sha256:ed736384a60dcafc18419df57f5abfeb213a7daa2f4b7689733123cb0e30376c`
+binds the operator-supplied comparison as
+`sha256:2888cb6bf3b18b639cc0d1130cdfecda5dc579242dd95040ef55dff5d2a4cac1`
+and remains explicitly INCOMPLETE at 1/14 rows: one pass, six minor results,
+and five major results for multi-scale MDOW read, SVF valley depth,
+hypsometric land-cover separation, flat scalar mud, and plastic smoothing.
+All three voyages used fulfilled retained-document transport, so this advances
+neither direct-transport proof nor the remaining workload/viewport rows.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence
