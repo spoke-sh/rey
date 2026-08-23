@@ -319,10 +319,14 @@ application also projects an exact admitted hydrology Polygon into a
 terrain-following water surface by selecting only supported terrain triangles
 and clipping each boundary triangle to the exact even-odd rings. Every clipped
 vertex receives a barycentric height from that same fully valid terrain
-triangle. A high-contrast fill and separately styled shoreline therefore
-retain the exact admitted water boundary without extending support; no
-triangle touching a no-data vertex can enter the surface. The surface, areas,
-lines, and point anchors share one R3F terrain group and one
+triangle. `rey.explorer.terrain-render-passes@5` applies one bounded
+presentation-only vertical separation, and the water material uses a stable
+depth bias/order, so the exact clipped surface does not alternate with the
+underlying terrain through depth conflict. A high-contrast fill and separately
+styled shoreline therefore retain the exact admitted water boundary without
+extending support; no triangle touching a no-data vertex can enter the
+surface. The surface, areas, lines, and point anchors share one R3F terrain
+group and one
 Atlas-to-Landscape model transform. Validity is represented by missing
 triangles over the canvas background, not by a rectangular mesh that can read
 as geographic support. Disconnected valid line intervals remain independent

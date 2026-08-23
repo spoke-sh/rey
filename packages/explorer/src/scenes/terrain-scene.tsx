@@ -124,16 +124,17 @@ function TerrainPassArea({
     geometry.computeVertexNormals();
     const material = new MeshBasicNodeMaterial({
       color: area.color,
-      depthWrite: false,
+      depthWrite: true,
       opacity: area.opacity,
       polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
       side: DoubleSide,
       transparent: area.opacity < 1,
     });
     const mesh = new Mesh(geometry, material);
     mesh.name = `terrain-pass:${area.pass_id}:${area.id}`;
+    mesh.renderOrder = 10;
     return mesh;
   }, [area.color, area.id, area.opacity, area.pass_id, area.positions]);
   useEffect(

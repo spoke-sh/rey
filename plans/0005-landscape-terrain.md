@@ -906,6 +906,18 @@ Across the same fixed canvas crop, mean display saturation increased from
 rock materially better, but the perceptual matrix remains open pending a
 fresh explicit judgment and the unresolved source-scale form gap.
 
+The same capture showed exact water triangles alternating with the base
+surface because the two passes remained too close for stable depth ordering.
+`rey.explorer.terrain-render-passes@5` retains the existing exact polygon clip
+and barycentric height but applies a bounded presentation-only separation,
+stronger polygon depth bias, explicit water render order, and a high-opacity
+depth-writing base. The replacement 1920×1080 WebGPU voyage passed in manifest
+`sha256:c444f264eed286cdddd7efe13cf20288792fd120795dc93cc3d4fb29c2735425`;
+its river and polygon surfaces are continuous instead of crosshatched. The
+generic hydrology-polygon contract still cannot distinguish open water from a
+wetland, so terrain-bound hydrology remains open until that source property is
+typed through admission and the two materials separate.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

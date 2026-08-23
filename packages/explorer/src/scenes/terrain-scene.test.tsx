@@ -142,11 +142,13 @@ describe("terrain scene", () => {
       terrain.instance.getObjectByName("terrain-pass:contours:contour:fixture")
         ?.type,
     ).toBe("LineSegments");
-    expect(
-      terrain.instance.getObjectByName(
-        "terrain-pass:water_weather_boundary:water:fixture",
-      ),
-    ).toBeDefined();
+    const water = terrain.instance.getObjectByName(
+      "terrain-pass:water_weather_boundary:water:fixture",
+    ) as Mesh;
+    expect(water).toBeDefined();
+    expect(water.renderOrder).toBe(10);
+    expect((water.material as Material).depthWrite).toBe(true);
+    expect((water.material as Material).polygonOffsetFactor).toBe(-4);
     expect(
       terrain.instance.getObjectByName(
         "terrain-pass:features_labels_selection:selection:fixture",

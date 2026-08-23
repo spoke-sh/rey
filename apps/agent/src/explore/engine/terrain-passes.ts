@@ -18,7 +18,9 @@ import {
 } from "./render-graph";
 
 export const TERRAIN_RENDER_PASS_COMPILER_REVISION =
-  "rey.explorer.terrain-render-passes@4" as const;
+  "rey.explorer.terrain-render-passes@5" as const;
+
+const TERRAIN_WATER_SURFACE_OFFSET = 4;
 
 export function compileTerrainRenderPasses(
   scene: TopologyScene,
@@ -173,7 +175,7 @@ export function compileTerrainRenderPasses(
         const positions = drapeTerrainArea(
           feature.geometry_path,
           scene.terrain_fields,
-          1.05,
+          TERRAIN_WATER_SURFACE_OFFSET,
         );
         if (positions.length > 0)
           areas.push(
@@ -184,8 +186,8 @@ export function compileTerrainRenderPasses(
               source_revision: `${node.id}:${feature.geometry_path}:${feature.geometry_representation}`,
               authority: `${feature.authority}; surface edge is clipped to the exact admitted polygon within fully valid terrain triangles`,
               positions,
-              color: 0x4f93a0,
-              opacity: 0.82,
+              color: 0x3f8998,
+              opacity: 0.9,
             }),
           );
         else
