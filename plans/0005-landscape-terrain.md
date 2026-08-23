@@ -1461,8 +1461,16 @@ is 53.68/94.73 m at p50/p90 rather than v5's 68.85/218.91 m, deliberately
 returning amplitude near the v4 source while changing form. Twelve gradient
 direction buckets across the independent interior all retain 946–1,940
 samples, preventing one or two authored line directions from dominating the
-candidate fixture. Exact seam, validity, generator, admission, and accelerated
-pixel checks remain required before acceptance.
+candidate fixture. The generator and 13 County/seam fixtures pass with the
+same 27,432 valid / 4,992 no-data mask. Eastern Uplands `SCENE@7` was accepted
+as result
+`blake3:c5c9efefd219f768009a86ee1e17921653823878277c8b4868939ca14c61151f`;
+server-owned composition
+`blake3:59e8b65ed944833043120e9639eb8185b40324003543f730b95126ec1bf254c0`
+is READY with all 168 vertices and zero elevation, material, validity,
+coordinate-gap, and no-data conflicts at seam
+`blake3:c9cbc46bcf9e656351832aef24304768a1f724e1a227cdf3b6628f671dc3a5dc`.
+Accelerated pixel checks remain required before acceptance.
 
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
