@@ -1516,6 +1516,21 @@ drainage; County remains low-contrast and broadly banded. The 208,449 ms
 voyage and 783.2/1,516.6 ms Landscape median/p95 presentation cadence remain
 failures.
 
+Candidate `rey.agent-geography.rey-eastern-uplands@8` addresses that exact
+source-scale drainage gap before any renderer tuning. It runs the same bounded
+priority-flood and slope-weighted multiple-flow-direction mechanism proven in
+County over the Uplands' explicit validity, but owns a separately revisioned
+`rey.uplands-source-drainage.v1` result. Accumulation distributes through
+101,441 downhill receiver edges at 25,518 multi-receiver vertices; only actual
+source-height slopes may displace terrain, so flood-parent escape topology
+still contributes zero incision. The smootherstep source envelope protects the
+first 24 seam columns and admits incision over the following 96 columns,
+reaching at most 35.74 m across 1,737 derived channel vertices. The candidate
+retains the 27,432 valid / 4,992 no-data mask and exact County seam. This is
+source-controlled enabling work until focused tests, a hard-cut scene
+admission, server-owned composition, and an accelerated capture bind and assess
+the exact bytes.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence

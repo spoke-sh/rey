@@ -25,8 +25,10 @@ const REY_SEAM_ROW_START = 225;
 const SEAM_TREND_RADIUS_ROWS = 8;
 const SEAM_TRANSITION_COLUMNS = 24;
 const RELIEF_ENTRY_COLUMNS = 120;
-const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v7";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@7";
+const DRAINAGE_PROTECTED_COLUMNS = 24;
+const DRAINAGE_ENTRY_COLUMNS = 96;
+const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v8";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@8";
 
 export function buildReyEasternUplandsTerrainSource(
   sceneDirectory = SCENE_DIRECTORY,
@@ -102,18 +104,6 @@ export function buildReyEasternUplandsTerrainSource(
             seamSlopeTrend[row],
           )
         : null;
-      if (valid) {
-        validity[index] = 1;
-        elevations.writeInt32LE(Math.round(sample.elevation * 100), index * 4);
-        materials[index] = materialIndices.get(sample.material);
-        validVertices += 1;
-        minimumElevation = Math.min(minimumElevation, sample.elevation);
-        maximumElevation = Math.max(maximumElevation, sample.elevation);
-        materialCounts[sample.material] =
-          (materialCounts[sample.material] ?? 0) + 1;
-      } else {
-        noDataVertices += 1;
-      }
       cells.push({
         column,
         row,
@@ -123,6 +113,30 @@ export function buildReyEasternUplandsTerrainSource(
         sample,
       });
     }
+  }
+
+  const drainage = applyUplandsDrainage(cells);
+  for (let index = 0; index < cells.length; index += 1) {
+    const cell = cells[index];
+    if (!cell.valid) {
+      noDataVertices += 1;
+      continue;
+    }
+    const sample = cell.sample;
+    sample.elevation = roundElevation(Math.max(32, sample.elevation));
+    if (cell.column > 1)
+      sample.material = classifyMaterial(
+        sample.elevation,
+        cell.row / (ROWS - 1),
+      );
+    validity[index] = 1;
+    elevations.writeInt32LE(Math.round(sample.elevation * 100), index * 4);
+    materials[index] = materialIndices.get(sample.material);
+    validVertices += 1;
+    minimumElevation = Math.min(minimumElevation, sample.elevation);
+    maximumElevation = Math.max(maximumElevation, sample.elevation);
+    materialCounts[sample.material] =
+      (materialCounts[sample.material] ?? 0) + 1;
   }
 
   const document = {
@@ -192,6 +206,7 @@ export function buildReyEasternUplandsTerrainSource(
         stitching:
           "no merge or gap fill is claimed; this package exposes one exact candidate seam for independent admission and composition assessment",
       },
+      drainage,
       summary: {
         valid_vertices: validVertices,
         no_data_vertices: noDataVertices,
@@ -203,7 +218,7 @@ export function buildReyEasternUplandsTerrainSource(
     features: [
       {
         type: "Feature",
-        id: "rey-eastern-uplands-packed-terrain-v5",
+        id: "rey-eastern-uplands-packed-terrain-v6",
         properties: {
           title: "Rey Eastern Uplands admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
@@ -390,6 +405,233 @@ function interpolate(start, end, amount) {
   return start + (end - start) * amount;
 }
 
+function applyUplandsDrainage(cells) {
+  const count = COLUMNS * ROWS;
+  const longitudeSpacingMeters =
+    LONGITUDE_STEP *
+    111_320 *
+    Math.cos((((NORTH + SOUTH) / 2) * Math.PI) / 180);
+  const latitudeSpacingMeters = LATITUDE_STEP * 111_132;
+  const hydraulicHeight = new Float64Array(count);
+  const flowSlope = new Float64Array(count);
+  const floodParent = new Int32Array(count);
+  floodParent.fill(-1);
+  const visited = new Uint8Array(count);
+  const queue = new MinimumHeightQueue();
+  const indexAt = (column, row) => row * COLUMNS + column;
+  const offsets = [
+    [-1, -1],
+    [0, -1],
+    [1, -1],
+    [-1, 0],
+    [1, 0],
+    [-1, 1],
+    [0, 1],
+    [1, 1],
+  ];
+  const validityBoundary = (column, row) =>
+    column === 0 ||
+    row === 0 ||
+    column === COLUMNS - 1 ||
+    row === ROWS - 1 ||
+    offsets.some(([dx, dy]) => {
+      const nextColumn = column + dx;
+      const nextRow = row + dy;
+      return (
+        nextColumn < 0 ||
+        nextColumn >= COLUMNS ||
+        nextRow < 0 ||
+        nextRow >= ROWS ||
+        !cells[indexAt(nextColumn, nextRow)].valid
+      );
+    });
+
+  for (const cell of cells) {
+    if (!cell.valid || !validityBoundary(cell.column, cell.row)) continue;
+    const index = indexAt(cell.column, cell.row);
+    visited[index] = 1;
+    hydraulicHeight[index] = cell.sample.elevation;
+    queue.push(index, hydraulicHeight[index]);
+  }
+  while (queue.size > 0) {
+    const current = queue.pop();
+    const column = current.index % COLUMNS;
+    const row = Math.floor(current.index / COLUMNS);
+    for (const [dx, dy] of offsets) {
+      const nextColumn = column + dx;
+      const nextRow = row + dy;
+      if (
+        nextColumn < 0 ||
+        nextColumn >= COLUMNS ||
+        nextRow < 0 ||
+        nextRow >= ROWS
+      )
+        continue;
+      const next = indexAt(nextColumn, nextRow);
+      if (!cells[next].valid || visited[next] !== 0) continue;
+      visited[next] = 1;
+      floodParent[next] = current.index;
+      hydraulicHeight[next] = Math.max(
+        cells[next].sample.elevation,
+        current.height + 0.001,
+      );
+      queue.push(next, hydraulicHeight[next]);
+    }
+  }
+
+  let multipleReceiverVertices = 0;
+  let flowReceiverEdges = 0;
+  const ordered = cells
+    .map((cell, index) => ({ cell, index }))
+    .filter(({ cell }) => cell.valid)
+    .sort(
+      (left, right) =>
+        hydraulicHeight[right.index] - hydraulicHeight[left.index] ||
+        right.index - left.index,
+    );
+  const accumulation = new Float64Array(count);
+  for (const { index } of ordered) accumulation[index] = 1;
+  for (const { cell, index } of ordered) {
+    if (validityBoundary(cell.column, cell.row)) continue;
+    let receiverCount = 0;
+    let weightTotal = 0;
+    let actualSlopeTotal = 0;
+    let actualSlopeWeight = 0;
+    for (const [dx, dy] of offsets) {
+      const next = indexAt(cell.column + dx, cell.row + dy);
+      if (!cells[next].valid) continue;
+      const drop = hydraulicHeight[index] - hydraulicHeight[next];
+      if (drop <= 0) continue;
+      const weight = (drop / Math.hypot(dx, dy)) ** 1.35;
+      receiverCount += 1;
+      flowReceiverEdges += 1;
+      weightTotal += weight;
+      const distanceMeters = Math.hypot(
+        dx * longitudeSpacingMeters,
+        dy * latitudeSpacingMeters,
+      );
+      const actualDrop = Math.max(
+        0,
+        cell.sample.elevation - cells[next].sample.elevation,
+      );
+      if (actualDrop > 0) {
+        actualSlopeTotal += (actualDrop / distanceMeters) * weight;
+        actualSlopeWeight += weight;
+      }
+    }
+    if (receiverCount > 1) multipleReceiverVertices += 1;
+    flowSlope[index] =
+      actualSlopeWeight === 0 ? 0 : actualSlopeTotal / actualSlopeWeight;
+    if (weightTotal === 0) continue;
+    for (const [dx, dy] of offsets) {
+      const next = indexAt(cell.column + dx, cell.row + dy);
+      if (!cells[next].valid) continue;
+      const drop = hydraulicHeight[index] - hydraulicHeight[next];
+      if (drop <= 0) continue;
+      const weight = (drop / Math.hypot(dx, dy)) ** 1.35;
+      accumulation[next] += accumulation[index] * (weight / weightTotal);
+    }
+  }
+
+  const maximumAccumulation = ordered.reduce(
+    (maximum, { index }) => Math.max(maximum, accumulation[index]),
+    1,
+  );
+  const denominator = Math.log1p(maximumAccumulation);
+  const incisionStrength = new Float64Array(count);
+  for (const { index } of ordered) {
+    const normalized = Math.log1p(accumulation[index]) / denominator;
+    incisionStrength[index] =
+      flowSlope[index] === 0 ? 0 : smootherstep((normalized - 0.38) / 0.48);
+  }
+  const centerlineValley = smoothWithinValidity(incisionStrength, cells, 1);
+  const innerValley = smoothWithinValidity(incisionStrength, cells, 3);
+  const outerValley = smoothWithinValidity(incisionStrength, cells, 6);
+  let maximumIncision = 0;
+  let maximumStreamPower = 0;
+  let slopeSupportedIncisionVertices = 0;
+  let derivedChannelVertices = 0;
+  for (const { cell, index } of ordered) {
+    const entry = smootherstep(
+      (cell.column - DRAINAGE_PROTECTED_COLUMNS) / DRAINAGE_ENTRY_COLUMNS,
+    );
+    const localSlope = flowSlope[index];
+    const normalizedAccumulation =
+      Math.log1p(accumulation[index]) / denominator;
+    const streamPower =
+      normalizedAccumulation ** 0.46 *
+      Math.min(1, Math.max(0.08, localSlope / 0.12)) ** 0.7;
+    maximumStreamPower = Math.max(maximumStreamPower, streamPower);
+    const slopeResponse = smootherstep((localSlope - 0.0025) / 0.035);
+    const incision =
+      localSlope === 0
+        ? 0
+        : entry *
+          (centerlineValley[index] * (6 + streamPower * 14) +
+            innerValley[index] * 28 +
+            outerValley[index] * 8) *
+          (0.03 + slopeResponse * 0.97);
+    cell.sample.elevation -= incision;
+    maximumIncision = Math.max(maximumIncision, incision);
+    if (incision > 0) slopeSupportedIncisionVertices += 1;
+    if (incisionStrength[index] >= 0.14) derivedChannelVertices += 1;
+  }
+  return {
+    schema: "rey.uplands-source-drainage.v1",
+    authority:
+      "deterministic authored-source derivation inside exact validity; not observed hydrology",
+    depression_handling:
+      "priority flood seeded only from exact validity boundaries followed by slope-weighted multiple-flow-direction accumulation and profile-smoothed stream-power incision on the unfilled weighted local terrain slope; the flood-parent escape topology contributes exactly zero height displacement and variable valley widths never cross no-data",
+    flow_model:
+      "multiple-flow-direction accumulation over every downhill D8 neighbor with hydraulic slope exponent 1.35; actual source-height slope owns incision",
+    nominal_longitude_spacing_meters: Number(longitudeSpacingMeters.toFixed(3)),
+    nominal_latitude_spacing_meters: Number(latitudeSpacingMeters.toFixed(3)),
+    maximum_flow_receivers: 8,
+    multiple_receiver_vertices: multipleReceiverVertices,
+    flow_receiver_edges: flowReceiverEdges,
+    maximum_accumulation_vertices: Number(maximumAccumulation.toFixed(6)),
+    derived_channel_vertices: derivedChannelVertices,
+    maximum_incision_meters: roundElevation(maximumIncision),
+    maximum_stream_power: Number(maximumStreamPower.toFixed(6)),
+    maximum_valley_half_width_cells: 8,
+    protected_seam_columns: DRAINAGE_PROTECTED_COLUMNS,
+    entry_envelope: "smootherstep",
+    entry_envelope_columns: DRAINAGE_ENTRY_COLUMNS,
+    slope_supported_incision_vertices: slopeSupportedIncisionVertices,
+    flat_escape_incision_vertices: 0,
+  };
+}
+
+function smoothWithinValidity(values, cells, passes) {
+  let current = values.slice();
+  const weights = [1, 2, 1];
+  for (let pass = 0; pass < passes; pass += 1) {
+    const next = new Float64Array(current.length);
+    for (const cell of cells) {
+      if (!cell.valid) continue;
+      let total = 0;
+      let totalWeight = 0;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          const column = cell.column + dx;
+          const row = cell.row + dy;
+          if (column < 0 || column >= COLUMNS || row < 0 || row >= ROWS)
+            continue;
+          const index = row * COLUMNS + column;
+          if (!cells[index].valid) continue;
+          const weight = weights[dx + 1] * weights[dy + 1];
+          total += current[index] * weight;
+          totalWeight += weight;
+        }
+      }
+      const index = cell.row * COLUMNS + cell.column;
+      next[index] = totalWeight === 0 ? current[index] : total / totalWeight;
+    }
+    current = next;
+  }
+  return current;
+}
+
 function smoothedSeamValue(seamContexts, row, key) {
   let total = 0;
   let weightTotal = 0;
@@ -412,6 +654,49 @@ function smoothedSeamValue(seamContexts, row, key) {
 function smootherstep(value) {
   const bounded = Math.max(0, Math.min(1, value));
   return bounded ** 3 * (bounded * (bounded * 6 - 15) + 10);
+}
+
+class MinimumHeightQueue {
+  entries = [];
+
+  get size() {
+    return this.entries.length;
+  }
+
+  push(index, height) {
+    const entry = { index, height };
+    this.entries.push(entry);
+    let cursor = this.entries.length - 1;
+    while (cursor > 0) {
+      const parent = Math.floor((cursor - 1) / 2);
+      if (this.entries[parent].height <= height) break;
+      this.entries[cursor] = this.entries[parent];
+      cursor = parent;
+    }
+    this.entries[cursor] = entry;
+  }
+
+  pop() {
+    const result = this.entries[0];
+    const tail = this.entries.pop();
+    if (!result || !tail || this.entries.length === 0) return result;
+    let cursor = 0;
+    while (true) {
+      const left = cursor * 2 + 1;
+      const right = left + 1;
+      if (left >= this.entries.length) break;
+      const child =
+        right < this.entries.length &&
+        this.entries[right].height < this.entries[left].height
+          ? right
+          : left;
+      if (this.entries[child].height >= tail.height) break;
+      this.entries[cursor] = this.entries[child];
+      cursor = child;
+    }
+    this.entries[cursor] = tail;
+    return result;
+  }
 }
 
 function classifyMaterial(elevation, moisture) {

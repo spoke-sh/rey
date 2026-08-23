@@ -174,6 +174,34 @@ describe("Rey regional source seam", () => {
     ).toBeLessThan(2.5);
   });
 
+  it("records bounded distributed drainage and its protected seam contract", () => {
+    expect(uplands.document.terrain_derivation.drainage).toMatchObject({
+      schema: "rey.uplands-source-drainage.v1",
+      flow_model:
+        "multiple-flow-direction accumulation over every downhill D8 neighbor with hydraulic slope exponent 1.35; actual source-height slope owns incision",
+      maximum_flow_receivers: 8,
+      protected_seam_columns: 24,
+      entry_envelope: "smootherstep",
+      entry_envelope_columns: 96,
+      flat_escape_incision_vertices: 0,
+    });
+    expect(
+      uplands.document.terrain_derivation.drainage.multiple_receiver_vertices,
+    ).toBeGreaterThan(20_000);
+    expect(
+      uplands.document.terrain_derivation.drainage.flow_receiver_edges,
+    ).toBeGreaterThan(80_000);
+    expect(
+      uplands.document.terrain_derivation.drainage.derived_channel_vertices,
+    ).toBeGreaterThan(1_000);
+    expect(
+      uplands.document.terrain_derivation.drainage.maximum_incision_meters,
+    ).toBeGreaterThan(20);
+    expect(
+      uplands.document.terrain_derivation.drainage.maximum_incision_meters,
+    ).toBeLessThan(45);
+  });
+
   it("keeps independently authored interior support bounded by its polygon", () => {
     const summary = uplands.document.terrain_derivation.summary;
     expect(summary.valid_vertices).toBeGreaterThan(20_000);
