@@ -1128,6 +1128,20 @@ valleys, and local ravines. The 3840×2160 and remaining workload/backend rows,
 direct browser transport, formal consumer-reference assessment, and
 multi-region geography-compiler output therefore remain open.
 
+That major result directs the next source slice rather than more palette
+tuning. Candidate `rey.agent-geography.rey-county@10` replaces the dominant
+single-posture ridge signal with cross-oriented, domain-warped hybrid
+multifractal mountain mass inside the same named-control envelopes; raises
+bounded local relief below source Nyquist; reduces exact-waterway height
+conditioning to narrow shallow corridors; and retains a dendritic drainage
+summary with heads, branch junctions, and Strahler order. Its exact validity
+count remains 317,297 valid / 124,033 no-data vertices. At a declared
+528.85-meter sample radius, the authored-source local-relief summary records
+33.27 meters median and 64.46 meters at the 90th percentile across 19,281
+supported samples. These are deterministic source diagnostics, not Earth DEM
+observations or perceptual proof. The revision remains a candidate until a new
+hard-cut scene admission and browser capture bind its exact bytes.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

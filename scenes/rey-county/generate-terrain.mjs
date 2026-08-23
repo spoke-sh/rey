@@ -14,8 +14,8 @@ const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
 // beyond this bounded in-memory grid.
 const COLUMNS = 705;
 const ROWS = 626;
-const DATASET_ID = "rey-county-semantic-terrain-v9";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@9";
+const DATASET_ID = "rey-county-semantic-terrain-v10";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@10";
 const INPUT_FILES = [
   "boundary.geojson",
   "districts.geojson",
@@ -91,6 +91,11 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
   );
   const longitudeStep = (bounds.east - bounds.west) / (COLUMNS - 1);
   const latitudeStep = (bounds.north - bounds.south) / (ROWS - 1);
+  const longitudeSpacingMeters =
+    longitudeStep *
+    111_320 *
+    Math.cos((((bounds.north + bounds.south) / 2) * Math.PI) / 180);
+  const latitudeSpacingMeters = latitudeStep * 111_132;
   const cells = [];
   const summary = {
     valid_vertices: 0,
@@ -134,10 +139,8 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
 
   const drainage = applyDrainageIncision(
     cells,
-    longitudeStep *
-      111_320 *
-      Math.cos((((bounds.north + bounds.south) / 2) * Math.PI) / 180),
-    latitudeStep * 111_132,
+    longitudeSpacingMeters,
+    latitudeSpacingMeters,
   );
   for (const cell of cells) {
     if (cell.valid) {
@@ -171,6 +174,12 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
   summary.maximum_elevation_meters = roundElevation(
     summary.maximum_elevation_meters,
   );
+  const geomorphology = summarizeLocalRelief(
+    cells,
+    4,
+    longitudeSpacingMeters,
+    latitudeSpacingMeters,
+  );
 
   const materialPalette = Object.keys(summary.materials).sort();
   const materialIndices = new Map(
@@ -191,7 +200,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v9",
+      schema: "rey.county-terrain-source.v10",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -205,17 +214,15 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
         longitude_step_degrees: roundCoordinate(longitudeStep),
         latitude_step_degrees: roundCoordinate(latitudeStep),
         nominal_longitude_spacing_meters: roundElevation(
-          longitudeStep *
-            111_320 *
-            Math.cos((((bounds.north + bounds.south) / 2) * Math.PI) / 180),
+          longitudeSpacingMeters,
         ),
-        nominal_latitude_spacing_meters: roundElevation(latitudeStep * 111_132),
+        nominal_latitude_spacing_meters: roundElevation(latitudeSpacingMeters),
       },
       synthesis: {
         topology:
           "named terrain controls, exact County footprint, districts, hydrology, meadow, wetland, transport hierarchy, labels, and explicit unexplored polygon",
         elevation:
-          "anisotropic named landforms plus deterministic domain-warped orographic backbones, branching sharp crests, incised ravines, and macro-to-fine relief followed by a slope-aware stream-power and valley-width drainage pass below the source-grid Nyquist limit",
+          "anisotropic named landforms plus deterministic cross-oriented domain-warped hybrid multifractal mountain mass, branching sharp crests, incised ravines, and macro-to-fine relief followed by a slope-aware dendritic stream-power and valley-width drainage pass below the source-grid Nyquist limit",
         hydrology:
           "exact river and wetland areas accompany a tributary hierarchy; authored constraints and deterministic depression-safe source drainage carve the final height field without crossing no-data",
         land_cover:
@@ -248,6 +255,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
         unknown: "Unexplored Scrub",
       },
       drainage,
+      geomorphology,
       source_inputs: INPUT_FILES.map((name) => ({
         path: `scenes/rey-county/${name}`,
         sha256: inputs[name].sha256,
@@ -257,7 +265,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     features: [
       {
         type: "Feature",
-        id: "rey-county-packed-terrain-v9",
+        id: "rey-county-packed-terrain-v10",
         properties: {
           title: "Rey County admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
@@ -295,6 +303,51 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     ],
   };
   return { document, cells };
+}
+
+function summarizeLocalRelief(
+  cells,
+  radiusCells,
+  longitudeSpacingMeters,
+  latitudeSpacingMeters,
+) {
+  const ranges = [];
+  const indexAt = (column, row) => row * COLUMNS + column;
+  for (let row = radiusCells; row < ROWS - radiusCells; row += radiusCells) {
+    for (
+      let column = radiusCells;
+      column < COLUMNS - radiusCells;
+      column += radiusCells
+    ) {
+      const neighborhood = [
+        cells[indexAt(column, row)],
+        cells[indexAt(column - radiusCells, row)],
+        cells[indexAt(column + radiusCells, row)],
+        cells[indexAt(column, row - radiusCells)],
+        cells[indexAt(column, row + radiusCells)],
+      ];
+      if (neighborhood.some(({ valid }) => !valid)) continue;
+      const elevations = neighborhood.map(({ sample }) => sample.elevation);
+      ranges.push(Math.max(...elevations) - Math.min(...elevations));
+    }
+  }
+  ranges.sort((left, right) => left - right);
+  const percentile = (proportion) =>
+    roundElevation(ranges[Math.floor((ranges.length - 1) * proportion)]);
+  return {
+    schema: "rey.county-source-geomorphology.v1",
+    authority:
+      "deterministic authored-source local-relief summary; not an Earth DEM observation or perceptual fidelity result",
+    sample_radius_cells: radiusCells,
+    nominal_sample_radius_meters: roundElevation(
+      (radiusCells * (longitudeSpacingMeters + latitudeSpacingMeters)) / 2,
+    ),
+    supported_samples: ranges.length,
+    local_relief_p50_meters: percentile(0.5),
+    local_relief_p75_meters: percentile(0.75),
+    local_relief_p90_meters: percentile(0.9),
+    local_relief_p99_meters: percentile(0.99),
+  };
 }
 
 export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
@@ -373,13 +426,33 @@ function terrainSample(
     fractalNoise(warpedX, warpedY, 101, [1.2, 2.4, 4.8]) * 92;
   const mesoTexture = fractalNoise(warpedX, warpedY, 211, [3.5, 7, 14]) * 38;
   const ridgeTexture =
-    ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8, 17.6]) * 90;
+    ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8, 17.6]) * 54;
+  const mountainMass =
+    hybridRidgedFractalNoise(
+      warpedX + warpY * 1.3,
+      warpedY - warpX * 0.8,
+      521,
+      [1.35, 2.7, 5.4, 10.8, 21.6],
+    ) *
+      124 +
+    hybridRidgedFractalNoise(
+      warpedX * 0.72 - warpedY * 0.44,
+      warpedY * 0.86 + warpedX * 0.31,
+      557,
+      [2.1, 4.2, 8.4, 16.8, 33.6],
+    ) *
+      72;
   const fineTexture =
     fractalNoise(warpedX, warpedY, 401, [17, 37, 79, 157]) * 22;
   const fineRidges =
-    ridgedFractalNoise(warpedX, warpedY, 457, [19, 41, 83, 167, 223]) * 36;
+    ridgedFractalNoise(warpedX, warpedY, 457, [19, 41, 83, 167, 223]) * 44;
   elevation +=
-    (macroTexture + mesoTexture + ridgeTexture + fineTexture + fineRidges) *
+    (macroTexture +
+      mesoTexture +
+      ridgeTexture +
+      mountainMass +
+      fineTexture +
+      fineRidges) *
     reliefWeight;
 
   for (let index = 0; index < controls.length; index += 1) {
@@ -394,8 +467,8 @@ function terrainSample(
     if (distance < nearestWaterway.distance)
       nearestWaterway = { id: waterway.id, distance };
     const main = waterway.id === "hydrology-evidence-river";
-    const width = main ? 0.0045 : 0.0028;
-    const depth = main ? 78 : 42;
+    const width = main ? 0.0035 : 0.0022;
+    const depth = main ? 32 : 18;
     elevation -= depth * Math.exp(-((distance / width) ** 2));
   }
 
@@ -571,13 +644,46 @@ function applyDrainageIncision(
   const strength = new Float64Array(count);
   for (const { index } of ordered) {
     const normalized = Math.log1p(accumulation[index]) / denominator;
-    strength[index] = smootherstep((normalized - 0.44) / 0.48);
+    strength[index] = smootherstep((normalized - 0.36) / 0.52);
   }
-  const innerValley = smoothWithinValidity(strength, cells, 2);
-  const outerValley = smoothWithinValidity(strength, cells, 6);
+  const innerValley = smoothWithinValidity(strength, cells, 1);
+  const outerValley = smoothWithinValidity(strength, cells, 4);
+  const channel = new Uint8Array(count);
+  const incomingChannels = new Uint16Array(count);
+  for (const { index } of ordered) {
+    if (strength[index] < 0.02) continue;
+    channel[index] = 1;
+  }
+  for (const { index } of ordered) {
+    const target = receiver[index];
+    if (channel[index] !== 0 && target >= 0 && channel[target] !== 0)
+      incomingChannels[target] += 1;
+  }
+  const maximumIncomingOrder = new Uint8Array(count);
+  const maximumIncomingOrderCount = new Uint8Array(count);
+  const strahlerOrder = new Uint8Array(count);
+  for (const { index } of ordered) {
+    if (channel[index] === 0) continue;
+    const incomingOrder = maximumIncomingOrder[index];
+    strahlerOrder[index] =
+      incomingOrder === 0
+        ? 1
+        : incomingOrder + (maximumIncomingOrderCount[index] >= 2 ? 1 : 0);
+    const target = receiver[index];
+    if (target < 0 || channel[target] === 0) continue;
+    if (strahlerOrder[index] > maximumIncomingOrder[target]) {
+      maximumIncomingOrder[target] = strahlerOrder[index];
+      maximumIncomingOrderCount[target] = 1;
+    } else if (strahlerOrder[index] === maximumIncomingOrder[target]) {
+      maximumIncomingOrderCount[target] += 1;
+    }
+  }
   let maximumIncision = 0;
   let maximumStreamPower = 0;
   let derivedChannelVertices = 0;
+  let channelHeadVertices = 0;
+  let branchJunctionVertices = 0;
+  let maximumStrahlerOrder = 0;
   for (const { cell, index } of ordered) {
     const target = receiver[index];
     const receiverCell = target < 0 ? null : cells[target];
@@ -601,12 +707,16 @@ function applyDrainageIncision(
       Math.min(1, Math.max(0.08, localSlope / 0.12)) ** 0.7;
     maximumStreamPower = Math.max(maximumStreamPower, streamPower);
     const incision =
-      strength[index] * (15 + streamPower * 13) +
-      innerValley[index] * 19 +
-      outerValley[index] * 8;
+      strength[index] * (13 + streamPower * 17) +
+      innerValley[index] * 20 +
+      outerValley[index] * 6;
     cell.sample.elevation -= incision;
     maximumIncision = Math.max(maximumIncision, incision);
-    if (strength[index] >= 0.02) derivedChannelVertices += 1;
+    if (channel[index] === 0) continue;
+    derivedChannelVertices += 1;
+    if (incomingChannels[index] === 0) channelHeadVertices += 1;
+    if (incomingChannels[index] >= 2) branchJunctionVertices += 1;
+    maximumStrahlerOrder = Math.max(maximumStrahlerOrder, strahlerOrder[index]);
   }
   return {
     schema: "rey.county-source-drainage.v2",
@@ -616,6 +726,9 @@ function applyDrainageIncision(
       "priority flood seeded only from exact validity boundaries followed by steepest descent and slope-aware stream-power incision on the filled surface; variable valley widths never cross no-data",
     maximum_accumulation_vertices: maximumAccumulation,
     derived_channel_vertices: derivedChannelVertices,
+    channel_head_vertices: channelHeadVertices,
+    branch_junction_vertices: branchJunctionVertices,
+    maximum_strahler_order: maximumStrahlerOrder,
     maximum_incision_meters: roundElevation(maximumIncision),
     maximum_stream_power: Number(maximumStreamPower.toFixed(6)),
     maximum_valley_half_width_cells: 6,
@@ -726,6 +839,21 @@ function ridgedFractalNoise(x, y, seed, frequencies) {
   return value / totalWeight;
 }
 
+function hybridRidgedFractalNoise(x, y, seed, frequencies) {
+  let value = 0;
+  let totalWeight = 0;
+  let ridgeWeight = 1;
+  frequencies.forEach((frequency, octave) => {
+    const amplitude = 1 / 2 ** octave;
+    const noise = valueNoise(x * frequency, y * frequency, seed + octave * 191);
+    const ridge = (1 - Math.abs(noise)) ** 2;
+    value += (ridge * 2.35 - 0.98) * amplitude * ridgeWeight;
+    totalWeight += amplitude;
+    ridgeWeight = Math.max(0.22, Math.min(1, ridge * 1.85));
+  });
+  return value / totalWeight;
+}
+
 function valueNoise(x, y, seed) {
   const column = Math.floor(x);
   const row = Math.floor(y);
@@ -786,6 +914,12 @@ function orographicRelief(x, y, control, seed) {
     fractalNoise(rx * 0.18 + 0.31, ry * 0.18 - 0.17, seed, [1, 2, 4]) * 0.38;
   const along = ry * 0.72 + warp;
   const across = rx * 0.96 + warp * 0.7;
+  const massWarpX =
+    fractalNoise(across * 0.34, along * 0.34, seed + 17, [1, 2, 4]) * 0.68;
+  const massWarpY =
+    fractalNoise(across * 0.31, along * 0.31, seed + 23, [1, 2, 4]) * 0.58;
+  const massX = across + massWarpX;
+  const massY = along + massWarpY;
   const backbone = ridgedFractalNoise(
     across,
     along,
@@ -804,6 +938,18 @@ function orographicRelief(x, y, control, seed) {
     seed + 83,
     [2.1, 4.2, 8.4, 16.8, 33.6],
   );
+  const mountainMass = hybridRidgedFractalNoise(
+    massX,
+    massY,
+    seed + 89,
+    [0.85, 1.7, 3.4, 6.8, 13.6, 27.2],
+  );
+  const crossMass = hybridRidgedFractalNoise(
+    massX * 0.66 - massY * 0.48,
+    massY * 0.74 + massX * 0.37,
+    seed + 97,
+    [1.3, 2.6, 5.2, 10.4, 20.8],
+  );
   const ravines = Math.max(
     0,
     ridgedFractalNoise(
@@ -813,11 +959,16 @@ function orographicRelief(x, y, control, seed) {
       [2.4, 4.8, 9.6, 19.2],
     ),
   );
-  const gain = 72 + control.roughness * 105;
+  const gain = 145 + control.roughness * 205;
   return (
     envelope *
     gain *
-    (backbone * 0.46 + branches * 0.28 + sharpCrests * 0.42 - ravines * 0.38)
+    (backbone * 0.2 +
+      branches * 0.14 +
+      sharpCrests * 0.2 +
+      mountainMass * 0.5 +
+      crossMass * 0.32 -
+      ravines * 0.3)
   );
 }
 
