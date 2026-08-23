@@ -1299,6 +1299,17 @@ both exact packages must pass scene admission, the server-owned composition
 must retain their qualified connected component, and a browser capture must
 prove a two-patch mosaic before the multi-region delivery item can close.
 
+Those admissions now retain composition
+`blake3:7094aba7492a099c4ffbe9ad774e7ffafab8ea7f0b2b44e78f60295516f86af9`
+as `READY`: two packages, one 168-sample terrain-qualified seam, one connected
+component, and zero conflicts. The first fulfilled-transport engine attempt
+compiled the exact 897×626 mosaic with 352,003 valid and 121,583 no-data
+vertices, but its roughly 92 MiB materialized hierarchy exceeded the 80 MiB
+cache and was re-derived during Landscape entry. Candidate
+`rey.terrain.compilation-worker@14` raises only that exact hierarchy cache to
+the existing 112 MiB compilation-output bound; the 48 MiB CPU and 64 MiB GPU
+tile-residency budgets do not change. A completed capture is still required.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

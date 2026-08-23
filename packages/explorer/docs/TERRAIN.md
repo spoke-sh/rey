@@ -395,7 +395,7 @@ pending or after failure. A disclosed main-thread fallback exists where
 under independent 48 MiB CPU and 64 MiB GPU budgets, rejects a tile whose
 compiled relief differs from its cache identity, and evicts the oldest
 unrequested exact identity first. The worker also retains a separately bounded
-80 MiB exact materialized-pyramid cache keyed from every contributing typed
+112 MiB exact materialized-pyramid cache keyed from every contributing typed
 array and the mosaic, hierarchy, relief, validity, and material revisions; its
 hits and misses are exposed in browser diagnostics. Cache identity is derived
 from the admitted field bytes plus the refinement and regional-geography
