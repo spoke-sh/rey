@@ -1189,6 +1189,17 @@ relief still lacks the sharply separated ridges, dendritic valleys, and local
 ravines of the operator reference. The explicit geomorphic and multi-scale
 relief judgment therefore remains major and keeps the fidelity gate open.
 
+Candidate `rey.agent-geography.rey-county@12` is the next bounded source
+response. Before drainage, it separates convex and concave form at 311,343
+source vertices whose complete five-by-five neighborhoods are valid, while
+leaving 5,954 valid boundary vertices unchanged. Raise and lowering are
+bounded to 47.79 and 51.19 meters. Its stronger slope-conditioned fluvial pass
+retains 475 heads, 396 junctions, maximum Strahler order 5, and no flat-path
+incision while increasing maximum supported incision to 55.39 meters. The
+exact grid and 317,297-valid / 124,033-no-data mask do not change. This is
+authored source geometry rather than renderer sharpening and remains a
+candidate until a new scene admission and capture bind the bytes.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

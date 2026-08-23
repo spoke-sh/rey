@@ -185,6 +185,10 @@ qualify its exact native bytes as the current working field. This revision
 replaces global fingerprint-like ridge emphasis with irregular mountain mass
 and conditions drainage incision on unfilled local slope. Later source edits
 remain candidates until the editor and workload repeat that boundary.
+The checked-in `rey.agent-geography.rey-county@12` source is currently such a
+candidate. It applies validity-contained convex/concave separation before a
+stronger slope-conditioned drainage pass; neither operation adds a sample or
+changes the exact no-data mask.
 The density policy targets at least 320 intervals per axis, so lower-density
 admitted fields may refine by a bounded integer factor while this source stays
 exact.

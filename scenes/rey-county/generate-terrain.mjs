@@ -14,8 +14,8 @@ const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
 // beyond this bounded in-memory grid.
 const COLUMNS = 705;
 const ROWS = 626;
-const DATASET_ID = "rey-county-semantic-terrain-v11";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@11";
+const DATASET_ID = "rey-county-semantic-terrain-v12";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@12";
 const INPUT_FILES = [
   "boundary.geojson",
   "districts.geojson",
@@ -137,6 +137,11 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     }
   }
 
+  const geomorphicShaping = applyGeomorphicSourceShaping(
+    cells,
+    longitudeSpacingMeters,
+    latitudeSpacingMeters,
+  );
   const drainage = applyDrainageIncision(
     cells,
     longitudeSpacingMeters,
@@ -200,7 +205,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v11",
+      schema: "rey.county-terrain-source.v12",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -222,7 +227,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
         topology:
           "named terrain controls, exact County footprint, districts, hydrology, meadow, wetland, transport hierarchy, labels, and explicit unexplored polygon",
         elevation:
-          "anisotropic named landforms plus deterministic domain-warped irregular mountain mass, locally bounded cross-oriented hybrid ridges, branching sharp crests, incised ravines, and macro-to-fine relief followed by slope-conditioned dendritic stream-power and valley-width drainage below the source-grid Nyquist limit",
+          "anisotropic named landforms plus deterministic domain-warped irregular mountain mass, locally bounded cross-oriented hybrid ridges, branching sharp crests, source-scale convex/concave separation, and slope-conditioned dendritic stream-power valleys below the source-grid Nyquist limit",
         hydrology:
           "exact river and wetland areas accompany a tributary hierarchy; authored constraints and deterministic depression-safe source drainage carve the final height field without crossing no-data",
         land_cover:
@@ -238,6 +243,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
           ],
         },
       },
+      geomorphic_shaping: geomorphicShaping,
       first_principles: [
         "one admitted dataset retains identity across Atlas and Landscape postures",
         "explicit validity follows the County footprint and preserves Unexplored Scrub as no-data",
@@ -265,7 +271,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     features: [
       {
         type: "Feature",
-        id: "rey-county-packed-terrain-v11",
+        id: "rey-county-packed-terrain-v12",
         properties: {
           title: "Rey County admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
@@ -521,6 +527,106 @@ function classifyTerrainMaterial(elevation, context) {
   return "vegetation";
 }
 
+function applyGeomorphicSourceShaping(
+  cells,
+  longitudeSpacingMeters,
+  latitudeSpacingMeters,
+) {
+  const elevations = new Float64Array(cells.length);
+  for (let index = 0; index < cells.length; index += 1) {
+    if (cells[index].valid) elevations[index] = cells[index].sample.elevation;
+  }
+  const localMean = smoothWithinValidity(elevations, cells, 2);
+  const regionalMean = smoothWithinValidity(localMean, cells, 5);
+  const indexAt = (column, row) => row * COLUMNS + column;
+  let supportedVertices = 0;
+  let boundaryUnchangedVertices = 0;
+  let raisedVertices = 0;
+  let loweredVertices = 0;
+  let maximumRaise = 0;
+  let maximumLowering = 0;
+
+  for (let index = 0; index < cells.length; index += 1) {
+    const cell = cells[index];
+    if (!cell.valid) continue;
+    let supported = true;
+    for (let dy = -2; dy <= 2 && supported; dy += 1) {
+      for (let dx = -2; dx <= 2; dx += 1) {
+        const column = cell.column + dx;
+        const row = cell.row + dy;
+        if (
+          column < 0 ||
+          column >= COLUMNS ||
+          row < 0 ||
+          row >= ROWS ||
+          !cells[indexAt(column, row)].valid
+        ) {
+          supported = false;
+          break;
+        }
+      }
+    }
+    if (!supported) {
+      boundaryUnchangedVertices += 1;
+      continue;
+    }
+
+    supportedVertices += 1;
+    const west = elevations[indexAt(cell.column - 1, cell.row)];
+    const east = elevations[indexAt(cell.column + 1, cell.row)];
+    const north = elevations[indexAt(cell.column, cell.row - 1)];
+    const south = elevations[indexAt(cell.column, cell.row + 1)];
+    const slope = Math.hypot(
+      (east - west) / (2 * longitudeSpacingMeters),
+      (south - north) / (2 * latitudeSpacingMeters),
+    );
+    const slopeResponse = smootherstep((slope - 0.008) / 0.13);
+    const roughness = Math.min(1, cell.sample.material_context.roughness);
+    const localResidual = elevations[index] - localMean[index];
+    const regionalResidual = localMean[index] - regionalMean[index];
+    const localAdjustment = Math.max(
+      -48,
+      Math.min(
+        58,
+        localResidual * (1 + roughness * 0.9) * (0.6 + slopeResponse * 0.8),
+      ),
+    );
+    const regionalAdjustment = Math.max(
+      -18,
+      Math.min(
+        22,
+        regionalResidual *
+          (0.25 + roughness * 0.3) *
+          (0.5 + slopeResponse * 0.7),
+      ),
+    );
+    const adjustment = localAdjustment + regionalAdjustment;
+    cell.sample.elevation += adjustment;
+    if (adjustment > 0) {
+      raisedVertices += 1;
+      maximumRaise = Math.max(maximumRaise, adjustment);
+    } else if (adjustment < 0) {
+      loweredVertices += 1;
+      maximumLowering = Math.max(maximumLowering, -adjustment);
+    }
+  }
+
+  return {
+    schema: "rey.county-source-geomorphic-shaping.v1",
+    authority:
+      "deterministic authored-source convex/concave separation inside fully valid five-by-five neighborhoods; not an Earth DEM observation or renderer refinement",
+    local_mean_passes: 2,
+    regional_mean_passes: 5,
+    validity_neighborhood_radius_cells: 2,
+    supported_vertices: supportedVertices,
+    boundary_unchanged_vertices: boundaryUnchangedVertices,
+    raised_vertices: raisedVertices,
+    lowered_vertices: loweredVertices,
+    maximum_raise_meters: roundElevation(maximumRaise),
+    maximum_lowering_meters: roundElevation(maximumLowering),
+  };
+}
+
 function applyDrainageIncision(
   cells,
   longitudeSpacingMeters,
@@ -716,9 +822,9 @@ function applyDrainageIncision(
     maximumStreamPower = Math.max(maximumStreamPower, streamPower);
     const slopeResponse = smootherstep((localSlope - 0.0025) / 0.035);
     const incision =
-      (strength[index] * (8 + streamPower * 22) +
-        innerValley[index] * 16 +
-        outerValley[index] * 4) *
+      (strength[index] * (10 + streamPower * 35) +
+        innerValley[index] * 24 +
+        outerValley[index] * 6) *
       (0.02 + slopeResponse * 0.98);
     cell.sample.elevation -= incision;
     maximumIncision = Math.max(maximumIncision, incision);

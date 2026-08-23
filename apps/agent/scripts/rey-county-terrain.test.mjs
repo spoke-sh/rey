@@ -80,9 +80,9 @@ describe("Rey County terrain source", () => {
 
   it("binds explicit multi-scale synthesis without claiming package seams", () => {
     expect(terrain.terrain_derivation).toMatchObject({
-      schema: "rey.county-terrain-source.v11",
-      dataset_id: "rey-county-semantic-terrain-v11",
-      compiler_revision: "rey.agent-geography.rey-county@11",
+      schema: "rey.county-terrain-source.v12",
+      dataset_id: "rey-county-semantic-terrain-v12",
+      compiler_revision: "rey.agent-geography.rey-county@12",
       synthesis: {
         elevation: expect.stringContaining("irregular mountain mass"),
         hydrology: expect.stringContaining("river and wetland areas"),
@@ -109,6 +109,16 @@ describe("Rey County terrain source", () => {
         maximum_incision_meters: expect.any(Number),
         maximum_stream_power: expect.any(Number),
         maximum_valley_half_width_cells: 6,
+      },
+      geomorphic_shaping: {
+        schema: "rey.county-source-geomorphic-shaping.v1",
+        authority: expect.stringContaining("authored-source"),
+        supported_vertices: expect.any(Number),
+        boundary_unchanged_vertices: expect.any(Number),
+        raised_vertices: expect.any(Number),
+        lowered_vertices: expect.any(Number),
+        maximum_raise_meters: expect.any(Number),
+        maximum_lowering_meters: expect.any(Number),
       },
       geomorphology: {
         schema: "rey.county-source-geomorphology.v1",
@@ -147,14 +157,26 @@ describe("Rey County terrain source", () => {
       terrain.terrain_derivation.drainage.maximum_strahler_order,
     ).toBeGreaterThanOrEqual(4);
     expect(
+      terrain.terrain_derivation.geomorphic_shaping.supported_vertices,
+    ).toBeGreaterThan(300_000);
+    expect(
+      terrain.terrain_derivation.geomorphic_shaping.boundary_unchanged_vertices,
+    ).toBeGreaterThan(5_000);
+    expect(
+      terrain.terrain_derivation.geomorphic_shaping.maximum_raise_meters,
+    ).toBeGreaterThan(40);
+    expect(
+      terrain.terrain_derivation.geomorphic_shaping.maximum_lowering_meters,
+    ).toBeGreaterThan(40);
+    expect(
       terrain.terrain_derivation.geomorphology.supported_samples,
     ).toBeGreaterThan(19_000);
     expect(
       terrain.terrain_derivation.geomorphology.local_relief_p50_meters,
-    ).toBeGreaterThan(25);
+    ).toBeGreaterThan(27);
     expect(
       terrain.terrain_derivation.geomorphology.local_relief_p90_meters,
-    ).toBeGreaterThan(50);
+    ).toBeGreaterThan(53);
 
     let supportedCenters = 0;
     let detailedCenters = 0;
@@ -220,12 +242,12 @@ describe("Rey County terrain source", () => {
   it("packs the complete source grid into one bounded GeoJSON feature", () => {
     expect(terrain.features).toHaveLength(1);
     expect(terrain.features[0]).toMatchObject({
-      id: "rey-county-packed-terrain-v11",
+      id: "rey-county-packed-terrain-v12",
       geometry: { type: "Polygon" },
       terrain_grid: {
         schema: "rey.packed-terrain-grid.v1",
-        dataset_id: "rey-county-semantic-terrain-v11",
-        compiler_revision: "rey.agent-geography.rey-county@11",
+        dataset_id: "rey-county-semantic-terrain-v12",
+        compiler_revision: "rey.agent-geography.rey-county@12",
         columns: 705,
         rows: 626,
         native_bounds_microdegrees: [
