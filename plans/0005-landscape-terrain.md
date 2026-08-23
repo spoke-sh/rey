@@ -1452,6 +1452,18 @@ sufficient geographic-form fixture. The next source revision must remove
 linear segment distance as height authority and test continuous ridge and
 drainage form before another admission.
 
+Candidate `rey.agent-geography.rey-eastern-uplands@6` removes every
+segment-distance elevation term. Three source-domain warp octaves feed five
+continuous ridge and four branching-valley octaves, with a separate bounded
+four-octave source-scale channel; the same 24-column seam corridor and
+36-column zero-slope entry envelope remain. Its supported 4-cell local relief
+is 53.68/94.73 m at p50/p90 rather than v5's 68.85/218.91 m, deliberately
+returning amplitude near the v4 source while changing form. Twelve gradient
+direction buckets across the independent interior all retain 946–1,940
+samples, preventing one or two authored line directions from dominating the
+candidate fixture. Exact seam, validity, generator, admission, and accelerated
+pixel checks remain required before acceptance.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence

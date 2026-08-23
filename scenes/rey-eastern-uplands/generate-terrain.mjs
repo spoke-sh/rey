@@ -25,8 +25,8 @@ const REY_SEAM_ROW_START = 225;
 const SEAM_TREND_RADIUS_ROWS = 8;
 const SEAM_TRANSITION_COLUMNS = 24;
 const INDEPENDENT_RELIEF_TRANSITION_COLUMNS = 36;
-const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v5";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@5";
+const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v6";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@6";
 
 export function buildReyEasternUplandsTerrainSource(
   sceneDirectory = SCENE_DIRECTORY,
@@ -175,12 +175,13 @@ export function buildReyEasternUplandsTerrainSource(
       },
       synthesis: {
         elevation:
-          "bounded multi-scale ridge, spur, and branching valley geography whose displacement and first derivative are exactly zero on the shared western seam; the exact County edge slope continues through the first interior column, then a bounded corridor transitions into a low-pass boundary trend before independent landforms enter",
+          "bounded continuous domain-warped ridge and branching-valley geography whose displacement and first derivative are exactly zero on the shared western seam; the exact County edge slope continues through the first interior column, then a bounded corridor transitions into a low-pass boundary trend before independent landforms enter",
         independent_relief: {
-          schema: "rey.authored-ridge-valley-network.v1",
+          schema: "rey.authored-domain-warped-relief.v1",
           transition_columns: INDEPENDENT_RELIEF_TRANSITION_COLUMNS,
-          ridge_segments: 8,
-          valley_segments: 9,
+          domain_warp_octaves: 3,
+          ridge_octaves: 5,
+          valley_octaves: 4,
           source_scale_octaves: 4,
           authority:
             "deterministically authored source elevation inside admitted-candidate validity; never renderer noise or inferred survey evidence",
@@ -201,7 +202,7 @@ export function buildReyEasternUplandsTerrainSource(
     features: [
       {
         type: "Feature",
-        id: "rey-eastern-uplands-packed-terrain-v3",
+        id: "rey-eastern-uplands-packed-terrain-v4",
         properties: {
           title: "Rey Eastern Uplands admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
@@ -286,19 +287,17 @@ function terrainSample(
   const interiorTrend = seamTrend + smootherstep(x) * 155;
   const reliefEnvelope = edgeEnvelope * independentReliefEnvelope;
   const regionalMass =
-    92 * Math.sin((x * 1.35 + y * 0.42) * Math.PI) +
-    58 * Math.cos((x * 0.55 - y * 1.65) * Math.PI);
-  const ridge = ridgeNetwork(x, y);
-  const valley = valleyNetwork(x, y);
+    66 * Math.sin((x * 1.2 + y * 0.38) * Math.PI) +
+    42 * Math.cos((x * 0.48 - y * 1.42) * Math.PI);
+  const authoredRelief = domainWarpedRelief(x, y);
   const sourceScaleTexture =
-    54 * (fractalNoise(x * 7.5 + 19.2, y * 7.5 - 8.4) - 0.5) +
-    24 * (ridgedNoise(x * 13.5 - 3.1, y * 13.5 + 11.7) - 0.5);
+    32 * (fractalNoise(x * 8.5 + 19.2, y * 8.5 - 8.4, 4) - 0.5);
   const elevation = roundElevation(
     Math.max(
       32,
       boundaryTrend * (1 - transition) +
         interiorTrend * transition +
-        reliefEnvelope * (regionalMass + ridge - valley + sourceScaleTexture),
+        reliefEnvelope * (regionalMass + authoredRelief + sourceScaleTexture),
     ),
   );
   return {
@@ -307,60 +306,39 @@ function terrainSample(
   };
 }
 
-function ridgeNetwork(x, y) {
+function domainWarpedRelief(x, y) {
+  const warpX =
+    (fractalNoise(x * 2.35 + 31.7, y * 2.35 - 14.6, 3) - 0.5) * 0.78;
+  const warpY = (fractalNoise(x * 2.35 - 9.2, y * 2.35 + 27.4, 3) - 0.5) * 0.78;
+  const primaryRidges = ridgedFractal(
+    x * 3.4 + warpX + 6.3,
+    y * 3.4 + warpY - 12.8,
+    5,
+  );
+  const secondaryRidges = ridgedFractal(
+    x * 6.8 - warpY + 18.1,
+    y * 6.8 + warpX + 4.7,
+    4,
+  );
+  const valleyCarrier = fractalNoise(
+    x * 4.1 + warpX * 0.7 - 22.4,
+    y * 4.1 + warpY * 0.7 + 15.9,
+    4,
+  );
+  const branchingValleys = smootherstep((0.47 - valleyCarrier) / 0.23);
   return (
-    ridgeSegment(x, y, 0.2, 0.08, 0.82, 0.78, 0.055, 300) +
-    ridgeSegment(x, y, 0.35, 0.92, 0.92, 0.4, 0.048, 235) +
-    ridgeSegment(x, y, 0.38, 0.31, 0.24, 0.62, 0.027, 125) +
-    ridgeSegment(x, y, 0.48, 0.42, 0.72, 0.18, 0.023, 118) +
-    ridgeSegment(x, y, 0.55, 0.53, 0.75, 0.73, 0.022, 105) +
-    ridgeSegment(x, y, 0.66, 0.61, 0.91, 0.84, 0.018, 82) +
-    ridgeSegment(x, y, 0.68, 0.63, 0.9, 0.53, 0.017, 76) +
-    ridgeSegment(x, y, 0.76, 0.54, 0.94, 0.24, 0.019, 88)
+    (primaryRidges - 0.54) * 315 +
+    (secondaryRidges - 0.54) * 86 -
+    branchingValleys * 118
   );
 }
 
-function valleyNetwork(x, y) {
-  return (
-    valleySegment(x, y, 0.18, 0.82, 0.42, 0.69, 0.038, 152) +
-    valleySegment(x, y, 0.42, 0.69, 0.64, 0.61, 0.034, 170) +
-    valleySegment(x, y, 0.64, 0.61, 0.94, 0.3, 0.032, 188) +
-    valleySegment(x, y, 0.31, 0.29, 0.48, 0.64, 0.021, 84) +
-    valleySegment(x, y, 0.38, 0.91, 0.48, 0.7, 0.019, 76) +
-    valleySegment(x, y, 0.54, 0.25, 0.62, 0.61, 0.018, 78) +
-    valleySegment(x, y, 0.69, 0.82, 0.68, 0.57, 0.016, 66) +
-    valleySegment(x, y, 0.84, 0.66, 0.78, 0.47, 0.015, 62) +
-    valleySegment(x, y, 0.9, 0.13, 0.84, 0.4, 0.016, 70)
-  );
-}
-
-function ridgeSegment(x, y, startX, startY, endX, endY, width, height) {
-  const distance = distanceToSegment(x, y, startX, startY, endX, endY);
-  return height * Math.exp(-Math.pow(distance / width, 2));
-}
-
-function valleySegment(x, y, startX, startY, endX, endY, width, depth) {
-  const distance = distanceToSegment(x, y, startX, startY, endX, endY);
-  return depth * Math.exp(-Math.pow(distance / width, 2));
-}
-
-function distanceToSegment(x, y, startX, startY, endX, endY) {
-  const dx = endX - startX;
-  const dy = endY - startY;
-  const lengthSquared = dx * dx + dy * dy;
-  const position = Math.max(
-    0,
-    Math.min(1, ((x - startX) * dx + (y - startY) * dy) / lengthSquared),
-  );
-  return Math.hypot(x - (startX + position * dx), y - (startY + position * dy));
-}
-
-function fractalNoise(x, y) {
+function fractalNoise(x, y, octaves) {
   let amplitude = 0.5;
   let frequency = 1;
   let total = 0;
   let amplitudeTotal = 0;
-  for (let octave = 0; octave < 4; octave += 1) {
+  for (let octave = 0; octave < octaves; octave += 1) {
     total += amplitude * valueNoise(x * frequency, y * frequency);
     amplitudeTotal += amplitude;
     amplitude *= 0.5;
@@ -369,8 +347,20 @@ function fractalNoise(x, y) {
   return total / amplitudeTotal;
 }
 
-function ridgedNoise(x, y) {
-  return 1 - Math.abs(2 * fractalNoise(x, y) - 1);
+function ridgedFractal(x, y, octaves) {
+  let amplitude = 0.5;
+  let frequency = 1;
+  let total = 0;
+  let amplitudeTotal = 0;
+  for (let octave = 0; octave < octaves; octave += 1) {
+    const ridge =
+      1 - Math.abs(2 * valueNoise(x * frequency, y * frequency) - 1);
+    total += amplitude * ridge * ridge;
+    amplitudeTotal += amplitude;
+    amplitude *= 0.52;
+    frequency *= 2;
+  }
+  return total / amplitudeTotal;
 }
 
 function valueNoise(x, y) {

@@ -95,14 +95,15 @@ describe("Rey regional source seam", () => {
     expect(meanRowSecondDifference(24)).toBeLessThan(0.25);
   });
 
-  it("authors bounded source-scale ridges and valleys beyond the seam corridor", () => {
+  it("authors continuous source-scale ridges and valleys beyond the seam corridor", () => {
     expect(
       uplands.document.terrain_derivation.synthesis.independent_relief,
     ).toMatchObject({
-      schema: "rey.authored-ridge-valley-network.v1",
+      schema: "rey.authored-domain-warped-relief.v1",
       transition_columns: 36,
-      ridge_segments: 8,
-      valley_segments: 9,
+      domain_warp_octaves: 3,
+      ridge_octaves: 5,
+      valley_octaves: 4,
       source_scale_octaves: 4,
     });
 
@@ -141,9 +142,35 @@ describe("Rey regional source seam", () => {
     const percentile = (value) =>
       localRelief[Math.floor((localRelief.length - 1) * value)];
     expect(localRelief.length).toBeGreaterThan(900);
-    expect(percentile(0.5)).toBeGreaterThan(80);
-    expect(percentile(0.9)).toBeGreaterThan(200);
-    expect(percentile(0.9)).toBeLessThan(280);
+    expect(percentile(0.5)).toBeGreaterThan(50);
+    expect(percentile(0.9)).toBeGreaterThan(90);
+    expect(percentile(0.9)).toBeLessThan(130);
+
+    const gradientDirections = Array.from({ length: 12 }, () => 0);
+    for (let row = 1; row < 167; row += 1) {
+      for (let column = 60; column < uplandsColumns - 1; column += 1) {
+        const west = uplands.cells[row * uplandsColumns + column - 1];
+        const east = uplands.cells[row * uplandsColumns + column + 1];
+        const north = uplands.cells[(row - 1) * uplandsColumns + column];
+        const south = uplands.cells[(row + 1) * uplandsColumns + column];
+        if (![west, east, north, south].every((sample) => sample.valid))
+          continue;
+        const eastward = east.sample.elevation - west.sample.elevation;
+        const southward = south.sample.elevation - north.sample.elevation;
+        if (Math.hypot(eastward, southward) < 1) continue;
+        const angle =
+          (Math.atan2(southward, eastward) + Math.PI * 2) % (Math.PI * 2);
+        const bucket = Math.min(
+          gradientDirections.length - 1,
+          Math.floor((angle / (Math.PI * 2)) * gradientDirections.length),
+        );
+        gradientDirections[bucket] += 1;
+      }
+    }
+    expect(Math.min(...gradientDirections)).toBeGreaterThan(800);
+    expect(
+      Math.max(...gradientDirections) / Math.min(...gradientDirections),
+    ).toBeLessThan(2.5);
   });
 
   it("keeps independently authored interior support bounded by its polygon", () => {
@@ -151,7 +178,7 @@ describe("Rey regional source seam", () => {
     expect(summary.valid_vertices).toBeGreaterThan(20_000);
     expect(summary.no_data_vertices).toBeGreaterThan(1_000);
     expect(summary.maximum_elevation_meters).toBeGreaterThan(
-      summary.minimum_elevation_meters + 700,
+      summary.minimum_elevation_meters + 400,
     );
     expect(uplands.cells.at(-1).valid).toBe(false);
   });
