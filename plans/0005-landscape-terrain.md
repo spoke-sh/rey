@@ -694,7 +694,7 @@ of the same boundary.
 - [x] Retain multiple admitted editor packages and derive a bounded,
       content-identified native-boundary seam/conflict assessment without
       treating package ingestion as geography.
-- [ ] Feed only a connected conflict-free set of terrain-qualified seams into a
+- [x] Feed only a connected conflict-free set of terrain-qualified seams into a
       revisioned geography compiler, retain every explicit resolution, and
       admit its stitched multi-resolution output before rendering it.
 
@@ -1355,6 +1355,20 @@ therefore raise only resident CPU capacity to 64 MiB, matching the existing
 GPU ceiling; the 112 MiB exact hierarchy cache and 160 MiB transient output
 ceiling do not change. A replacement voyage must still prove the 1.5-pixel
 fidelity requirement before any capture or matrix item closes.
+
+That replacement fulfilled-transport reference voyage passed as
+`sha256:17b8b1a1524ccd4f631649401f90b642e3dc6d42845a322a71ed8292a63a8e22`.
+The exact two-region mosaic selected all 12 level-9 tiles at 62,172,000 CPU
+bytes and 46,851,876 GPU bytes, reported zero screen error, and retained zero
+partition, relief-seam, tile-seam, and no-data-leak mismatches through the full
+World → Atlas → Landscape → Object → Evidence traversal. Its Landscape
+capture is
+`sha256:d65306e2a86dcd67f71921934b63094c608c1b050a26dc593304bd25e621ca81`.
+This closes the connected conflict-free multi-region compiler/admission item,
+not the backend/viewport matrix: the 199,538 ms fulfilled voyage and
+149.9/733.3 ms median/p95 presentation cadence also remain explicit
+performance failures, and accelerated pixels plus operator perceptual
+judgments are still required.
 
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
