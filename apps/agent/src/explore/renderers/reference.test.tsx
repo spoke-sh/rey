@@ -693,6 +693,21 @@ describe("reference renderer", () => {
     );
     expect(atlasMarkup).toContain(presentation.css_transform);
     expect(atlasMarkup).toContain("data-height-relief-hierarchy-id=");
+
+    const acceleratedAtlasMarkup = renderToStaticMarkup(
+      <ReferenceRenderer
+        atlasLandscapeMorphProgress={presentation.progress}
+        atlasLandscapePresentation={presentation}
+        deferTerrainFabricToAcceleratedSurface
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        scene={{ ...landscapeScene, regime: "atlas", terrain: false }}
+      />,
+    );
+    expect(acceleratedAtlasMarkup).not.toContain(
+      "data-height-relief-hierarchy-id=",
+    );
+    expect(acceleratedAtlasMarkup).toContain(presentation.css_transform);
   });
 
   it("eases an Atlas node label's white halo in as the morph reaches the flat map", () => {

@@ -50,7 +50,7 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@18" as const;
+  "rey.terrain.compilation-worker@19" as const;
 export const MAX_TERRAIN_COMPILATION_OUTPUT_BYTES = 160 * 1024 * 1024;
 export const MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES = 112 * 1024 * 1024;
 
@@ -66,6 +66,8 @@ export interface TerrainCompilationJob {
   fields: readonly TerrainFieldSet[];
   programs: readonly TerrainProgramWorkerRequest[];
   view: TerrainCameraView;
+  maximum_hierarchy_level?: number;
+  presentation_mode?: "moving" | "settled";
   maximum_cpu_bytes: number;
   maximum_gpu_bytes: number;
 }
@@ -150,18 +152,30 @@ export function executeTerrainCompilationJob(
     projectMaterializedLandscapeTilePyramid(pyramid),
   );
   const selections = pyramids.map((pyramid) =>
-    selectTerrainTilesForView(pyramid, job.view, undefined, {
-      maximum_cpu_bytes: Math.floor(
-        MAX_TERRAIN_TILE_CPU_BYTES / Math.max(1, pyramids.length),
+    selectTerrainTilesForView(
+      pyramid,
+      job.view,
+      undefined,
+      {
+        maximum_cpu_bytes: Math.floor(
+          MAX_TERRAIN_TILE_CPU_BYTES / Math.max(1, pyramids.length),
+        ),
+        maximum_gpu_bytes: Math.floor(
+          MAX_TERRAIN_TILE_GPU_BYTES / Math.max(1, pyramids.length),
+        ),
+      },
+      Math.min(
+        pyramid.maximum_level,
+        job.maximum_hierarchy_level ?? pyramid.maximum_level,
       ),
-      maximum_gpu_bytes: Math.floor(
-        MAX_TERRAIN_TILE_GPU_BYTES / Math.max(1, pyramids.length),
-      ),
-    }),
+    ),
   );
-  const derivedLines = admittedFields.flatMap((field) =>
-    deriveRegionalTerrainPresentationLines(field, job.regime),
-  );
+  const derivedLines =
+    job.presentation_mode === "moving"
+      ? []
+      : admittedFields.flatMap((field) =>
+          deriveRegionalTerrainPresentationLines(field, job.regime),
+        );
   const fieldById = new Map(
     materializedLandscapePyramids.flatMap((pyramid) =>
       pyramid.relief_levels.map(

@@ -11,6 +11,7 @@ function sceneFixture(): TopologyScene {
   const field = {
     field_set_id: "terrain:one",
     source_revision: "source:one",
+    active_band_ids: ["admitted_dem"],
     validity: { implementation_revision: "validity:one" },
     elevation: { implementation_revision: "elevation:one" },
     normal: { implementation_revision: "normal:one" },
@@ -137,6 +138,18 @@ describe("Explorer render graph", () => {
     expect(active.map(({ id }) => id)).toContain("base_terrain");
     expect(graph.passes.find(({ id }) => id === "contours")?.enabled).toBe(
       true,
+    );
+  });
+
+  it("retains worker-derived terrain contours without UI-thread SVG paths", () => {
+    const graph = compileExplorerRenderGraph({
+      ...sceneFixture(),
+      contours: [],
+    });
+    const contourPass = graph.passes.find(({ id }) => id === "contours");
+    expect(contourPass?.enabled).toBe(true);
+    expect(contourPass?.input_revision).toMatch(
+      /^input:presentation-hash64:[0-9a-f]{16}:1:/,
     );
   });
 

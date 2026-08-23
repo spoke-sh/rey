@@ -982,6 +982,7 @@ describe("regional scene topology projection", () => {
     expect(automaticCounty.regime).toBe("landscape");
     expect(automaticCounty.focus_id).toBe("regional:scene:1");
     expect(automaticCounty.terrain).toBe(true);
+    expect(automaticCounty.contours).toEqual([]);
     expect(automaticCounty.terrain_fields[0]).toBe(
       prewarmedAtlas.scene.terrain_fields[0],
     );

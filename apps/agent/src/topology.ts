@@ -47,7 +47,6 @@ import {
   type TerrainFieldSet,
   type TerrainProgram,
 } from "./explore/terrain/compile";
-import { deriveRegionalTerrainContours } from "./explore/terrain/contours";
 import {
   compileRegionalTerrainMosaic,
   type RegionalTerrainMosaicManifest,
@@ -1582,9 +1581,13 @@ function buildRegionalCounty(
     detail: copy[1],
     focus_id: focusId,
     regions: [],
-    contours: terrainField
-      ? deriveRegionalTerrainContours(terrainField, regime)
-      : [],
+    // Regional contours are materialized from this exact field by the
+    // renderer compilation worker. Building SVG path strings here scanned
+    // the full mosaic once per threshold on the UI thread exactly when the
+    // Atlas/Landscape regime changed, freezing the camera for seconds. The
+    // scene keeps the authoritative terrain field and the render graph keeps
+    // the derived contour pass; neither support nor contour authority moves.
+    contours: [],
     nodes,
     edges: [],
     omissions: [

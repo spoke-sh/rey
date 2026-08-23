@@ -57,6 +57,7 @@ import {
 } from "./explore/projection/county-frame";
 import { invertViewAlignedSemanticMercator } from "./explore/projection/semantic-mercator";
 import {
+  ATLAS_LANDSCAPE_MORPH_END_ZOOM,
   atlasLandscapeCompositionScale,
   atlasLandscapeMorphProgress,
   atlasLandscapePresentation,
@@ -69,6 +70,7 @@ import {
   terrainCompilationSourceKey,
   type AcceleratedTerrainReport,
 } from "./explore/renderers/accelerated-terrain";
+import { TerrainCompilationWorkerClient } from "./explore/terrain/worker-client";
 import {
   globeCaption,
   ReferenceMapReading,
@@ -98,6 +100,9 @@ const visibleReferenceLayers: ReferenceLayerVisibility = {
   probes: true,
 };
 export const DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS = 5_000;
+export const ATLAS_LANDSCAPE_MOVING_TERRAIN_MAXIMUM_LEVEL = 6;
+export const ATLAS_LANDSCAPE_SETTLED_REFINEMENT_DELAY_MS = 300;
+export const ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE = 0.5;
 const EXPLORER_NOTICE_DURATION_MS = DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS;
 const EXPLORER_ATTENTION_DURATION_MS = 7_200;
 const EXPLORER_FOOTER_EXIT_DURATION_MS = 260;
@@ -280,10 +285,21 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     useState<AcceleratedTerrainReport>(REFERENCE_TERRAIN_REPORT);
   const [terrainSurfaceRenderer, setTerrainSurfaceRenderer] =
     useState<AcceleratedTerrainReport>(REFERENCE_TERRAIN_REPORT);
+  const [terrainCompilationWorkerClient] = useState(
+    () => new TerrainCompilationWorkerClient(),
+  );
+  useEffect(
+    () => () => terrainCompilationWorkerClient.cancel(),
+    [terrainCompilationWorkerClient],
+  );
   const [atlasTerrainPrewarmReady, setAtlasTerrainPrewarmReady] =
     useState(false);
   const [atlasTerrainPrewarmPrepared, setAtlasTerrainPrewarmPrepared] =
     useState(false);
+  const [settledTerrainDetailReady, setSettledTerrainDetailReady] =
+    useState(false);
+  const [fullDetailTerrainSourceKey, setFullDetailTerrainSourceKey] =
+    useState("");
   const [footerState, dispatchFooter] = useReducer(
     explorerFooterReducer,
     undefined,
@@ -292,6 +308,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const suppressNextRegimeNoticeRef = useRef(false);
   const layers = visibleReferenceLayers;
   const [sceneCompiler] = useState(() => new LastGoodSceneCompiler());
+  const [terrainPrewarmSceneCompiler] = useState(
+    () => new LastGoodSceneCompiler(),
+  );
   const retainedRegime = useRef<LensRegime | undefined>(undefined);
   const regime = lensRegimeForZoom(zoom, retainedRegime.current);
   useEffect(() => {
@@ -316,17 +335,37 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const snapshot = sceneProjection.snapshot;
   const scene = snapshot.scene;
   const projectionMorphProgress = worldAtlasMorphProgress(zoom);
+  const atlasLandscapeProgress = atlasLandscapeProgressForZoom(scene, zoom);
   const requestedRendererPreference = rendererPreference(
     globalThis.location?.search ?? "",
   );
   const atlasTerrainPrewarmKey = terrainCompilationSourceKey(scene);
   const atlasTerrainPrewarmEligible =
     scene.regime === "atlas" &&
-    scene.atlas_landscape_transition === null &&
     projectionMorphProgress >= 1 &&
     scene.terrain_fields.length > 0;
   const terrainPrewarmWithoutSubmission =
-    atlasTerrainPrewarmEligible && requestedRendererPreference === "webgpu";
+    atlasTerrainPrewarmEligible &&
+    atlasLandscapeProgress === 0 &&
+    requestedRendererPreference === "webgpu";
+  const atlasLandscapePrewarmSnapshot = useMemo(
+    () =>
+      scene.regime === "atlas" && scene.atlas_landscape_transition
+        ? terrainPrewarmSceneCompiler.compile(
+            portfolio,
+            ATLAS_LANDSCAPE_MORPH_END_ZOOM,
+            focusId,
+            "landscape",
+          ).snapshot
+        : null,
+    [
+      focusId,
+      portfolio,
+      scene.atlas_landscape_transition?.transition_id,
+      scene.regime,
+      terrainPrewarmSceneCompiler,
+    ],
+  );
   useEffect(() => {
     setAtlasTerrainPrewarmPrepared(false);
     if (!atlasTerrainPrewarmEligible) {
@@ -345,7 +384,6 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     requestedRendererPreference,
     zoom,
   ]);
-  const atlasLandscapeProgress = atlasLandscapeProgressForZoom(scene, zoom);
   const terrainTargetFrame = scene.atlas_landscape_transition?.target_frame ??
     scene.terrain_fields[0]?.grid.bounds ?? {
       x: 0,
@@ -363,30 +401,82 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     terrainOrbit,
     scene.world,
   );
-  const terrainSurfaceView = atlasTerrainPrewarmEligible
-    ? atlasTerrainPredictedEntryView(
-        scene,
-        fitScale,
-        viewportSize,
-        terrainOrbit,
-      )
-    : {
-        world_width: scene.world.width,
-        world_height: scene.world.height,
-        viewport_width: viewportSize.width,
-        viewport_height: viewportSize.height,
-        rendered_scale: renderedScaleForTerrainSurface(
+  const terrainMotionActive =
+    atlasTerrainPrewarmEligible ||
+    (scene.atlas_landscape_transition !== null && atlasLandscapeProgress < 1);
+  const deferSettledTerrainRefinement =
+    scene.regime === "landscape" &&
+    scene.atlas_landscape_transition !== null &&
+    atlasLandscapeProgress >= 1;
+  useEffect(() => {
+    if (terrainMotionActive) {
+      setSettledTerrainDetailReady(false);
+      return;
+    }
+    if (!deferSettledTerrainRefinement) {
+      setSettledTerrainDetailReady(true);
+      return;
+    }
+    const timeout = window.setTimeout(
+      () => setSettledTerrainDetailReady(true),
+      ATLAS_LANDSCAPE_SETTLED_REFINEMENT_DELAY_MS,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [
+    atlasTerrainPrewarmKey,
+    deferSettledTerrainRefinement,
+    scene.regime,
+    terrainMotionActive,
+  ]);
+  const terrainSurfaceCompositing =
+    terrainMotionActive ||
+    (deferSettledTerrainRefinement && !settledTerrainDetailReady);
+  const fullTerrainDetailPrepared =
+    fullDetailTerrainSourceKey === atlasTerrainPrewarmKey;
+  const terrainUsesMovingDetail =
+    terrainSurfaceCompositing && !fullTerrainDetailPrepared;
+  const terrainSurfaceCompilationView = terrainSurfaceCompositing
+    ? terrainUsesMovingDetail
+      ? atlasTerrainMovingCompilationView(
           scene,
           fitScale,
-          zoom,
-          landscapePresentation.composition_scale,
-        ),
-        pan_x: pan.x,
-        pan_y: pan.y,
-        pitch_degrees: landscapePresentation.pitch_degrees,
-        yaw_degrees: landscapePresentation.yaw_degrees,
-        model_transform: landscapePresentation.model_transform,
-      };
+          viewportSize,
+          terrainOrbit,
+        )
+      : atlasTerrainPredictedEntryView(
+          scene,
+          fitScale,
+          viewportSize,
+          terrainOrbit,
+        )
+    : undefined;
+  const liveTerrainSurfaceView = {
+    world_width: scene.world.width,
+    world_height: scene.world.height,
+    viewport_width: viewportSize.width,
+    viewport_height: viewportSize.height,
+    rendered_scale: renderedScaleForTerrainSurface(
+      scene,
+      fitScale,
+      zoom,
+      landscapePresentation.composition_scale,
+    ),
+    pan_x: pan.x,
+    pan_y: pan.y,
+    pitch_degrees: landscapePresentation.pitch_degrees,
+    yaw_degrees: landscapePresentation.yaw_degrees,
+    model_transform: landscapePresentation.model_transform,
+  };
+  // The moving submission is rendered once at the exact predicted endpoint
+  // camera and composited through the morph. Re-rendering the multi-operator
+  // terrain material for every wheel animation frame defeats prewarming on
+  // software and integrated GPUs; opacity remains a cheap DOM composition
+  // update, while the reference overlay owns the reversible source→target
+  // projector until the settled terrain submission takes over.
+  const terrainSurfaceView =
+    terrainSurfaceCompositing && terrainSurfaceCompilationView
+      ? terrainSurfaceCompilationView
+      : liveTerrainSurfaceView;
   const projectionMorphActive =
     scene.world_atlas_transition !== null &&
     projectionMorphProgress > 0 &&
@@ -974,7 +1064,14 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         {shouldMountTerrainSurface(scene, atlasTerrainPrewarmReady) ? (
           <AcceleratedTerrainSurface
             canvasOpacity={landscapePresentation.terrain_opacity}
+            compilationView={terrainSurfaceCompilationView}
+            compilationWorkerClient={terrainCompilationWorkerClient}
             contentMode="terrain"
+            maximumHierarchyLevel={
+              terrainUsesMovingDetail
+                ? ATLAS_LANDSCAPE_MOVING_TERRAIN_MAXIMUM_LEVEL
+                : undefined
+            }
             onReport={(report) => {
               setTerrainSurfaceRenderer(report);
               if (landscapePresentation.terrain_opacity > 0)
@@ -982,11 +1079,17 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
               if (
                 report.status.lifecycle === "ready" &&
                 report.content_kind === "terrain"
-              )
+              ) {
                 setAtlasTerrainPrewarmPrepared(true);
+                if (!terrainUsesMovingDetail)
+                  setFullDetailTerrainSourceKey(atlasTerrainPrewarmKey);
+              }
             }}
             renderVisibility={renderVisibility}
-            snapshot={snapshot}
+            presentationMode={
+              terrainUsesMovingDetail ? "moving" : "settled"
+            }
+            snapshot={atlasLandscapePrewarmSnapshot ?? snapshot}
             view={terrainSurfaceView}
             prewarmOnly={terrainPrewarmWithoutSubmission}
             visible={
@@ -1030,6 +1133,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           <ReferenceRenderer
             accelerated={acceleratedReady && !deferAcceleratedProjectionMorph}
             terrainAccelerated={terrainAcceleratedReady}
+            deferTerrainFabricToAcceleratedSurface={
+              requestedRendererPreference !== "reference"
+            }
             atlasLandscapeMorphProgress={atlasLandscapeProgress}
             atlasLandscapePresentation={landscapePresentation}
             globeView={globeView}
@@ -1289,6 +1395,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-terrain-surface-active-tile-count={
             terrainSurfaceRenderer.active_tile_count
           }
+          data-renderer-terrain-surface-active-tile-levels={terrainSurfaceRenderer.active_tile_levels.join(
+            ",",
+          )}
           data-renderer-terrain-surface-composition-revision={
             terrainSurfaceRenderer.landscape_composition_revision
           }
@@ -1297,6 +1406,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           )}
           data-renderer-terrain-surface-lifecycle={
             terrainSurfaceRenderer.status.lifecycle
+          }
+          data-renderer-terrain-surface-maximum-screen-error-pixels={
+            terrainSurfaceRenderer.terrain_maximum_screen_error_pixels
           }
           data-renderer-terrain-surface-status-detail={
             terrainSurfaceRenderer.status.detail
@@ -1321,6 +1433,15 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           }
           data-renderer-terrain-surface-source-key={
             terrainSurfaceRenderer.terrain_source_key
+          }
+          data-renderer-terrain-surface-submitted-snapshot-id={
+            terrainSurfaceRenderer.submitted_frame?.snapshot_id
+          }
+          data-renderer-terrain-surface-triangles={
+            terrainSurfaceRenderer.triangles
+          }
+          data-renderer-terrain-surface-worker-execution={
+            terrainSurfaceRenderer.terrain_worker_execution
           }
           data-renderer-terrain-surface-valid-vertices={
             terrainSurfaceRenderer.source_valid_vertices
@@ -1393,7 +1514,7 @@ export function atlasTerrainPredictedEntryView(
   viewport: { width: number; height: number },
   orbit: TerrainOrbitView,
 ) {
-  const progress = atlasLandscapeMorphProgress(LANDSCAPE_LENS_ZOOM);
+  const progress = atlasLandscapeMorphProgress(ATLAS_LANDSCAPE_MORPH_END_ZOOM);
   const fieldBounds = scene.terrain_fields[0]?.grid.bounds;
   if (!fieldBounds)
     throw new Error("Atlas terrain prewarm requires an admitted terrain field");
@@ -1409,12 +1530,53 @@ export function atlasTerrainPredictedEntryView(
     viewport_width: viewport.width,
     viewport_height: viewport.height,
     rendered_scale:
-      renderedSceneScale(true, fitScale, LANDSCAPE_LENS_ZOOM, "landscape") *
-      presentation.composition_scale,
+      renderedSceneScale(
+        true,
+        fitScale,
+        ATLAS_LANDSCAPE_MORPH_END_ZOOM,
+        "landscape",
+      ) * presentation.composition_scale,
     pan_x: 0,
     pan_y: 0,
     pitch_degrees: presentation.pitch_degrees,
     yaw_degrees: presentation.yaw_degrees,
+  });
+}
+
+export function atlasTerrainMovingCompilationView(
+  scene: TopologyScene,
+  fitScale: number,
+  viewport: { width: number; height: number },
+  orbit: TerrainOrbitView,
+) {
+  const entry = atlasTerrainPredictedEntryView(
+    scene,
+    fitScale,
+    viewport,
+    orbit,
+  );
+  // Reduce viewport and scale together so the orthographic world coverage is
+  // identical while the moving render target contains one quarter as many
+  // pixels. CSS stretches that exact lower-resolution submission during the
+  // dissolve; the full-resolution endpoint replaces it after camera settle.
+  return Object.freeze({
+    ...entry,
+    viewport_width: Math.max(
+      1,
+      Math.round(
+        entry.viewport_width *
+          ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE,
+      ),
+    ),
+    viewport_height: Math.max(
+      1,
+      Math.round(
+        entry.viewport_height *
+          ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE,
+      ),
+    ),
+    rendered_scale:
+      entry.rendered_scale * ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE,
   });
 }
 

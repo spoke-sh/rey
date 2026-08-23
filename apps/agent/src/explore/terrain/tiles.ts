@@ -453,6 +453,7 @@ export function selectTerrainTilesForView(
   view: TerrainCameraView,
   maximumScreenError = DEFAULT_TERRAIN_SCREEN_ERROR_PIXELS,
   budget?: TerrainTileSelectionBudget,
+  maximumHierarchyLevel = pyramid.maximum_level,
 ): TerrainTileSelection {
   if (!Number.isFinite(maximumScreenError) || maximumScreenError <= 0)
     throw new Error("terrain screen-space error bound is invalid");
@@ -464,13 +465,19 @@ export function selectTerrainTilesForView(
       budget.maximum_gpu_bytes < 1)
   )
     throw new Error("terrain tile selection budgets are invalid");
+  if (
+    !Number.isInteger(maximumHierarchyLevel) ||
+    maximumHierarchyLevel < 0 ||
+    maximumHierarchyLevel > pyramid.maximum_level
+  )
+    throw new Error("terrain maximum hierarchy level is invalid");
   const visible = visibleTerrainBounds(view);
   let selected: TerrainTileDescriptor[] = [];
   let selectedLevel = pyramid.maximum_level;
   let selectedError = 0;
   let selectedCpuBytes = 0;
   let selectedGpuBytes = 0;
-  for (let level = 0; level <= pyramid.maximum_level; level += 1) {
+  for (let level = 0; level <= maximumHierarchyLevel; level += 1) {
     const candidates = pyramid.tiles.filter(
       (tile) => tile.level === level && boundsIntersect(tile.bounds, visible),
     );

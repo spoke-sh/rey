@@ -100,6 +100,7 @@ export function globeCaption(globe: TopologyGlobe): string {
 export function ReferenceRenderer({
   accelerated = false,
   terrainAccelerated = accelerated,
+  deferTerrainFabricToAcceleratedSurface = false,
   layers,
   onFocus,
   scene,
@@ -112,6 +113,7 @@ export function ReferenceRenderer({
 }: {
   accelerated?: boolean;
   terrainAccelerated?: boolean;
+  deferTerrainFabricToAcceleratedSurface?: boolean;
   layers: ReferenceLayerVisibility;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
@@ -299,7 +301,8 @@ export function ReferenceRenderer({
         {!terrainAccelerated && scene.terrain ? (
           <AdmittedTerrainFieldLayer scene={scene} />
         ) : null}
-        {scene.atlas_landscape_transition ? (
+        {scene.atlas_landscape_transition &&
+        !deferTerrainFabricToAcceleratedSurface ? (
           <TerrainMorphFabricLayer
             progress={atlasLandscapeMorphProgress}
             scene={scene}
@@ -314,6 +317,9 @@ export function ReferenceRenderer({
       {atlasFeatureLayerActive ? (
         <AtlasFeatureLayer
           accelerated={accelerated}
+          deferTerrainFabricToAcceleratedSurface={
+            deferTerrainFabricToAcceleratedSurface
+          }
           globeView={globeView}
           labelPlacements={atlasLabelPlacements}
           landscapeMorphProgress={atlasLandscapeMorphProgress}
@@ -647,6 +653,7 @@ const ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT = 260;
 
 function AtlasFeatureLayer({
   accelerated,
+  deferTerrainFabricToAcceleratedSurface,
   globeView,
   labelPlacements,
   landscapeMorphProgress = 0,
@@ -658,6 +665,7 @@ function AtlasFeatureLayer({
   wrapIndexes,
 }: {
   accelerated: boolean;
+  deferTerrainFabricToAcceleratedSurface: boolean;
   globeView: GlobeCameraView;
   labelPlacements: ReadonlyMap<string, SemanticLabelPlacement>;
   landscapeMorphProgress?: number;
@@ -734,8 +742,11 @@ function AtlasFeatureLayer({
   // every single frame — this was expensive enough to visibly stall the
   // Atlas-to-Landscape morph before this fix.
   const focusedFabric = useMemo(
-    () => (focusedTerrain ? materializedTerrainFabric(focusedTerrain) : null),
-    [focusedTerrain],
+    () =>
+      focusedTerrain && !deferTerrainFabricToAcceleratedSurface
+        ? materializedTerrainFabric(focusedTerrain)
+        : null,
+    [deferTerrainFabricToAcceleratedSurface, focusedTerrain],
   );
   const focusedFullSamples = focusedFabric?.samples ?? null;
   const roundedLandscapeMorphProgress =

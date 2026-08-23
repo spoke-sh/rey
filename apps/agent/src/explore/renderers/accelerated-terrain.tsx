@@ -344,6 +344,10 @@ export function AcceleratedTerrainSurface({
   onReport,
   snapshot,
   view,
+  compilationView,
+  compilationWorkerClient,
+  maximumHierarchyLevel,
+  presentationMode = "settled",
   visible,
   renderVisibility,
   globeView = { yaw_degrees: 0, pitch_degrees: 0 },
@@ -355,6 +359,10 @@ export function AcceleratedTerrainSurface({
   onReport: (report: AcceleratedTerrainReport) => void;
   snapshot: SceneSnapshot;
   view: TerrainCameraView;
+  compilationView?: TerrainCameraView;
+  compilationWorkerClient?: TerrainCompilationWorkerClient;
+  maximumHierarchyLevel?: number;
+  presentationMode?: "moving" | "settled";
   visible: boolean;
   renderVisibility: ExplorerRenderVisibility;
   globeView?: GlobeCameraView;
@@ -363,11 +371,20 @@ export function AcceleratedTerrainSurface({
   canvasOpacity?: number;
   prewarmOnly?: boolean;
 }) {
-  const workerClientRef = useRef<TerrainCompilationWorkerClient | null>(null);
+  const ownedWorkerClientRef = useRef<TerrainCompilationWorkerClient | null>(
+    null,
+  );
   const residencyRef = useRef<TerrainTileResidency | null>(null);
-  if (!workerClientRef.current)
-    workerClientRef.current = new TerrainCompilationWorkerClient();
+  if (!ownedWorkerClientRef.current)
+    ownedWorkerClientRef.current = new TerrainCompilationWorkerClient();
+  const workerClient = compilationWorkerClient ?? ownedWorkerClientRef.current;
   if (!residencyRef.current) residencyRef.current = new TerrainTileResidency();
+  useEffect(
+    () => () => {
+      if (!compilationWorkerClient) ownedWorkerClientRef.current?.cancel();
+    },
+    [compilationWorkerClient],
+  );
   const prewarmOnlyRef = useRef(prewarmOnly);
   prewarmOnlyRef.current = prewarmOnly;
   const retainedTransitionGlobeRef = useRef<
@@ -455,6 +472,7 @@ export function AcceleratedTerrainSurface({
     ],
   );
   const preference = rendererPreference(globalThis.location?.search ?? "");
+  const terrainCompilationInputView = compilationView ?? view;
   const programTotals = useMemo(() => {
     const dynamic = snapshot.scene.terrain_programs.reduce(
       (result, program) => ({
@@ -515,23 +533,23 @@ export function AcceleratedTerrainSurface({
       semanticGlobe
         ? []
         : snapshot.scene.terrain_programs.map((program) =>
-            terrainPatchRequestsForView(program, view),
+            terrainPatchRequestsForView(program, terrainCompilationInputView),
           ),
     [
       semanticGlobe,
       snapshot.snapshot_id,
-      view.pan_x,
-      view.pan_y,
-      view.rendered_scale,
-      view.pitch_degrees,
-      view.yaw_degrees,
-      view.model_transform?.elevation_scale,
-      view.model_transform?.scale_x,
-      view.model_transform?.scale_z,
-      view.model_transform?.translate_x,
-      view.model_transform?.translate_z,
-      view.viewport_height,
-      view.viewport_width,
+      terrainCompilationInputView.pan_x,
+      terrainCompilationInputView.pan_y,
+      terrainCompilationInputView.pitch_degrees,
+      terrainCompilationInputView.rendered_scale,
+      terrainCompilationInputView.yaw_degrees,
+      terrainCompilationInputView.model_transform?.elevation_scale,
+      terrainCompilationInputView.model_transform?.scale_x,
+      terrainCompilationInputView.model_transform?.scale_z,
+      terrainCompilationInputView.model_transform?.translate_x,
+      terrainCompilationInputView.model_transform?.translate_z,
+      terrainCompilationInputView.viewport_height,
+      terrainCompilationInputView.viewport_width,
     ],
   );
   const workingSetRevision = workingSetRequests
@@ -544,31 +562,42 @@ export function AcceleratedTerrainSurface({
       snapshot.scene.terrain_programs.length > 0);
   const terrainCompilationView = useMemo(
     () => ({
-      ...view,
-      rendered_scale: 2 ** (Math.round(Math.log2(view.rendered_scale) * 8) / 8),
-      pan_x: Math.round(view.pan_x / 32) * 32,
-      pan_y: Math.round(view.pan_y / 32) * 32,
+      ...terrainCompilationInputView,
+      rendered_scale:
+        2 **
+        (Math.round(Math.log2(terrainCompilationInputView.rendered_scale) * 8) /
+          8),
+      pan_x: Math.round(terrainCompilationInputView.pan_x / 32) * 32,
+      pan_y: Math.round(terrainCompilationInputView.pan_y / 32) * 32,
       pitch_degrees:
-        view.pitch_degrees === undefined
+        terrainCompilationInputView.pitch_degrees === undefined
           ? undefined
-          : Math.round(view.pitch_degrees / 3) * 3,
+          : Math.round(terrainCompilationInputView.pitch_degrees / 3) * 3,
       yaw_degrees:
-        view.yaw_degrees === undefined
+        terrainCompilationInputView.yaw_degrees === undefined
           ? undefined
-          : Math.round(view.yaw_degrees / 4) * 4,
+          : Math.round(terrainCompilationInputView.yaw_degrees / 4) * 4,
     }),
     [
-      view.pan_x,
-      view.pan_y,
-      view.rendered_scale,
-      view.viewport_height,
-      view.viewport_width,
-      view.world_height,
-      view.world_width,
+      terrainCompilationInputView.pan_x,
+      terrainCompilationInputView.pan_y,
+      terrainCompilationInputView.pitch_degrees,
+      terrainCompilationInputView.rendered_scale,
+      terrainCompilationInputView.yaw_degrees,
+      terrainCompilationInputView.model_transform?.elevation_scale,
+      terrainCompilationInputView.model_transform?.scale_x,
+      terrainCompilationInputView.model_transform?.scale_z,
+      terrainCompilationInputView.model_transform?.translate_x,
+      terrainCompilationInputView.model_transform?.translate_z,
+      terrainCompilationInputView.viewport_height,
+      terrainCompilationInputView.viewport_width,
+      terrainCompilationInputView.world_height,
+      terrainCompilationInputView.world_width,
     ],
   );
   const terrainJobId = [
     terrainSourceKey,
+    snapshot.scene.regime,
     workingSetRevision,
     `${terrainCompilationView.viewport_width}x${terrainCompilationView.viewport_height}`,
     terrainCompilationView.rendered_scale,
@@ -576,6 +605,8 @@ export function AcceleratedTerrainSurface({
     terrainCompilationView.pan_y,
     terrainCompilationView.pitch_degrees ?? 90,
     terrainCompilationView.yaw_degrees ?? 0,
+    maximumHierarchyLevel ?? "complete-hierarchy",
+    presentationMode,
   ].join("|");
   const [resolvedTerrain, setResolvedTerrain] =
     useState<ResolvedTerrainCompilation | null>(null);
@@ -591,8 +622,7 @@ export function AcceleratedTerrainSurface({
     }
     const abort = new AbortController();
     setTerrainFailure(null);
-    const client = workerClientRef.current!;
-    void client
+    void workerClient
       .compile(
         {
           job_id: terrainJobId,
@@ -604,6 +634,8 @@ export function AcceleratedTerrainSurface({
             requests: workingSetRequests[index]!,
           })),
           view: terrainCompilationView,
+          maximum_hierarchy_level: maximumHierarchyLevel,
+          presentation_mode: presentationMode,
           maximum_cpu_bytes: MAX_TERRAIN_COMPILATION_OUTPUT_BYTES,
           maximum_gpu_bytes: MAX_TERRAIN_TILE_GPU_BYTES,
         },
@@ -654,7 +686,12 @@ export function AcceleratedTerrainSurface({
         );
       });
     return () => abort.abort();
-  }, [semanticGlobe, snapshot.snapshot_id, terrainJobId, workingSetRevision]);
+  }, [
+    semanticGlobe,
+    terrainJobId,
+    workerClient,
+    workingSetRevision,
+  ]);
   const activeTerrain = semanticGlobe
     ? null
     : retainCompatibleTerrainSubmission(resolvedTerrain, terrainSourceKey);

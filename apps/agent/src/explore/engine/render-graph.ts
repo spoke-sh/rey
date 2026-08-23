@@ -71,6 +71,13 @@ export function compileExplorerRenderGraph(
   scene: TopologyScene,
 ): ExplorerRenderGraph {
   const terrain = scene.terrain || scene.terrain_fields.length > 0;
+  const rendererDerivedTerrainContours =
+    scene.terrain &&
+    scene.regime !== "world" &&
+    scene.regime !== "atlas" &&
+    scene.terrain_fields.some((field) =>
+      field.active_band_ids.includes("admitted_dem"),
+    );
   const fieldRevision = (
     channel: "validity" | "elevation" | "normal" | "curvature" | "material",
   ) =>
@@ -121,13 +128,20 @@ export function compileExplorerRenderGraph(
     renderPass(
       "contours",
       40,
-      scene.contours.length > 0,
+      scene.contours.length > 0 || rendererDerivedTerrainContours,
       "derived",
       ["height_normals_hillshade"],
       revisionOf(
-        scene.contours.map(
-          ({ id, path, threshold }) => `${id}:${threshold}:${path}`,
-        ),
+        scene.contours
+          .map(({ id, path, threshold }) => `${id}:${threshold}:${path}`)
+          .concat(
+            rendererDerivedTerrainContours
+              ? scene.terrain_fields.map(
+                  ({ field_set_id, source_revision }) =>
+                    `renderer-derived:${scene.regime}:${field_set_id}:${source_revision}`,
+                )
+              : [],
+          ),
       ),
     ),
     renderPass(

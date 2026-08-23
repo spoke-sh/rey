@@ -2,6 +2,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
+  ATLAS_LANDSCAPE_MOVING_TERRAIN_MAXIMUM_LEVEL,
+  ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE,
+  ATLAS_LANDSCAPE_SETTLED_REFINEMENT_DELAY_MS,
+  atlasTerrainMovingCompilationView,
   atlasTerrainPredictedEntryView,
   atlasTerrainPrewarmDelayMs,
   atlasTerrainPrewarmStatus,
@@ -89,6 +93,24 @@ describe("Explorer canvas toolbar", () => {
     });
     expect(first.rendered_scale).toBeGreaterThan(0.8);
     expect(first.pitch_degrees).toBeLessThan(90);
+    expect(
+      atlasTerrainMovingCompilationView(
+        scene,
+        0.8,
+        { width: 1920, height: 1080 },
+        { pitch_degrees: 88, yaw_degrees: 0 },
+      ),
+    ).toMatchObject({
+      rendered_scale:
+        first.rendered_scale *
+        ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE,
+      viewport_width: 960,
+      viewport_height: 540,
+      pitch_degrees: first.pitch_degrees,
+      yaw_degrees: first.yaw_degrees,
+    });
+    expect(ATLAS_LANDSCAPE_MOVING_TERRAIN_MAXIMUM_LEVEL).toBe(6);
+    expect(ATLAS_LANDSCAPE_SETTLED_REFINEMENT_DELAY_MS).toBe(300);
   });
 
   it("keeps view controls without exposing projection layer buttons", () => {

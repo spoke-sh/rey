@@ -20,7 +20,7 @@ import { admittedField, terrainTileView } from "./tiles.fixture";
 describe("bounded terrain compilation worker", () => {
   it("retains the bounded high-density hierarchy output budget", () => {
     expect(TERRAIN_COMPILATION_WORKER_REVISION).toBe(
-      "rey.terrain.compilation-worker@18",
+      "rey.terrain.compilation-worker@19",
     );
     expect(MAX_TERRAIN_COMPILATION_OUTPUT_BYTES).toBe(160 * 1024 * 1024);
     expect(MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES).toBe(112 * 1024 * 1024);
@@ -101,6 +101,23 @@ describe("bounded terrain compilation worker", () => {
     expect(
       result.derived_lines.some(({ kind }) => kind === "derived_contour"),
     ).toBe(true);
+    const moving = executeTerrainCompilationJob({
+      job_id: "terrain-job:moving",
+      workload_id: "landscape-moving-fixture",
+      regime: "landscape",
+      fields: [source],
+      programs: [],
+      view: terrainTileView(4),
+      maximum_hierarchy_level: 3,
+      presentation_mode: "moving",
+      maximum_cpu_bytes: 24 * 1024 * 1024,
+      maximum_gpu_bytes: 8 * 1024 * 1024,
+    });
+    expect(moving.derived_lines).toEqual([]);
+    expect(moving.selections[0]!.level).toBeLessThanOrEqual(3);
+    expect(moving.selections[0]!.level).toBeLessThan(
+      result.selections[0]!.level,
+    );
     const completeField = deriveRegionalTerrainGeography(
       refineRegionalTerrainField(source),
     );
