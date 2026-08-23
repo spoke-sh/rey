@@ -1492,8 +1492,15 @@ coordinate. Mean row second difference falls from 1.393 m at the exact first
 interior slope to 0.140 m at corridor column 24 before independently authored
 form grows continuously; supported interior 4-cell relief remains bounded at
 52.34/90.53 m p50/p90. All 13 County/seam fixtures and the byte-stable
-generator pass over the unchanged 27,432 valid / 4,992 no-data mask. Admission,
-composition, and accelerated pixels remain required.
+generator pass over the unchanged 27,432 valid / 4,992 no-data mask. Eastern
+Uplands `SCENE@8` was accepted as result
+`blake3:ad9375ed4c01aae2144700d76dfb6d3da99780b9075c4edfd8a1eb31fa887f9a`.
+Server-owned composition
+`blake3:e7cd51691bce338d5bb070d6d15e9ef41810631f429955cd990d70e5ca1d670a`
+is READY with all 168 vertices and zero elevation, material, validity,
+coordinate-gap, and no-data conflicts at seam
+`blake3:bc0453a3d7ecd21c91b0e9e0cfabeb9510821b6e683303f315519680339c375c`.
+Accelerated pixels remain required.
 
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
