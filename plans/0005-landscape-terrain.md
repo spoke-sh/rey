@@ -1563,9 +1563,17 @@ p50/p90 to 31.10/60.17 m and terminal columns 140–179 rise from 35.05/72.94 m
 to 65.43/123.08 m. This removes the source's artificial flat terminal strip
 without expanding its unchanged 27,432 valid / 4,992 no-data support. The
 terrain-derived drainage recomputes over the changed source at 24.64 m maximum
-incision and still grants flood-parent escape topology zero displacement. A
-hard-cut admission and accelerated capture must decide whether the broader form
-removes the observed tonal zone without introducing another visible front.
+incision and still grants flood-parent escape topology zero displacement. All
+14 County/Uplands source fixtures and the byte-stable generator pass. Eastern
+Uplands `SCENE@10` was accepted as result
+`blake3:748f70492535eb2c226e17249f525d48ddbb3cc348d4017f9c35a83f1ac7670f`.
+Server-owned composition
+`blake3:6fbeff0898c53e922f8c05c306ecb676919969913d030d752b75c24efd5d454e`
+is READY with all 168 vertices and zero elevation, material, validity,
+coordinate-gap, and no-data conflicts at seam
+`blake3:2cc9bd1ac71ae8a8b001975c1fcb18353bc8e348b095f95aaac0791842a1daf8`.
+An accelerated capture must still decide whether the broader form removes the
+observed tonal zone without introducing another visible front.
 
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
