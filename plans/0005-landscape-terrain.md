@@ -1429,9 +1429,16 @@ envelope, so all 168 exact County boundary samples and first interior slopes
 remain unchanged. The 4-cell local-relief distribution across supported
 interior samples moves from 48.83/97.57 m at p50/p90 to 68.85/218.91 m, while
 the source elevation span moves from 416.62 m to 827.72 m without changing the
-27,432 valid / 4,992 no-data mask. This is a deterministic candidate-source
-measurement, not perceptual acceptance; fresh editor retention, v4 admission,
-composition, and accelerated pixels remain required.
+27,432 valid / 4,992 no-data mask. Eastern Uplands `SCENE@6` was accepted by
+the current v4 admission as result
+`blake3:ea16999158ef8b573770323f3996e5846827443cc31f7e7e0f325da703acca3a`.
+Server-owned composition
+`blake3:0668ad86dbda781010669df118c78e0cee49e6c1c9ddcb18821e8c8b1302b86c`
+is READY with all 168 vertices qualified and zero elevation, material,
+validity, coordinate-gap, or no-data conflicts at seam
+`blake3:28a0d26ffb37d71786d91638620c3e00e94375e4bd583ea1de1d348a33fb6548`.
+These remain source/admission measurements, not perceptual acceptance;
+accelerated pixels are still required.
 
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
