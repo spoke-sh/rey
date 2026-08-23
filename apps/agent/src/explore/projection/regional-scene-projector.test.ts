@@ -91,7 +91,7 @@ const portfolio = {
       workload: contract("scene-admission", "workload:1"),
       candidate_graph: contract("scene-admission.graph", "graph:1"),
       latest_scene_admission: {
-        schema: "rey.scene-admission-result.v2",
+        schema: "rey.scene-admission-result.v3",
         status: "accepted",
         scenario: null,
         workload: contract("scene-admission", "workload:1"),
@@ -165,6 +165,7 @@ const portfolio = {
                 distortion: "presentation only",
               },
             ],
+            objects: [],
             footprint: null,
           },
         },

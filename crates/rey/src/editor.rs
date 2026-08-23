@@ -10,10 +10,11 @@ use std::{
 use chrono::{DateTime, Utc};
 use rey_core::{SemanticDigest, SemanticHasher};
 use rey_diff::DeltaAssessment;
-use rey_mining::RegionalBounds;
+use rey_mining::{RegionalBounds, RegionalHydrologyClass};
 use rey_runtime::{
     SCENE_ADMISSION_CANDIDATE_SCHEMA, SCENE_ADMISSION_REQUESTED_OPERATION, SceneAdmissionCandidate,
     SceneAdmissionCoordinateSystem, SceneAdmissionFeature, SceneAdmissionSource,
+    inspect_hydrology_class,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1135,9 +1136,10 @@ impl LocalEditorStore {
             "WORKING",
             working.as_ref(),
         );
+        let admission_request_outdated = self.admission_request_outdated(head.as_ref())?;
         let state_kind = match (
-            staged.assessment == DeltaAssessment::Different,
-            unstaged.assessment == DeltaAssessment::Different,
+            state.index.is_some(),
+            unstaged.assessment == DeltaAssessment::Different || admission_request_outdated,
         ) {
             (false, false) => EditorWorkingState::Clean,
             (false, true) => EditorWorkingState::Working,
@@ -1172,15 +1174,13 @@ impl LocalEditorStore {
             let mut state = self.load_state()?;
             let package = self.load_commit_package(state.commits.last())?;
             let head_snapshot = package.as_ref().map(|package| &package.snapshot);
+            let admission_request_outdated =
+                self.admission_request_outdated(state.commits.last())?;
             let delta =
                 SceneChangeSet::derive("HEAD", head_snapshot, "INDEX", Some(&observed.snapshot));
             self.write_artifacts(&observed)?;
-            let staged = state.index.as_ref().or(head_snapshot) != Some(&observed.snapshot);
-            state.index = if head_snapshot == Some(&observed.snapshot) {
-                None
-            } else {
-                Some(observed.snapshot.clone())
-            };
+            let staged = head_snapshot != Some(&observed.snapshot) || admission_request_outdated;
+            state.index = staged.then_some(observed.snapshot.clone());
             self.save_state(&state)?;
             Ok(EditorAddResult {
                 schema: EDITOR_ADD_RESULT_SCHEMA.to_owned(),
@@ -1204,7 +1204,8 @@ impl LocalEditorStore {
             let head = state.commits.last().cloned();
             let parent = self.load_commit_package(head.as_ref())?;
             let parent_snapshot = parent.as_ref().map(|package| &package.snapshot);
-            if parent_snapshot == Some(&snapshot) {
+            let admission_request_outdated = self.admission_request_outdated(head.as_ref())?;
+            if parent_snapshot == Some(&snapshot) && !admission_request_outdated {
                 return Err(EditorError::NothingToCommit);
             }
             let sequence = state.commits.len() as u64 + 1;
@@ -1337,6 +1338,7 @@ impl LocalEditorStore {
                 })
             })
             .collect::<Result<Vec<_>, EditorError>>()?;
+        let hydrology_classes = admission_hydrology_classes(&sources)?;
         let features = package
             .snapshot
             .features
@@ -1363,6 +1365,7 @@ impl LocalEditorStore {
                         max_zoom: label.max_zoom,
                         collision_priority: label.collision_priority,
                     }),
+                hydrology_class: hydrology_classes.get(&feature.feature_id).copied(),
                 terrain_sample: feature.terrain_sample.as_ref().map(|sample| {
                     rey_runtime::SceneAdmissionTerrainSample {
                         longitude_microdegrees: sample.longitude_microdegrees,
@@ -1673,6 +1676,21 @@ impl LocalEditorStore {
             return Err(EditorError::AdmissionRequestIdentity);
         }
         Ok(request)
+    }
+
+    fn admission_request_outdated(
+        &self,
+        commit: Option<&SceneCommit>,
+    ) -> Result<bool, EditorError> {
+        commit
+            .map(|commit| {
+                self.load_admission_request(&commit.package.admission_request_path)
+                    .map(|request| {
+                        request.requested_operation != SCENE_ADMISSION_REQUESTED_OPERATION
+                    })
+            })
+            .transpose()
+            .map(Option::unwrap_or_default)
     }
 
     fn write_artifacts(&self, observed: &ObservedScene) -> Result<(), EditorError> {
@@ -2188,6 +2206,50 @@ fn parse_geojson(
         coordinate_count: source_coordinates,
         bounds: source_bounds,
     })
+}
+
+fn admission_hydrology_classes(
+    sources: &[SceneAdmissionSource],
+) -> Result<BTreeMap<String, RegionalHydrologyClass>, EditorError> {
+    let mut classes = BTreeMap::new();
+    for source in sources.iter().filter(|source| source.role == "hydrology") {
+        let document: Value = serde_json::from_slice(
+            source
+                .native_bytes
+                .as_deref()
+                .ok_or(EditorError::SnapshotSource)?,
+        )?;
+        let object = document.as_object().ok_or(EditorError::GeoJsonFeature)?;
+        let features = match object.get("type").and_then(Value::as_str) {
+            Some("FeatureCollection") => object
+                .get("features")
+                .and_then(Value::as_array)
+                .ok_or(EditorError::GeoJsonMember("features"))?,
+            Some("Feature") => std::slice::from_ref(&document),
+            _ => return Err(EditorError::GeoJsonFeature),
+        };
+        for feature in features {
+            let object = feature.as_object().ok_or(EditorError::GeoJsonFeature)?;
+            let source_feature_id = geojson_feature_id(object.get("id"))?;
+            let geometry_kind = object
+                .get("geometry")
+                .and_then(Value::as_object)
+                .and_then(|geometry| geometry.get("type"))
+                .and_then(Value::as_str)
+                .ok_or_else(|| EditorError::MissingGeometry(source_feature_id.clone()))?;
+            let properties = object
+                .get("properties")
+                .and_then(Value::as_object)
+                .ok_or_else(|| EditorError::GeoJsonProperties(source_feature_id.clone()))?;
+            let class = inspect_hydrology_class("hydrology", geometry_kind, properties)?
+                .ok_or(rey_runtime::SceneAdmissionError::HydrologyClass)?;
+            let feature_id = format!("{}/{source_feature_id}", source.source_id);
+            if classes.insert(feature_id, class).is_some() {
+                return Err(EditorError::DuplicateFeatureId(source_feature_id));
+            }
+        }
+    }
+    Ok(classes)
 }
 
 fn terrain_sample(
@@ -3491,6 +3553,90 @@ mod tests {
         assert_eq!(
             candidate.features[0].feature_revision,
             index.snapshot.features[0].feature_revision
+        );
+    }
+
+    #[test]
+    fn admission_candidate_derives_hydrology_class_from_frozen_native_bytes() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        fs::write(
+            workspace.path().join("hydrology.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"river","properties":{"water_class":"river_candidate"},"geometry":{"type":"LineString","coordinates":[[-123.0,37.0],[-122.0,38.0]]}},{"type":"Feature","id":"wetland","properties":{"water_class":"wetland_candidate"},"geometry":{"type":"Polygon","coordinates":[[[-122.8,37.2],[-122.6,37.2],[-122.6,37.4],[-122.8,37.2]]]}}]}"#,
+        )
+        .unwrap();
+        store
+            .add_source(
+                std::path::Path::new("hydrology.geojson"),
+                Some("county-demo".to_owned()),
+                "county-hydrology".to_owned(),
+                SceneSourceRole::Hydrology,
+            )
+            .unwrap();
+        store.add().unwrap();
+        store.commit("Admit typed hydrology".to_owned()).unwrap();
+
+        let candidate = store.admission_candidate(1).unwrap();
+        assert!(candidate.features.iter().any(|feature| {
+            feature.source_feature_id == "river"
+                && feature.hydrology_class
+                    == Some(rey_mining::RegionalHydrologyClass::RiverCandidate)
+        }));
+        assert!(candidate.features.iter().any(|feature| {
+            feature.source_feature_id == "wetland"
+                && feature.hydrology_class
+                    == Some(rey_mining::RegionalHydrologyClass::WetlandCandidate)
+        }));
+    }
+
+    #[test]
+    fn changed_admission_operation_creates_new_scene_over_exact_frozen_snapshot() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        fs::write(
+            workspace.path().join("boundary.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"county","properties":{},"geometry":{"type":"Polygon","coordinates":[[[-123.0,37.0],[-122.0,37.0],[-122.0,38.0],[-123.0,37.0]]]}}]}"#,
+        )
+        .unwrap();
+        store
+            .add_source(
+                std::path::Path::new("boundary.geojson"),
+                Some("county-demo".to_owned()),
+                "county-boundary".to_owned(),
+                SceneSourceRole::Boundary,
+            )
+            .unwrap();
+        store.add().unwrap();
+        let first = store.commit("Initial admission".to_owned()).unwrap();
+
+        let mut obsolete = first.admission_request.clone();
+        obsolete.requested_operation = "rey.scene-admission.validate@2".to_owned();
+        obsolete.request_id = super::admission_request_identity(&obsolete);
+        fs::write(
+            workspace
+                .path()
+                .join(".rey/editor")
+                .join(&first.commit.package.admission_request_path),
+            serde_json::to_vec(&obsolete).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(store.status().unwrap().state, super::EditorWorkingState::Working);
+        let added = store.add().unwrap();
+        assert!(added.staged);
+        assert_eq!(added.delta.assessment, DeltaAssessment::Equal);
+        let second = store
+            .commit("Request typed hydrology admission".to_owned())
+            .unwrap();
+        assert_eq!(second.commit.sequence, 2);
+        assert_eq!(second.package.snapshot, first.package.snapshot);
+        assert_eq!(
+            second.package.parent_package_id.as_ref(),
+            Some(&first.package.package_id)
+        );
+        assert_eq!(
+            second.admission_request.requested_operation,
+            rey_runtime::SCENE_ADMISSION_REQUESTED_OPERATION
         );
     }
 

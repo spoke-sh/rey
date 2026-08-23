@@ -20,8 +20,9 @@ use rey_runtime::{
     PortfolioError, PortfolioLimits, PortfolioQualificationState, PortfolioReasoningEvidence,
     PortfolioSnapshot, PortfolioSurfaceObservation, PortfolioWorkloadObservation,
     QualificationRecord, RENDER_ADMITTED_REGIONAL_SCENE_OPERATION_ID,
-    RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, RunStatus, SCENE_ADMISSION_OPERATION_ID, Scenario,
-    ScenarioSuite, SceneAdmissionResult, SceneAdmissionScenario, TestStatus,
+    RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, RunStatus, SCENE_ADMISSION_OPERATION_ID,
+    SCENE_ADMISSION_WORKLOAD_ID, Scenario, ScenarioSuite, SceneAdmissionResult,
+    SceneAdmissionScenario, TestStatus,
     TopographySurveyScenario, ValueSource, ValueType, WorkloadAttention, WorkloadDefinition,
     WorkloadDefinitionParts, WorkloadGitDependency, WorkloadGitDependencyKind, WorkloadLimits,
     WorkloadOwnedSurface, WorkloadPort, WorkloadRunResult, WorkloadScenarioExecutionResult,
@@ -2400,6 +2401,57 @@ impl Default for LocalWorkloadState {
 }
 
 impl LocalWorkloadState {
+    fn hard_cut_obsolete_scene_admission(&mut self) {
+        let obsolete = self
+            .records
+            .get(SCENE_ADMISSION_WORKLOAD_ID)
+            .is_some_and(|record| {
+                record
+                    .last_test
+                    .as_ref()
+                    .is_some_and(|result| result.workload.revision < 3)
+                    || record
+                        .last_run
+                        .as_ref()
+                        .is_some_and(|result| result.workload.revision < 3)
+                    || record.prior_scene_admissions.iter().any(|admission| {
+                        admission.schema == "rey.scene-admission-result.v2"
+                    })
+            });
+        if !obsolete {
+            return;
+        }
+
+        self.records.remove(SCENE_ADMISSION_WORKLOAD_ID);
+        self.semantic_atlas_history.clear();
+        self.semantic_atlas_deltas.clear();
+
+        let removed_admissions = self
+            .activation_admissions
+            .iter()
+            .filter(|admission| {
+                admission.workload.id == SCENE_ADMISSION_WORKLOAD_ID
+                    && admission.workload.revision < 3
+            })
+            .map(|admission| admission.admission_id.clone())
+            .collect::<BTreeSet<_>>();
+        self.activation_admissions.retain(|admission| {
+            !removed_admissions.contains(&admission.admission_id)
+        });
+        let removed_executions = self
+            .activation_executions
+            .iter()
+            .filter(|execution| removed_admissions.contains(&execution.admission_id))
+            .map(|execution| execution.execution_id.clone())
+            .collect::<BTreeSet<_>>();
+        self.activation_executions.retain(|execution| {
+            !removed_executions.contains(&execution.execution_id)
+        });
+        self.activation_recomputations.retain(|recomputation| {
+            !removed_executions.contains(&recomputation.execution_id)
+        });
+    }
+
     pub fn verify(&self) -> Result<(), LocalWorkloadStateError> {
         if self.schema != LOCAL_WORKLOAD_STATE_SCHEMA {
             return Err(LocalWorkloadStateError::UnsupportedSchema {
@@ -3469,11 +3521,12 @@ impl LocalWorkloadStore {
                 limit: MAX_STATE_BYTES,
             });
         }
-        let state: LocalWorkloadState =
+        let mut state: LocalWorkloadState =
             serde_json::from_slice(&bytes).map_err(|source| LocalWorkloadStateError::Json {
                 path: path.clone(),
                 source,
             })?;
+        state.hard_cut_obsolete_scene_admission();
         state.verify()?;
         Ok(state)
     }
@@ -4735,8 +4788,9 @@ mod tests {
         Availability, CapabilityRecord, CapabilitySnapshot, DiscoveryLimits, TrustClass,
     };
     use rey_runtime::{
-        AttentionAction, BUILT_IN_NORMALIZE_WORKLOAD_ID, PortfolioError, WorkloadRunResult,
-        built_in_workload, test_workload, test_workload_with_observer_and_snapshot,
+        AttentionAction, BUILT_IN_NORMALIZE_WORKLOAD_ID, PortfolioError,
+        SCENE_ADMISSION_WORKLOAD_ID, WorkloadRunResult, built_in_workload, test_workload,
+        test_workload_with_observer_and_snapshot,
     };
     use tempfile::TempDir;
 
@@ -4748,6 +4802,8 @@ mod tests {
 
     const WORKSPACE_PACKAGE: &str =
         include_str!("../../../sys/context-anchor-survey/workload.yaml");
+    const SCENE_ADMISSION_PACKAGE: &str =
+        include_str!("../../../sys/scene-admission/workload.yaml");
 
     #[test]
     fn workspace_catalog_loads_exact_proposal_and_rejects_incomplete_provenance() {
@@ -5093,6 +5149,47 @@ mod tests {
         assert_eq!(summary.passed, 2);
         assert_eq!(summary.evaluated, 2);
         assert!(summary.qualified_graph.is_some());
+    }
+
+    #[test]
+    fn state_load_hard_cuts_v2_scene_admission_without_masking_v3_tampering() {
+        let directory = TempDir::new().unwrap();
+        let package = directory.path().join("sys/scene-admission");
+        fs::create_dir_all(&package).unwrap();
+        fs::write(package.join("workload.yaml"), SCENE_ADMISSION_PACKAGE).unwrap();
+        let catalog = WorkloadCatalog::load_workspace(
+            directory.path(),
+            std::path::Path::new("sys"),
+        )
+        .unwrap();
+        let result = test_workload(&catalog.workloads[0].definition).unwrap();
+        let store = LocalWorkloadStore::new(directory.path().join("state"));
+        let mut state = LocalWorkloadState::default();
+        state.retain_test(result.clone());
+        store.save(&state).unwrap();
+
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&fs::read(store.path()).unwrap()).unwrap();
+        document["records"][SCENE_ADMISSION_WORKLOAD_ID]["last_test"]["workload"]
+            ["revision"] = 2.into();
+        fs::write(store.path(), serde_json::to_vec(&document).unwrap()).unwrap();
+        assert!(
+            store
+                .load()
+                .unwrap()
+                .record(SCENE_ADMISSION_WORKLOAD_ID)
+                .is_none()
+        );
+
+        let mut current = LocalWorkloadState::default();
+        current.retain_test(result);
+        store.save(&current).unwrap();
+        let mut tampered: serde_json::Value =
+            serde_json::from_slice(&fs::read(store.path()).unwrap()).unwrap();
+        tampered["records"][SCENE_ADMISSION_WORKLOAD_ID]["last_test"]["stop_reason"] =
+            "tampered".into();
+        fs::write(store.path(), serde_json::to_vec(&tampered).unwrap()).unwrap();
+        assert!(store.load().is_err());
     }
 
     #[test]

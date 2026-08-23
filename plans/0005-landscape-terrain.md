@@ -271,16 +271,16 @@ earlier 2.07-second local baseline. That single-machine comparison demonstrates
 that work moved off the visible entry path, but it is not a stable hardware
 performance claim and the remaining stall stays open.
 
-Those voyages close the executable base-layer item, not the named fidelity
-matrix. The named `coastline-water` row still requires an admitted `river`
-subtype and an accelerated admitted boundary. Regional scene admission
-currently retains only the generic hydrology layer, and the exact County
-boundary coincides with no-data support, so qualifying that row would require a
-stronger semantic-property admission contract or a distinct matching fixture.
-The suite is not weakened to make Rey County pass. The WebGL2 image also
-retains blurred kilometer-scale relief, and its first Landscape submission
-took about 2.07 seconds under SwiftShader; both remain material acceptance
-gaps.
+Those voyages closed the executable base-layer item, not the named fidelity
+matrix. At that point the named `coastline-water` row still required an
+admitted `river` subtype and an accelerated admitted boundary: regional scene
+admission retained only the generic hydrology layer, and the exact County
+boundary coincided with no-data support. The later typed-hydrology cutover now
+retains exact source `water_class` values and geometry compatibility instead
+of weakening the suite or guessing from feature IDs. A fresh named capture is
+still required before the row can close. The WebGL2 image also retained blurred
+kilometer-scale relief, and its first Landscape submission took about 2.07
+seconds under SwiftShader; both remain material acceptance gaps.
 
 Landscape now enters through a north-up 88-degree map camera. The reversible
 Atlas transition also eases into a 1.38x interior composition scale so valid
@@ -914,9 +914,15 @@ stronger polygon depth bias, explicit water render order, and a high-opacity
 depth-writing base. The replacement 1920×1080 WebGPU voyage passed in manifest
 `sha256:c444f264eed286cdddd7efe13cf20288792fd120795dc93cc3d4fb29c2735425`;
 its river and polygon surfaces are continuous instead of crosshatched. The
-generic hydrology-polygon contract still cannot distinguish open water from a
-wetland, so terrain-bound hydrology remains open until that source property is
-typed through admission and the two materials separate.
+following `rey.scene-admission.validate@3` /
+`rey.scene-admission-result.v3` and
+`rey.explorer.terrain-render-passes@6` slice hard-cuts classless hydrology from
+current scene verification, retains each exact authored `water_class` through
+editor transfer, admission, mining, and browser topology, and separates
+open-water, wetland, river, stream, and seasonal-runoff presentation without
+widening terrain validity. V2 admissions and their atlas bindings are excluded
+rather than adapted. This closes the missing semantic mechanism; the named
+coastline/water capture and explicit perceptual assessment remain open.
 
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted

@@ -104,7 +104,7 @@ export function admittedRegionalScenes(
       const terrainValid = scene ? validRegionalTerrain(scene) : false;
       if (
         !result ||
-        result.schema !== "rey.scene-admission-result.v2" ||
+        result.schema !== "rey.scene-admission-result.v3" ||
         result.status !== "accepted" ||
         result.scenario !== null ||
         !scene ||
@@ -123,6 +123,7 @@ export function admittedRegionalScenes(
         !admittedAtlasSource ||
         scene.artifacts.terrain_program_id !==
           scene.projection.terrain_program_id ||
+        !validRegionalHydrology(scene) ||
         !terrainValid ||
         scene.projection.coordinate_bindings.length !==
           coordinateSpaces.length ||
@@ -160,6 +161,31 @@ export function admittedRegionalScenes(
         },
       ];
     });
+  });
+}
+
+const REGIONAL_HYDROLOGY_CLASSES = new Set([
+  "river_candidate",
+  "stream_candidate",
+  "seasonal_runoff_candidate",
+  "river_area_candidate",
+  "wetland_candidate",
+]);
+
+function validRegionalHydrology(scene: AdmittedRegionalScene): boolean {
+  if (!Array.isArray(scene.projection.objects)) return false;
+  return scene.projection.objects.every((object) => {
+    if (object.layer !== "hydrology")
+      return object.hydrology_class === undefined;
+    if (
+      !object.hydrology_class ||
+      !REGIONAL_HYDROLOGY_CLASSES.has(object.hydrology_class)
+    )
+      return false;
+    const area =
+      object.hydrology_class === "river_area_candidate" ||
+      object.hydrology_class === "wetland_candidate";
+    return object.geometry_kind === (area ? "Polygon" : "LineString");
   });
 }
 

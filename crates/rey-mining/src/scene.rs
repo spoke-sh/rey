@@ -1036,6 +1036,28 @@ pub struct RegionalCartographicLabel {
     pub collision_priority: u64,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RegionalHydrologyClass {
+    RiverCandidate,
+    StreamCandidate,
+    SeasonalRunoffCandidate,
+    RiverAreaCandidate,
+    WetlandCandidate,
+}
+
+impl RegionalHydrologyClass {
+    #[must_use]
+    pub fn supports_geometry(self, geometry_kind: &str) -> bool {
+        match self {
+            Self::RiverCandidate | Self::StreamCandidate | Self::SeasonalRunoffCandidate => {
+                geometry_kind == "LineString"
+            }
+            Self::RiverAreaCandidate | Self::WetlandCandidate => geometry_kind == "Polygon",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RegionalNativeObject {
@@ -1050,6 +1072,8 @@ pub struct RegionalNativeObject {
     pub native_geometry: Option<RegionalNativeGeometry>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cartographic_label: Option<RegionalCartographicLabel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hydrology_class: Option<RegionalHydrologyClass>,
     pub layer: RegionalLayerKind,
     pub authority: String,
 }
@@ -1488,6 +1512,10 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
                     || label.max_zoom > 24
                     || label.collision_priority > 1_000
             })
+            || (object.layer == RegionalLayerKind::Hydrology) != object.hydrology_class.is_some()
+            || object
+                .hydrology_class
+                .is_some_and(|class| !class.supports_geometry(&object.geometry_kind))
         {
             return Err(RegionalSceneError::ObjectAuthority);
         }
@@ -1938,6 +1966,7 @@ mod tests {
                 ]],
             }),
             cartographic_label: None,
+            hydrology_class: None,
             layer: RegionalLayerKind::Boundary,
             authority: "exact admitted native geometry; appearance grants no relationship, activity, or action authority".to_owned(),
         };

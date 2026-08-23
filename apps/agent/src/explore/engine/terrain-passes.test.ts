@@ -70,8 +70,8 @@ describe("executable terrain render passes", () => {
       }
     }
     expect(
-      compiled?.lines.find(({ id }) => id.startsWith("stream:"))?.authority,
-    ).toBe("derived hydrology fixture");
+      compiled?.lines.find(({ kind }) => kind === "river")?.authority,
+    ).toBe("exact admitted hydrology envelope");
     expect(
       compiled?.lines.find(({ id }) => id.startsWith("county:fixture:"))
         ?.source_revision,
@@ -97,6 +97,28 @@ describe("executable terrain render passes", () => {
     expect(compiled?.pass_set_id.length).toBeLessThan(128);
     expect(Object.isFrozen(compiled?.areas)).toBe(true);
     expect(Object.isFrozen(compiled?.lines)).toBe(true);
+  });
+
+  it("renders typed wetland polygons separately from open water", () => {
+    const scene = sceneFixture();
+    scene.nodes[2]!.spatial_feature!.hydrology_class = "wetland_candidate";
+    const compiled = compileTerrainRenderPasses(
+      scene,
+      compileExplorerRenderGraph(scene),
+      visible(),
+    );
+    expect(
+      compiled?.areas.find(({ kind }) => kind === "wetland_area"),
+    ).toMatchObject({
+      color: 0x547b62,
+      opacity: 0.48,
+    });
+    expect(compiled?.areas.some(({ kind }) => kind === "water_area")).toBe(
+      false,
+    );
+    expect(
+      compiled?.lines.some(({ kind }) => kind === "wetland_boundary"),
+    ).toBe(true);
   });
 
   it("projects transient layer visibility without changing graph identity", () => {
@@ -299,6 +321,7 @@ function sceneFixture(): TopologyScene {
           geometry_path: "M15,7 L20,7",
           geometry_representation: "exact_native",
           authority: "exact admitted hydrology envelope",
+          hydrology_class: "river_candidate",
         },
       },
       {
@@ -318,6 +341,7 @@ function sceneFixture(): TopologyScene {
           geometry_path: "M15,0 L20,0 20,5 15,5 Z",
           geometry_representation: "exact_native",
           authority: "exact admitted wetland polygon",
+          hydrology_class: "river_area_candidate",
         },
       },
     ],

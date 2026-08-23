@@ -6,22 +6,23 @@ use rey_mining::{
     REGIONAL_PROJECTION_PACKET_SCHEMA, REGIONAL_TERRAIN_GRID_PROGRAM_SCHEMA,
     REGIONAL_TERRAIN_GRID_SCHEMA, REGIONAL_TERRAIN_PROGRAM_SCHEMA, RegionalArtifactBindings,
     RegionalBounds, RegionalCartographicLabel, RegionalCoordinateBinding, RegionalCoordinateSpace,
-    RegionalCoordinateStatus, RegionalFootprint, RegionalLayer, RegionalLayerKind,
-    RegionalNativeGeometry, RegionalNativeObject, RegionalProjectionPacket, RegionalSceneLimits,
-    RegionalSceneLineage, RegionalSceneOmission, RegionalTerrainGrid, RegionalTerrainGridCell,
-    RegionalTerrainProgram, RegionalTerrainSample, RegionalTransform, RegionalValidity,
-    RegionalValidityClass, SceneAdmissionBinding, finalize_regional_terrain_sample,
-    regional_packed_terrain_cell_source_object_id, regional_packed_terrain_cell_source_revision,
+    RegionalCoordinateStatus, RegionalFootprint, RegionalHydrologyClass, RegionalLayer,
+    RegionalLayerKind, RegionalNativeGeometry, RegionalNativeObject, RegionalProjectionPacket,
+    RegionalSceneLimits, RegionalSceneLineage, RegionalSceneOmission, RegionalTerrainGrid,
+    RegionalTerrainGridCell, RegionalTerrainProgram, RegionalTerrainSample, RegionalTransform,
+    RegionalValidity, RegionalValidityClass, SceneAdmissionBinding,
+    finalize_regional_terrain_sample, regional_packed_terrain_cell_source_object_id,
+    regional_packed_terrain_cell_source_revision,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
-pub const SCENE_ADMISSION_RESULT_SCHEMA: &str = "rey.scene-admission-result.v2";
+pub const SCENE_ADMISSION_RESULT_SCHEMA: &str = "rey.scene-admission-result.v3";
 pub const SCENE_ADMISSION_CANDIDATE_SCHEMA: &str = "rey.scene-admission-candidate.v1";
 pub const SCENE_ADMISSION_WORKLOAD_ID: &str = "scene-admission";
 pub const SCENE_ADMISSION_OPERATION_ID: &str = "rey.scene-admission.validate";
-pub const SCENE_ADMISSION_REQUESTED_OPERATION: &str = "rey.scene-admission.validate@2";
+pub const SCENE_ADMISSION_REQUESTED_OPERATION: &str = "rey.scene-admission.validate@3";
 pub const RENDER_ADMITTED_REGIONAL_SCENE_OPERATION_ID: &str =
     "rey.admitted-regional-scene.render-lines";
 pub const SCENE_ADMISSION_LANDSCAPE_SUMMARY_SCHEMA: &str =
@@ -66,6 +67,8 @@ pub struct SceneAdmissionFeature {
     pub feature_revision: SemanticDigest,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cartographic_label: Option<SceneAdmissionCartographicLabel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hydrology_class: Option<RegionalHydrologyClass>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terrain_sample: Option<SceneAdmissionTerrainSample>,
 }
@@ -219,6 +222,14 @@ impl SceneAdmissionCandidate {
                 != feature.cartographic_label.is_some()
         }) {
             return Err(SceneAdmissionError::CartographicLabel);
+        }
+        if self.features.iter().any(|feature| {
+            (feature.role == "hydrology") != feature.hydrology_class.is_some()
+                || feature
+                    .hydrology_class
+                    .is_some_and(|class| !class.supports_geometry(&feature.geometry_kind))
+        }) {
+            return Err(SceneAdmissionError::HydrologyClass);
         }
         if !self.complete || !self.omissions.is_empty() {
             return Err(SceneAdmissionError::CandidateIncomplete);
@@ -469,7 +480,7 @@ impl SceneAdmissionResult {
 pub fn scene_admission_operation_contract() -> ContractIdentity {
     ContractIdentity::new(
         SCENE_ADMISSION_OPERATION_ID,
-        2,
+        3,
         "validate one exact current editor candidate transfer envelope and emit an accepted regional scene or typed rejection without mutating editor or Explorer state",
     )
 }
@@ -883,6 +894,7 @@ pub fn scene_admission_fixture(
         feature_revision: feature_digest("fixture-county", "boundary", &feature_value)?,
         terrain_sample: None,
         cartographic_label: None,
+        hydrology_class: None,
     };
     let package_id = semantic_digest("rey.fixture.scene-package.v1", "fixture-current");
     let mut candidate = SceneAdmissionCandidate {
@@ -1156,6 +1168,7 @@ fn inspect_geojson_source(
         )?;
         let cartographic_label =
             inspect_cartographic_label(&source.role, geometry_kind, properties)?;
+        let hydrology_class = inspect_hydrology_class(&source.role, geometry_kind, properties)?;
         inspected.push(SceneAdmissionFeature {
             feature_id: format!("{}/{}", source.source_id, source_feature_id),
             source_id: source.source_id.clone(),
@@ -1167,6 +1180,7 @@ fn inspect_geojson_source(
             properties_digest: properties_digest(&properties_bytes),
             feature_revision,
             cartographic_label,
+            hydrology_class,
             terrain_sample,
         });
     }
@@ -1176,6 +1190,28 @@ fn inspect_geojson_source(
         coordinate_count: all_positions.len() as u64,
         bounds: bounds_from_positions(&all_positions)?,
     })
+}
+
+pub fn inspect_hydrology_class(
+    role: &str,
+    geometry_kind: &str,
+    properties: &serde_json::Map<String, Value>,
+) -> Result<Option<RegionalHydrologyClass>, SceneAdmissionError> {
+    if role != "hydrology" {
+        return Ok(None);
+    }
+    let class = match properties.get("water_class").and_then(Value::as_str) {
+        Some("river_candidate") => RegionalHydrologyClass::RiverCandidate,
+        Some("stream_candidate") => RegionalHydrologyClass::StreamCandidate,
+        Some("seasonal_runoff_candidate") => RegionalHydrologyClass::SeasonalRunoffCandidate,
+        Some("river_area_candidate") => RegionalHydrologyClass::RiverAreaCandidate,
+        Some("wetland_candidate") => RegionalHydrologyClass::WetlandCandidate,
+        _ => return Err(SceneAdmissionError::HydrologyClass),
+    };
+    if !class.supports_geometry(geometry_kind) {
+        return Err(SceneAdmissionError::HydrologyClass);
+    }
+    Ok(Some(class))
 }
 
 fn inspect_cartographic_label(
@@ -1518,6 +1554,7 @@ fn build_scene(
                         collision_priority: label.collision_priority,
                     }
                 }),
+                hydrology_class: feature.hydrology_class,
                 layer: layer_kind(&feature.role)?,
                 authority: "exact admitted native geometry; appearance grants no relationship, activity, or action authority".to_owned(),
             })
@@ -1789,8 +1826,8 @@ fn build_scene(
             operation: scene_admission_operation_contract(),
             implementation: ContractIdentity::new(
                 "rey.scene-admission.builtin",
-                2,
-                "deterministic bounded validation of the exact editor transfer envelope, native GeoJSON objects, and retained Point, LineString, or Polygon geometry",
+                3,
+                "deterministic bounded validation of the exact editor transfer envelope, native GeoJSON objects, retained Point, LineString, or Polygon geometry, and geometry-compatible authored hydrology classes",
             ),
             workload: context.workload.clone(),
             graph: context.graph.clone(),
@@ -2863,6 +2900,8 @@ pub enum SceneAdmissionError {
     TerrainSample,
     #[error("scene-admission cartographic label is malformed or unbound")]
     CartographicLabel,
+    #[error("scene-admission hydrology class is malformed or unbound")]
+    HydrologyClass,
     #[error("scene-admission source role is unsupported: {0}")]
     UnsupportedRole(String),
     #[error("scene-admission result has an invalid status/evidence shape")]
@@ -2927,6 +2966,7 @@ mod tests {
             properties_digest: properties_digest(&properties),
             feature_revision: feature_digest("fixture-terrain", "terrain", &feature_value).unwrap(),
             cartographic_label: None,
+            hydrology_class: None,
             terrain_sample: Some(SceneAdmissionTerrainSample {
                 longitude_microdegrees: -122_500_000,
                 latitude_microdegrees: 37_500_000,
@@ -3000,6 +3040,7 @@ mod tests {
                     )
                     .unwrap(),
                     cartographic_label: None,
+                    hydrology_class: None,
                     terrain_sample: Some(SceneAdmissionTerrainSample {
                         longitude_microdegrees: to_microdegrees(longitude),
                         latitude_microdegrees: to_microdegrees(latitude),
@@ -3128,8 +3169,8 @@ mod tests {
 
     fn contracts() -> [ContractIdentity; 4] {
         [
-            ContractIdentity::new("scene-admission", 2, "fixture"),
-            ContractIdentity::new("scene-admission.graph", 2, "fixture"),
+            ContractIdentity::new("scene-admission", 3, "fixture"),
+            ContractIdentity::new("scene-admission.graph", 3, "fixture"),
             ContractIdentity::new("scene-admission.scenarios", 1, "fixture"),
             ContractIdentity::new("rey.scenario.utf8-exact", 1, "fixture"),
         ]
@@ -3237,6 +3278,89 @@ mod tests {
     }
 
     #[test]
+    fn retains_typed_hydrology_and_rejects_unbound_water_classes() {
+        let mut candidate = scene_admission_fixture(SceneAdmissionFixture::Accepted).unwrap();
+        let native = serde_json::to_vec(&serde_json::json!({
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "id": "river",
+                    "properties": {"water_class": "river_candidate"},
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [[-122.8, 37.2], [-122.6, 37.5]]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "id": "wetland",
+                    "properties": {"water_class": "wetland_candidate"},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[
+                            [-122.7, 37.3], [-122.6, 37.3], [-122.6, 37.4],
+                            [-122.7, 37.3]
+                        ]]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+        let source = SceneAdmissionSource {
+            source_id: "fixture-hydrology".to_owned(),
+            worktree_path: "fixtures/hydrology.geojson".to_owned(),
+            format: "geo_json".to_owned(),
+            role: "hydrology".to_owned(),
+            media_type: "application/geo+json".to_owned(),
+            artifact_id: native_artifact_digest(&native),
+            artifact_path: "objects/fixture-hydrology.geojson".to_owned(),
+            declared_bytes: native.len() as u64,
+            native_bytes: Some(native),
+            feature_count: 2,
+            coordinate_count: 6,
+        };
+        let inspected = inspect_geojson_source(&source, source.native_bytes.as_ref().unwrap())
+            .expect("typed hydrology source");
+        candidate.sources.push(source);
+        candidate.features.extend(inspected.features);
+        candidate
+            .sources
+            .sort_by(|left, right| left.source_id.cmp(&right.source_id));
+        candidate
+            .features
+            .sort_by(|left, right| left.feature_id.cmp(&right.feature_id));
+        candidate.candidate_id = candidate_digest(&candidate).unwrap();
+        let input = SceneAdmissionInput {
+            candidate,
+            limits: SceneAdmissionLimits::default(),
+            capability_snapshot_id: semantic_digest("fixture.capabilities", "hydrology"),
+        };
+        let contracts = contracts();
+        let campaign = semantic_digest("fixture.campaign", "hydrology");
+        let result = execute_scene_admission(context(&input, &contracts, &campaign)).unwrap();
+        let scene = result.scene.expect("accepted hydrology scene");
+        assert!(scene.projection.objects.iter().any(|object| {
+            object.object_id == "fixture-hydrology/river"
+                && object.hydrology_class == Some(RegionalHydrologyClass::RiverCandidate)
+        }));
+        assert!(scene.projection.objects.iter().any(|object| {
+            object.object_id == "fixture-hydrology/wetland"
+                && object.hydrology_class == Some(RegionalHydrologyClass::WetlandCandidate)
+        }));
+
+        let properties = serde_json::json!({"water_class": "wetland_candidate"});
+        assert!(matches!(
+            inspect_hydrology_class("hydrology", "LineString", properties.as_object().unwrap(),),
+            Err(SceneAdmissionError::HydrologyClass)
+        ));
+        assert!(matches!(
+            inspect_hydrology_class("hydrology", "Polygon", &serde_json::Map::new(),),
+            Err(SceneAdmissionError::HydrologyClass)
+        ));
+    }
+
+    #[test]
     fn accepted_scene_keeps_all_coordinate_planes_and_excludes_terrain_hints() {
         let candidate = scene_admission_fixture(SceneAdmissionFixture::Accepted).unwrap();
         let input = SceneAdmissionInput {
@@ -3255,7 +3379,7 @@ mod tests {
             result.detail
         );
         let mut obsolete = result.clone();
-        obsolete.schema = "rey.scene-admission-result.v1".to_owned();
+        obsolete.schema = "rey.scene-admission-result.v2".to_owned();
         assert!(matches!(
             obsolete.verify(),
             Err(SceneAdmissionError::ResultSchema)
@@ -3285,7 +3409,7 @@ mod tests {
             "not_evaluated_in_scene_admission"
         );
         let scene = result.scene.unwrap();
-        assert_eq!(scene.admission.implementation.revision, 2);
+        assert_eq!(scene.admission.implementation.revision, 3);
         assert_eq!(scene.projection.coordinate_bindings.len(), 5);
         assert!(matches!(
             scene.projection.objects[0].native_geometry,

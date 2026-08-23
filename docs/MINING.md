@@ -306,7 +306,11 @@ source, feature, geometry, bounds, marker, coverage, limit, and change indexes
 so an operator can review what a future admission workload would inspect.
 INDEX freezes exact bytes; `commit` advances `SCENE@n`, packages only that
 verified index, and emits a separate unadmitted request. Generator recipes,
-seeds, and hyperparameters are source lineage, not evidence claims.
+seeds, and hyperparameters are source lineage, not evidence claims. When the
+current admission operation supersedes HEAD's immutable request, `add` may
+stage the same verified source snapshot and `commit` advances a new package
+lineage with an equal content delta and a request for the new operation. The
+old scene and request remain immutable and are not adapted.
 `rey editor source add` supplies the deterministic authoring entry for existing
 native GeoJSON: it verifies bounded non-symlinked workspace bytes and stable
 feature identities, registers one explicit semantic role in WORKING, and
@@ -358,7 +362,16 @@ absent and height validity remains explicitly unsupported. A
 terrain-control layer remains candidate control geometry and cannot
 be interpreted as observed terrain. Layer kinds come only from explicit source
 roles retained through the admitted object and layer records; geometry and
-filenames do not infer a kind. The separate
+filenames do not infer a kind. Every admitted hydrology feature additionally
+retains its exact authored `water_class`: `river_candidate`,
+`stream_candidate`, and `seasonal_runoff_candidate` require LineString
+geometry, while `river_area_candidate` and `wetland_candidate` require Polygon
+geometry. A missing, unknown, or geometry-incompatible class rejects
+admission. The class is self-asserted source semantics, not an observed
+water-state claim, but it lets downstream renderers distinguish open water
+from wetland treatment without guessing from identifiers or shape. Previously
+retained hydrology objects without this evidence fail current scene
+verification and must be re-admitted from their frozen native source. The separate
 `rey.explore-grammar.v1` binds projection posture, hysteresis, morphing,
 semantic/geometric LOD, inverse picking, polar/antimeridian behavior, and
 camera bounds without containing a camera instance. Bounded multi-region tests

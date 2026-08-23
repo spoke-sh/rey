@@ -96,6 +96,12 @@ WORKING availability is `unavailable` or `error` are excluded from interactive
 selection and remain unstaged. Workload and editor staging are complete
 snapshot operations.
 
+If an editor HEAD carries an immutable request for an obsolete scene-admission
+operation, `status` reports work, `add` freezes the same exact source snapshot
+into INDEX, and `commit` creates a new `SCENE@n` package/request lineage with an
+equal content delta. This is a protocol re-admission, not a native-source
+change or migration of the old scene.
+
 Workloads add one mandatory gate between staging and commit:
 
 ```text
@@ -371,7 +377,7 @@ lineage. Each explicitly declared native source role remains a separately
 named layer in this output; terrain controls retain candidate-only authority.
 `-vv` prints every layer's exact kind/object membership/source revision and the
 footprint identity, source bindings, native rings, coordinate count, and authority. JSON
-retains the complete `rey.scene-admission-result.v2`. Rejected validation
+retains the complete `rey.scene-admission-result.v3`. Rejected validation
 scenarios are conclusive typed results; no run mutates editor state or admits a
 browser scene.
 
@@ -387,9 +393,10 @@ CPU/GPU budgets remain explicitly unavailable with typed omissions. Those
 fields may become populated only by later executions that bind the exact scene
 composition and renderer contracts.
 
-This is a hard-cut contract: only `rey.scene-admission.validate@2` emits
-`rey.scene-admission-result.v2`. Older admission results are not migrated into
-the landscape-bearing shape and must be replaced by admitting a current scene.
+This is a hard-cut contract: only `rey.scene-admission.validate@3` emits
+`rey.scene-admission-result.v3`. V2 admissions are excluded rather than
+migrated or supplemented with guessed hydrology classes; a current scene must
+be freshly qualified and admitted to replace them.
 
 ### `rey git`
 

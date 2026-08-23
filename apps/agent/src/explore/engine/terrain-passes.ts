@@ -18,7 +18,7 @@ import {
 } from "./render-graph";
 
 export const TERRAIN_RENDER_PASS_COMPILER_REVISION =
-  "rey.explorer.terrain-render-passes@5" as const;
+  "rey.explorer.terrain-render-passes@6" as const;
 
 const TERRAIN_WATER_SURFACE_OFFSET = 4;
 
@@ -172,6 +172,7 @@ export function compileTerrainRenderPasses(
         feature.geometry_kind.toLowerCase() === "polygon" &&
         feature.geometry_representation === "exact_native"
       ) {
+        const wetland = feature.hydrology_class === "wetland_candidate";
         const positions = drapeTerrainArea(
           feature.geometry_path,
           scene.terrain_fields,
@@ -182,12 +183,12 @@ export function compileTerrainRenderPasses(
             Object.freeze({
               id: `${node.id}:surface`,
               pass_id: "water_weather_boundary",
-              kind: "water_area",
+              kind: wetland ? "wetland_area" : "water_area",
               source_revision: `${node.id}:${feature.geometry_path}:${feature.geometry_representation}`,
-              authority: `${feature.authority}; surface edge is clipped to the exact admitted polygon within fully valid terrain triangles`,
+              authority: `${feature.authority}; ${wetland ? "wetland tint" : "open-water fill"} edge is clipped to the exact admitted polygon within fully valid terrain triangles`,
               positions,
-              color: 0x3f8998,
-              opacity: 0.9,
+              color: wetland ? 0x547b62 : 0x3f8998,
+              opacity: wetland ? 0.48 : 0.9,
             }),
           );
         else
@@ -200,12 +201,17 @@ export function compileTerrainRenderPasses(
         pass_id: "water_weather_boundary",
         kind:
           feature.geometry_kind.toLowerCase() === "polygon"
-            ? "water_shoreline"
-            : feature.layer,
+            ? feature.hydrology_class === "wetland_candidate"
+              ? "wetland_boundary"
+              : "water_shoreline"
+            : hydrologyLineKind(feature.hydrology_class),
         source_revision: `${node.id}:${feature.layer}:${feature.geometry_path}:${feature.geometry_representation}:${node.focus_id === scene.focus_id ? "selected" : "unselected"}`,
         authority: feature.authority,
         path: feature.geometry_path,
-        color: featureColor(feature.layer, node.focus_id === scene.focus_id),
+        color: hydrologyFeatureColor(
+          feature.hydrology_class,
+          node.focus_id === scene.focus_id,
+        ),
         opacity:
           feature.geometry_kind.toLowerCase() === "polygon"
             ? 0.86
@@ -846,6 +852,38 @@ function terrainBounds(fields: readonly TerrainFieldSet[]) {
     width: right - left,
     height: bottom - top,
   });
+}
+
+function hydrologyLineKind(
+  hydrologyClass:
+    | NonNullable<
+        NonNullable<
+          TopologyScene["nodes"][number]["spatial_feature"]
+        >["hydrology_class"]
+      >
+    | undefined,
+): string {
+  if (hydrologyClass === "river_candidate") return "river";
+  if (hydrologyClass === "stream_candidate") return "stream";
+  if (hydrologyClass === "seasonal_runoff_candidate") return "seasonal_runoff";
+  return "hydrology";
+}
+
+function hydrologyFeatureColor(
+  hydrologyClass:
+    | NonNullable<
+        NonNullable<
+          TopologyScene["nodes"][number]["spatial_feature"]
+        >["hydrology_class"]
+      >
+    | undefined,
+  selected: boolean,
+): number {
+  if (selected) return 0xffd36e;
+  if (hydrologyClass === "wetland_candidate") return 0x5f8269;
+  if (hydrologyClass === "seasonal_runoff_candidate") return 0x759b9c;
+  if (hydrologyClass === "stream_candidate") return 0x69a9bc;
+  return 0x4d98b2;
 }
 
 function pointFeature(

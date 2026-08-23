@@ -2,7 +2,7 @@ schema: rey.workload-package.v1
 
 workload:
   id: scene-admission
-  revision: 2
+  revision: 3
   title: Admit exact editor scenes for regional projection
   inputs:
     - port_id: text
@@ -26,12 +26,12 @@ generation:
 
 graph:
   id: scene-admission.graph
-  revision: 2
+  revision: 3
   nodes:
     - id: admit
       operation:
         id: rey.scene-admission.validate
-        revision: 2
+        revision: 3
       input:
         kind: external_input
         input_id: text

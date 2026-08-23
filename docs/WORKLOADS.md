@@ -120,10 +120,10 @@ leaving multi-region mosaic composition, materialized height/relief pyramids,
 renderer fallback, residency, and CPU/GPU budgets unevaluated. The human run
 view and structured JSON carry the same typed summary.
 
-Landscape-aware admission is a hard cut at
-`rey.scene-admission.validate@2` and `rey.scene-admission-result.v2`.
-Pre-v2 results are not adapted or projected; a current editor scene must be
-qualified and admitted to replace them.
+Typed-hydrology admission is a hard cut at
+`rey.scene-admission.validate@3` and `rey.scene-admission-result.v3`. V2
+results are not adapted or projected; a current editor scene must be qualified
+and admitted to replace them.
 
 ## Workload Creation Request
 

@@ -64,7 +64,7 @@ the renderer.
 | `boundary.geojson`         | `boundary`        | Exact County footprint and validity boundary                        |
 | `terrain.geojson`          | `terrain`         | Packed 501×501 elevation/material grid with explicit validity        |
 | `terrain-controls.geojson` | `terrain_control` | Candidate-only named landform influences; never observed height     |
-| `hydrology.geojson`        | `hydrology`       | Authored rivers, streams, runoff, and wetland geometry              |
+| `hydrology.geojson`        | `hydrology`       | Authored typed rivers, streams, runoff, river area, and wetland geometry |
 | `features.geojson`         | `features`        | Meadow land cover and the explicit unexplored region                |
 | `markers.geojson`          | `markers`         | Semantic points of interest with independent label LOD              |
 | `districts.geojson`        | `district`        | Subordinate administrative and semantic boundaries                  |
@@ -113,7 +113,10 @@ Its cartographic hierarchy currently retains four highways, twelve local
 roads, four railway paths, and sixteen independently bounded labels. Its water
 hierarchy retains one exact river surface, one wetland, the river centerline,
 and nine exact tributary or runoff paths. These are source features with exact
-evidence routes, not renderer-generated decoration.
+evidence routes, not renderer-generated decoration. Every feature carries the
+required `water_class` admission property; line and polygon classes are
+geometry-checked and remain self-asserted authored semantics rather than a
+claim about current water conditions.
 
 ## Regeneration And Verification
 

@@ -246,6 +246,12 @@ export interface RegionalProjectionPacket {
       max_zoom: number;
       collision_priority: number;
     };
+    hydrology_class?:
+      | "river_candidate"
+      | "stream_candidate"
+      | "seasonal_runoff_candidate"
+      | "river_area_candidate"
+      | "wetland_candidate";
     layer: RegionalLayerKind;
     authority: string;
   }>;
@@ -361,7 +367,7 @@ export interface AdmittedRegionalScene {
 }
 
 export interface SceneAdmissionResult {
-  schema: "rey.scene-admission-result.v2";
+  schema: "rey.scene-admission-result.v3";
   result_id: string;
   candidate_id: string;
   workload: ContractIdentity;
