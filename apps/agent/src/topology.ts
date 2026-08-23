@@ -875,20 +875,16 @@ export function regionalLandscapeMembers(
       },
     ]),
   });
-  if (
-    !composition ||
-    !composition.complete ||
-    composition.atlas_revision !==
-      selected.scene.artifacts.admitted_atlas_revision
-  )
-    return single();
+  if (!composition || !composition.complete) return single();
   const selectedMember = composition.members.find(
     (member) =>
       member.scene_id === selected.scene.scene_id &&
       member.admission_id === selected.scene.admission.admission_id &&
       member.package_id === selected.scene.admission.package_id &&
       member.package_revision ===
-        selected.scene.admission.package_snapshot_revision,
+        selected.scene.admission.package_snapshot_revision &&
+      member.admitted_atlas_revision ===
+        selected.scene.artifacts.admitted_atlas_revision,
   );
   if (!selectedMember) return single();
   const projectionBySceneId = new Map(

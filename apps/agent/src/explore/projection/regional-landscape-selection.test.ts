@@ -23,6 +23,9 @@ describe("regional landscape composition selection", () => {
       "member:east",
       "member:west",
     ]);
+    expect(composition.atlas_revision).not.toBe(
+      west.scene.artifacts.admitted_atlas_revision,
+    );
 
     composition.conflicts.push({
       conflict_id: "conflict:edge",
@@ -51,7 +54,7 @@ function projection(id: string): AdmittedRegionalProjection {
         package_id: `package:${id}`,
         package_snapshot_revision: `snapshot:${id}`,
       },
-      artifacts: { admitted_atlas_revision: "atlas:selection" },
+      artifacts: { admitted_atlas_revision: `atlas:admitted:${id}` },
       projection: { terrain: { grid: {} } },
     } as unknown as AdmittedRegionalScene,
   } as AdmittedRegionalProjection;
@@ -64,7 +67,7 @@ function compositionFixture(): RegionalGeographyComposition {
     region_id: `region:${id}`,
     scene_id: `scene:${id}`,
     atlas_region_id: `atlas-region:${id}`,
-    admitted_atlas_revision: "atlas:selection",
+    admitted_atlas_revision: `atlas:admitted:${id}`,
     admission_id: `admission:${id}`,
     package_id: `package:${id}`,
     package_revision: `snapshot:${id}`,
@@ -89,7 +92,7 @@ function compositionFixture(): RegionalGeographyComposition {
       revision: 2,
       semantic_digest: "compiler:selection",
     },
-    atlas_revision: "atlas:selection",
+    atlas_revision: "atlas:current-selection",
     members: [member("west"), member("east"), member("isolated")],
     seams: [
       {
