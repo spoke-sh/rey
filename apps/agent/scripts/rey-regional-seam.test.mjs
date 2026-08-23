@@ -95,12 +95,63 @@ describe("Rey regional source seam", () => {
     expect(meanRowSecondDifference(24)).toBeLessThan(0.25);
   });
 
+  it("authors bounded source-scale ridges and valleys beyond the seam corridor", () => {
+    expect(
+      uplands.document.terrain_derivation.synthesis.independent_relief,
+    ).toMatchObject({
+      schema: "rey.authored-ridge-valley-network.v1",
+      transition_columns: 36,
+      ridge_segments: 8,
+      valley_segments: 9,
+      source_scale_octaves: 4,
+    });
+
+    const radius = 4;
+    const localRelief = [];
+    for (let row = radius; row < 168 - radius; row += 4) {
+      for (let column = 60; column < uplandsColumns - radius; column += 4) {
+        let minimum = Number.POSITIVE_INFINITY;
+        let maximum = Number.NEGATIVE_INFINITY;
+        let supported = true;
+        for (
+          let sampleRow = row - radius;
+          sampleRow <= row + radius;
+          sampleRow += 1
+        ) {
+          for (
+            let sampleColumn = column - radius;
+            sampleColumn <= column + radius;
+            sampleColumn += 1
+          ) {
+            const sample =
+              uplands.cells[sampleRow * uplandsColumns + sampleColumn];
+            if (!sample.valid) {
+              supported = false;
+              break;
+            }
+            minimum = Math.min(minimum, sample.sample.elevation);
+            maximum = Math.max(maximum, sample.sample.elevation);
+          }
+          if (!supported) break;
+        }
+        if (supported) localRelief.push(maximum - minimum);
+      }
+    }
+    localRelief.sort((left, right) => left - right);
+    const percentile = (value) =>
+      localRelief[Math.floor((localRelief.length - 1) * value)];
+    expect(localRelief.length).toBeGreaterThan(900);
+    expect(percentile(0.5)).toBeGreaterThan(80);
+    expect(percentile(0.9)).toBeGreaterThan(200);
+    expect(percentile(0.9)).toBeLessThan(280);
+  });
+
   it("keeps independently authored interior support bounded by its polygon", () => {
     const summary = uplands.document.terrain_derivation.summary;
     expect(summary.valid_vertices).toBeGreaterThan(20_000);
     expect(summary.no_data_vertices).toBeGreaterThan(1_000);
     expect(summary.maximum_elevation_meters).toBeGreaterThan(
-      summary.minimum_elevation_meters + 300,
+      summary.minimum_elevation_meters + 700,
     );
     expect(uplands.cells.at(-1).valid).toBe(false);
   });

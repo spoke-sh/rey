@@ -24,8 +24,9 @@ const REY_SEAM_COLUMN = 704;
 const REY_SEAM_ROW_START = 225;
 const SEAM_TREND_RADIUS_ROWS = 8;
 const SEAM_TRANSITION_COLUMNS = 24;
-const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v4";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@4";
+const INDEPENDENT_RELIEF_TRANSITION_COLUMNS = 36;
+const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v5";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@5";
 
 export function buildReyEasternUplandsTerrainSource(
   sceneDirectory = SCENE_DIRECTORY,
@@ -174,7 +175,16 @@ export function buildReyEasternUplandsTerrainSource(
       },
       synthesis: {
         elevation:
-          "smooth bounded upland folds and valleys whose displacement and first derivative are exactly zero on the shared western seam; the exact County edge slope continues through the first interior column, then a bounded corridor transitions into a low-pass boundary trend before independent landforms enter",
+          "bounded multi-scale ridge, spur, and branching valley geography whose displacement and first derivative are exactly zero on the shared western seam; the exact County edge slope continues through the first interior column, then a bounded corridor transitions into a low-pass boundary trend before independent landforms enter",
+        independent_relief: {
+          schema: "rey.authored-ridge-valley-network.v1",
+          transition_columns: INDEPENDENT_RELIEF_TRANSITION_COLUMNS,
+          ridge_segments: 8,
+          valley_segments: 9,
+          source_scale_octaves: 4,
+          authority:
+            "deterministically authored source elevation inside admitted-candidate validity; never renderer noise or inferred survey evidence",
+        },
         validity:
           "explicit polygon-contained support; no-data outside the authored boundary remains unsupported",
         stitching:
@@ -191,7 +201,7 @@ export function buildReyEasternUplandsTerrainSource(
     features: [
       {
         type: "Feature",
-        id: "rey-eastern-uplands-packed-terrain-v2",
+        id: "rey-eastern-uplands-packed-terrain-v3",
         properties: {
           title: "Rey Eastern Uplands admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
@@ -268,33 +278,127 @@ function terrainSample(
   const y = row / (ROWS - 1);
   const edgeEnvelope = Math.sin(Math.PI * Math.min(1, x)) ** 2;
   const transition = smootherstep((column - 1) / (SEAM_TRANSITION_COLUMNS - 1));
+  const independentReliefEnvelope = smootherstep(
+    (column - SEAM_TRANSITION_COLUMNS) / INDEPENDENT_RELIEF_TRANSITION_COLUMNS,
+  );
   const boundaryTrend =
     seamElevation + seamSlope + (column - 1) * seamSlopeTrend;
-  const interiorTrend = seamTrend + smootherstep(x) * 95;
-  const folds =
-    138 * edgeEnvelope * Math.cos((y * 2.2 + x * 0.35) * Math.PI) +
-    74 * edgeEnvelope * Math.sin((x * 4.1 - y * 3.4) * Math.PI) +
-    36 * edgeEnvelope * Math.cos((x * 9.3 + y * 5.7) * Math.PI);
-  const ridge =
-    245 *
-    edgeEnvelope ** 0.82 *
-    Math.exp(-Math.pow((y - (0.42 + 0.11 * Math.sin(x * Math.PI))) / 0.19, 2));
-  const valley =
-    118 * edgeEnvelope * Math.exp(-Math.pow((y - (0.7 - 0.18 * x)) / 0.085, 2));
+  const interiorTrend = seamTrend + smootherstep(x) * 155;
+  const reliefEnvelope = edgeEnvelope * independentReliefEnvelope;
+  const regionalMass =
+    92 * Math.sin((x * 1.35 + y * 0.42) * Math.PI) +
+    58 * Math.cos((x * 0.55 - y * 1.65) * Math.PI);
+  const ridge = ridgeNetwork(x, y);
+  const valley = valleyNetwork(x, y);
+  const sourceScaleTexture =
+    54 * (fractalNoise(x * 7.5 + 19.2, y * 7.5 - 8.4) - 0.5) +
+    24 * (ridgedNoise(x * 13.5 - 3.1, y * 13.5 + 11.7) - 0.5);
   const elevation = roundElevation(
     Math.max(
       32,
       boundaryTrend * (1 - transition) +
         interiorTrend * transition +
-        folds +
-        ridge -
-        valley,
+        reliefEnvelope * (regionalMass + ridge - valley + sourceScaleTexture),
     ),
   );
   return {
     elevation,
     material: classifyMaterial(elevation, y),
   };
+}
+
+function ridgeNetwork(x, y) {
+  return (
+    ridgeSegment(x, y, 0.2, 0.08, 0.82, 0.78, 0.055, 300) +
+    ridgeSegment(x, y, 0.35, 0.92, 0.92, 0.4, 0.048, 235) +
+    ridgeSegment(x, y, 0.38, 0.31, 0.24, 0.62, 0.027, 125) +
+    ridgeSegment(x, y, 0.48, 0.42, 0.72, 0.18, 0.023, 118) +
+    ridgeSegment(x, y, 0.55, 0.53, 0.75, 0.73, 0.022, 105) +
+    ridgeSegment(x, y, 0.66, 0.61, 0.91, 0.84, 0.018, 82) +
+    ridgeSegment(x, y, 0.68, 0.63, 0.9, 0.53, 0.017, 76) +
+    ridgeSegment(x, y, 0.76, 0.54, 0.94, 0.24, 0.019, 88)
+  );
+}
+
+function valleyNetwork(x, y) {
+  return (
+    valleySegment(x, y, 0.18, 0.82, 0.42, 0.69, 0.038, 152) +
+    valleySegment(x, y, 0.42, 0.69, 0.64, 0.61, 0.034, 170) +
+    valleySegment(x, y, 0.64, 0.61, 0.94, 0.3, 0.032, 188) +
+    valleySegment(x, y, 0.31, 0.29, 0.48, 0.64, 0.021, 84) +
+    valleySegment(x, y, 0.38, 0.91, 0.48, 0.7, 0.019, 76) +
+    valleySegment(x, y, 0.54, 0.25, 0.62, 0.61, 0.018, 78) +
+    valleySegment(x, y, 0.69, 0.82, 0.68, 0.57, 0.016, 66) +
+    valleySegment(x, y, 0.84, 0.66, 0.78, 0.47, 0.015, 62) +
+    valleySegment(x, y, 0.9, 0.13, 0.84, 0.4, 0.016, 70)
+  );
+}
+
+function ridgeSegment(x, y, startX, startY, endX, endY, width, height) {
+  const distance = distanceToSegment(x, y, startX, startY, endX, endY);
+  return height * Math.exp(-Math.pow(distance / width, 2));
+}
+
+function valleySegment(x, y, startX, startY, endX, endY, width, depth) {
+  const distance = distanceToSegment(x, y, startX, startY, endX, endY);
+  return depth * Math.exp(-Math.pow(distance / width, 2));
+}
+
+function distanceToSegment(x, y, startX, startY, endX, endY) {
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const lengthSquared = dx * dx + dy * dy;
+  const position = Math.max(
+    0,
+    Math.min(1, ((x - startX) * dx + (y - startY) * dy) / lengthSquared),
+  );
+  return Math.hypot(x - (startX + position * dx), y - (startY + position * dy));
+}
+
+function fractalNoise(x, y) {
+  let amplitude = 0.5;
+  let frequency = 1;
+  let total = 0;
+  let amplitudeTotal = 0;
+  for (let octave = 0; octave < 4; octave += 1) {
+    total += amplitude * valueNoise(x * frequency, y * frequency);
+    amplitudeTotal += amplitude;
+    amplitude *= 0.5;
+    frequency *= 2;
+  }
+  return total / amplitudeTotal;
+}
+
+function ridgedNoise(x, y) {
+  return 1 - Math.abs(2 * fractalNoise(x, y) - 1);
+}
+
+function valueNoise(x, y) {
+  const column = Math.floor(x);
+  const row = Math.floor(y);
+  const localX = smootherstep(x - column);
+  const localY = smootherstep(y - row);
+  const north = interpolate(
+    hashNoise(column, row),
+    hashNoise(column + 1, row),
+    localX,
+  );
+  const south = interpolate(
+    hashNoise(column, row + 1),
+    hashNoise(column + 1, row + 1),
+    localX,
+  );
+  return interpolate(north, south, localY);
+}
+
+function hashNoise(column, row) {
+  let value = Math.imul(column, 374761393) + Math.imul(row, 668265263);
+  value = Math.imul(value ^ (value >>> 13), 1274126177);
+  return ((value ^ (value >>> 16)) >>> 0) / 4294967295;
+}
+
+function interpolate(start, end, amount) {
+  return start + (end - start) * amount;
 }
 
 function smoothedSeamValue(seamContexts, row, key) {

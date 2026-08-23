@@ -1420,6 +1420,19 @@ multi-scale ridges and valleys in the operator reference. The 207,457 ms
 voyage and 600/1,483.2 ms Landscape median/p95 presentation cadence also remain
 explicit performance failures.
 
+Candidate `rey.agent-geography.rey-eastern-uplands@5` replaces the neighbor's
+three broad sinusoidal folds with an explicitly retained authored source
+network: eight ridge/spur segments, nine branching-valley segments, and four
+bounded source-scale noise octaves. Independent displacement still enters only
+after the 24-column seam trend corridor through a 36-column zero-slope
+envelope, so all 168 exact County boundary samples and first interior slopes
+remain unchanged. The 4-cell local-relief distribution across supported
+interior samples moves from 48.83/97.57 m at p50/p90 to 68.85/218.91 m, while
+the source elevation span moves from 416.62 m to 827.72 m without changing the
+27,432 valid / 4,992 no-data mask. This is a deterministic candidate-source
+measurement, not perceptual acceptance; fresh editor retention, v4 admission,
+composition, and accelerated pixels remain required.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence
