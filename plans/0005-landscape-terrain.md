@@ -1575,6 +1575,21 @@ coordinate-gap, and no-data conflicts at seam
 An accelerated capture must still decide whether the broader form removes the
 observed tonal zone without introducing another visible front.
 
+The exact v9 WebGL2 voyage passed structurally as
+`sha256:6290d2d0b26cc1b87bcf4d812fc8e8450b94d46b8fb20c0dec6216d34b1a25cf`.
+Landscape capture
+`sha256:5655514af8137dd27f99f0f91d024904d2cef7e9d10bbcd547a30fa73cc8ebea`
+retains all 12 level-9 tiles, zero screen error, and zero partition,
+relief-seam, tile-seam, and no-data-leak mismatches. Side-by-side with v8,
+source relief now grows through the western half of Uplands and remains present
+at its unsupported eastern boundary rather than appearing as one late tonal
+zone and collapsing into a flat strip. This accepts the relief-distribution
+correction. It does not accept Uplands or overall fidelity: the admitted form
+still reads as procedural, similarly sized ridges rather than a hierarchy of
+coherent drainage basins, and County remains low-contrast and broadly banded.
+The 210,502 ms voyage and 583.3/1,499.9 ms Landscape median/p95 presentation
+cadence remain explicit failures.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence
