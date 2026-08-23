@@ -1527,9 +1527,16 @@ still contributes zero incision. The smootherstep source envelope protects the
 first 24 seam columns and admits incision over the following 96 columns,
 reaching at most 35.74 m across 1,737 derived channel vertices. The candidate
 retains the 27,432 valid / 4,992 no-data mask and exact County seam. This is
-source-controlled enabling work until focused tests, a hard-cut scene
-admission, server-owned composition, and an accelerated capture bind and assess
-the exact bytes.
+covered by 14 passing County/Uplands source fixtures and the byte-stable
+generator. Eastern Uplands `SCENE@9` was accepted as result
+`blake3:4fb78b312da548563a8cadf16b3bcd275daefc747ca27d2d70f2d27f87c39e34`.
+Server-owned composition
+`blake3:9d422f2d21d8f1abc1eb1d26c099027f8773d13954ce04c92b18fb6cef08e2c4`
+is READY with all 168 vertices and zero elevation, material, validity,
+coordinate-gap, and no-data conflicts at seam
+`blake3:bf2e7afa06aced901c0d534cc9292f7e926ff6ad2987ac36fab23a6d3416f5e8`.
+This remains source-controlled enabling work until an accelerated capture
+binds and perceptually assesses the exact admitted bytes.
 
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
