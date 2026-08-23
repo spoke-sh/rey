@@ -14,8 +14,8 @@ const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
 // beyond this bounded in-memory grid.
 const COLUMNS = 705;
 const ROWS = 626;
-const DATASET_ID = "rey-county-semantic-terrain-v12";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@12";
+const DATASET_ID = "rey-county-semantic-terrain-v13";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@13";
 const INPUT_FILES = [
   "boundary.geojson",
   "districts.geojson",
@@ -137,12 +137,12 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     }
   }
 
-  const geomorphicShaping = applyGeomorphicSourceShaping(
+  const drainage = applyDrainageIncision(
     cells,
     longitudeSpacingMeters,
     latitudeSpacingMeters,
   );
-  const drainage = applyDrainageIncision(
+  const geomorphicShaping = applyGeomorphicSourceShaping(
     cells,
     longitudeSpacingMeters,
     latitudeSpacingMeters,
@@ -205,7 +205,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v12",
+      schema: "rey.county-terrain-source.v13",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -227,7 +227,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
         topology:
           "named terrain controls, exact County footprint, districts, hydrology, meadow, wetland, transport hierarchy, labels, and explicit unexplored polygon",
         elevation:
-          "anisotropic named landforms plus deterministic domain-warped irregular mountain mass, locally bounded cross-oriented hybrid ridges, branching sharp crests, source-scale convex/concave separation, and slope-conditioned dendritic stream-power valleys below the source-grid Nyquist limit",
+          "anisotropic named landforms plus deterministic domain-warped irregular mountain mass, locally bounded structural ridges, reduced unstructured fine noise, slope-conditioned dendritic stream-power valleys, and post-fluvial source-scale divide/valley separation below the source-grid Nyquist limit",
         hydrology:
           "exact river and wetland areas accompany a tributary hierarchy; authored constraints and deterministic depression-safe source drainage carve the final height field without crossing no-data",
         land_cover:
@@ -271,7 +271,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     features: [
       {
         type: "Feature",
-        id: "rey-county-packed-terrain-v12",
+        id: "rey-county-packed-terrain-v13",
         properties: {
           title: "Rey County admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
@@ -430,16 +430,16 @@ function terrainSample(
   const reliefWeight = 0.24 + Math.min(1, roughness) * 0.76;
   const macroTexture =
     fractalNoise(warpedX, warpedY, 101, [1.2, 2.4, 4.8]) * 92;
-  const mesoTexture = fractalNoise(warpedX, warpedY, 211, [3.5, 7, 14]) * 82;
+  const mesoTexture = fractalNoise(warpedX, warpedY, 211, [3.5, 7, 14]) * 54;
   const ridgeTexture =
-    ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8, 17.6]) * 24;
+    ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8, 17.6]) * 12;
   const ruggedMass =
     fractalNoise(
       warpedX + warpY * 0.37,
       warpedY - warpX * 0.29,
       337,
       [4.7, 9.9, 20.3, 41.1, 83.7],
-    ) * 165;
+    ) * 82;
   const mountainMass =
     hybridRidgedFractalNoise(
       warpedX + warpY * 1.3,
@@ -456,9 +456,9 @@ function terrainSample(
     ) *
       24;
   const fineTexture =
-    fractalNoise(warpedX, warpedY, 401, [17, 37, 79, 157]) * 52;
+    fractalNoise(warpedX, warpedY, 401, [17, 37, 79, 157]) * 14;
   const fineRidges =
-    ridgedFractalNoise(warpedX, warpedY, 457, [19, 41, 83, 167, 223]) * 14;
+    ridgedFractalNoise(warpedX, warpedY, 457, [19, 41, 83, 167, 223]) * 4;
   elevation +=
     (macroTexture +
       mesoTexture +
@@ -614,7 +614,7 @@ function applyGeomorphicSourceShaping(
   return {
     schema: "rey.county-source-geomorphic-shaping.v1",
     authority:
-      "deterministic authored-source convex/concave separation inside fully valid five-by-five neighborhoods; not an Earth DEM observation or renderer refinement",
+      "deterministic authored-source post-fluvial divide/valley separation inside fully valid five-by-five neighborhoods; not an Earth DEM observation or renderer refinement",
     local_mean_passes: 2,
     regional_mean_passes: 5,
     validity_neighborhood_radius_cells: 2,
@@ -822,9 +822,9 @@ function applyDrainageIncision(
     maximumStreamPower = Math.max(maximumStreamPower, streamPower);
     const slopeResponse = smootherstep((localSlope - 0.0025) / 0.035);
     const incision =
-      (strength[index] * (10 + streamPower * 35) +
-        innerValley[index] * 24 +
-        outerValley[index] * 6) *
+      (strength[index] * (18 + streamPower * 55) +
+        innerValley[index] * 42 +
+        outerValley[index] * 12) *
       (0.02 + slopeResponse * 0.98);
     cell.sample.elevation -= incision;
     maximumIncision = Math.max(maximumIncision, incision);

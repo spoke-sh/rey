@@ -186,6 +186,10 @@ applies validity-contained convex/concave separation before a stronger
 slope-conditioned drainage pass; neither operation adds a sample or changes
 the exact no-data mask. Later source edits remain candidates until the editor
 and workload repeat that boundary.
+The checked-in `rey.agent-geography.rey-county@13` source is currently such a
+candidate. It reduces unstructured fine octaves, derives slope-supported
+fluvial valleys first, and applies validity-contained divide/valley separation
+only after that drainage structure exists.
 The density policy targets at least 320 intervals per axis, so lower-density
 admitted fields may refine by a bounded integer factor while this source stays
 exact.

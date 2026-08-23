@@ -79,7 +79,7 @@ The terrain grid contains 441,330 cells at exact integer-microdegree spacing:
 - 116,192 no-data cells outside the County footprint;
 - 9,471 no-data cells in Unexplored Scrub (some exterior cells satisfy both
   predicates, producing 124,033 unique no-data cells);
-- 167.15–1,837.64 meters of authored relief; and
+- 158.04–1,826.03 meters of authored relief; and
 - `granite`, `rock`, `sand`, `soil`, and `vegetation` material identifiers.
 
 Seven hundred four longitudinal and 625 latitudinal intervals preserve the
@@ -92,28 +92,28 @@ admission limit. This is a source-native density improvement, not the final
 resolution target; a tiled raster adapter is still required beyond the bounded
 in-memory regional grid.
 
-The embedded `rey.agent-geography.rey-county@12` compiler record states the
+The embedded `rey.agent-geography.rey-county@13` compiler record states the
 topology, elevation, hydrology, land-cover, and stitching contracts. This
 revision owns one County-wide authoring domain and therefore reports zero
 seams and conflicts while explicitly omitting cross-package seam resolution.
 It does not imply that multiple editor packages have already been stitched.
 Its elevation compiler resolves each rough named landform into bounded,
-domain-warped irregular mountain mass, with cross-oriented hybrid ridges and
-sharp structural crests confined to subordinate local channels. A bounded
-source-scale pass separates convex and concave form only at 311,343 cells with
-fully valid five-by-five neighborhoods; 5,954 valid boundary cells remain
-unchanged. Its displacement is bounded to a 47.79-meter raise and a
-51.19-meter lowering and is authored source geometry, not renderer detail.
-Exact authored waterways condition only narrow shallow corridors instead of
-dominating the landform. A final pass priority-floods only from exact validity
-boundaries and derives source drainage, but displacement responds to the
-unfilled local terrain slope so a flat escape path cannot become a visible
-rectilinear scar. The retained derivation reports 22,427 channel cells, 475
-heads, 396 branch junctions, maximum Strahler order 5, maximum stream power
-`0.918466`, a 55.39-meter maximum incision, and a maximum contributing area of
-224,818 valid cells. Its
+domain-warped irregular mountain mass with restrained structural ridges and
+substantially reduced unstructured fine-noise amplitude. Exact authored
+waterways condition only narrow shallow corridors instead of dominating the
+landform. A priority-flood pass starts only at exact validity boundaries and
+derives source drainage. Its displacement responds to unfilled local terrain
+slope so a flat escape path cannot become a visible rectilinear scar. The
+retained derivation reports 26,377 channel cells, 474 heads, 384 branch
+junctions, maximum Strahler order 5, maximum stream power `0.882567`, a
+78.07-meter maximum incision, and a maximum contributing area of 218,955 valid
+cells. Only after those valleys exist, a bounded source-scale pass separates
+drainage divides and valleys at the 311,343 cells with fully valid
+five-by-five neighborhoods; 5,954 valid boundary cells remain unchanged. Its
+displacement is bounded to a 48.98-meter raise and a 57.85-meter lowering and
+is authored source geometry, not renderer detail. The
 separate authored-source local-relief summary samples a 528.85-meter radius:
-the median is 27.41 meters, the 90th percentile is 53.87 meters, and neither is
+the median is 26.00 meters, the 90th percentile is 53.73 meters, and neither is
 an Earth DEM observation or perceptual fidelity result. The main river and
 wetland are exact admitted areas;
 tributaries remain exact paths. This is source geography rather than renderer

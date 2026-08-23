@@ -1216,6 +1216,17 @@ judgment. The next source revision must let a validity-contained fluvial model
 form valleys first and sharpen that resulting landform, while reducing
 unstructured fine-noise amplitude.
 
+Candidate `rey.agent-geography.rey-county@13` implements that ordering. It
+reduces the global fine-noise and ridge amplitudes, derives a stronger
+slope-conditioned drainage field first, and only then separates the resulting
+validity-contained divides and valleys. The retained source derivation has
+26,377 channel cells, 474 heads, 384 junctions, maximum Strahler order 5, and a
+78.07-meter maximum incision. Post-fluvial shaping changes only the 311,343
+cells with fully valid five-by-five support and remains bounded to +48.98 /
+-57.85 meters. The 317,297-valid / 124,033-no-data mask is unchanged. This
+candidate must still cross scene admission and visual capture before it can
+replace the major assessment.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

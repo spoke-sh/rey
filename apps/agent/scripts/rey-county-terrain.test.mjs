@@ -80,9 +80,9 @@ describe("Rey County terrain source", () => {
 
   it("binds explicit multi-scale synthesis without claiming package seams", () => {
     expect(terrain.terrain_derivation).toMatchObject({
-      schema: "rey.county-terrain-source.v12",
-      dataset_id: "rey-county-semantic-terrain-v12",
-      compiler_revision: "rey.agent-geography.rey-county@12",
+      schema: "rey.county-terrain-source.v13",
+      dataset_id: "rey-county-semantic-terrain-v13",
+      compiler_revision: "rey.agent-geography.rey-county@13",
       synthesis: {
         elevation: expect.stringContaining("irregular mountain mass"),
         hydrology: expect.stringContaining("river and wetland areas"),
@@ -140,10 +140,10 @@ describe("Rey County terrain source", () => {
     ).toBeGreaterThan(1_000);
     expect(
       terrain.terrain_derivation.drainage.maximum_incision_meters,
-    ).toBeGreaterThan(25);
+    ).toBeGreaterThan(70);
     expect(
       terrain.terrain_derivation.drainage.maximum_incision_meters,
-    ).toBeLessThan(65);
+    ).toBeLessThan(90);
     expect(
       terrain.terrain_derivation.drainage.maximum_stream_power,
     ).toBeGreaterThan(0.15);
@@ -167,13 +167,13 @@ describe("Rey County terrain source", () => {
     ).toBeGreaterThan(40);
     expect(
       terrain.terrain_derivation.geomorphic_shaping.maximum_lowering_meters,
-    ).toBeGreaterThan(40);
+    ).toBeGreaterThan(55);
     expect(
       terrain.terrain_derivation.geomorphology.supported_samples,
     ).toBeGreaterThan(19_000);
     expect(
       terrain.terrain_derivation.geomorphology.local_relief_p50_meters,
-    ).toBeGreaterThan(27);
+    ).toBeGreaterThan(25);
     expect(
       terrain.terrain_derivation.geomorphology.local_relief_p90_meters,
     ).toBeGreaterThan(53);
@@ -242,12 +242,12 @@ describe("Rey County terrain source", () => {
   it("packs the complete source grid into one bounded GeoJSON feature", () => {
     expect(terrain.features).toHaveLength(1);
     expect(terrain.features[0]).toMatchObject({
-      id: "rey-county-packed-terrain-v12",
+      id: "rey-county-packed-terrain-v13",
       geometry: { type: "Polygon" },
       terrain_grid: {
         schema: "rey.packed-terrain-grid.v1",
-        dataset_id: "rey-county-semantic-terrain-v12",
-        compiler_revision: "rey.agent-geography.rey-county@12",
+        dataset_id: "rey-county-semantic-terrain-v13",
+        compiler_revision: "rey.agent-geography.rey-county@13",
         columns: 705,
         rows: 626,
         native_bounds_microdegrees: [
