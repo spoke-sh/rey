@@ -1094,6 +1094,40 @@ evidence links remain independent DOM overlays. The change remains enabling
 work until the reference voyage completes and its pixels enter rendered
 parity.
 
+The first rasterized rerun completed the voyage but retained incomplete
+manifest
+`sha256:b732972d60d187db103558e5f66f746ec9181bcfc83fcd8c086daa3c54c351b9`:
+the browser correctly exposed reference terrain as `initializing`, while the
+qualification driver still skipped the exact-terrain readiness wait for that
+backend and captured zero hierarchy and render-pass lineage. The reference
+surface now remains initializing until exact compilation exists, and the
+driver requires complete height/relief hierarchies plus a bound pass set before
+any reference terrain capture. No requirement was weakened.
+
+The corrected 1920×1080 fulfilled-transport reference voyage passed in
+manifest
+`sha256:3a79ad8cb65872a401e3a89d5def2b44acbb1b287c1b540671f084c776b17a5c`,
+and the matching WebGL2 voyage passed in manifest
+`sha256:d0f699ffb345b4fff397c1f2435e64dabbce2634837872773e7a666d4e6f52d8`.
+Both retain 317,297 valid and 124,033 no-data source vertices, exact mosaic,
+height, relief, and render-pass identity, 118,458 Landscape line segments, two
+terrain-bound areas, and zero tile seams, relief seams, partition mismatches,
+or unsupported-triangle leaks. Together with the prior WebGPU voyage, rendered
+parity passed in manifest
+`sha256:cb9432939f3741c3d012e41c9a7bf354024fead3718d4cc9fc1f5b92bc50ad8d`;
+WebGL2/WebGPU normalized RMSE was 0.00744 at Landscape and stayed below the
+0.02 accelerated-backend limit at every stage. Reference-to-accelerated pixels
+remain an observational comparison because the reference and accelerated
+materials intentionally differ.
+
+Visual inspection of the exact retained reference Landscape confirms that
+the raster path preserves the same terrain and removes the DOM-scale failure,
+but it does not close the perceptual gate. Broad repeated relief bands still
+read as scalar mud instead of sharply separated mountain mass, dendritic
+valleys, and local ravines. The 3840×2160 and remaining workload/backend rows,
+direct browser transport, formal consumer-reference assessment, and
+multi-region geography-compiler output therefore remain open.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
