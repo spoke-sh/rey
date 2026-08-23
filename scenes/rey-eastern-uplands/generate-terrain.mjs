@@ -24,11 +24,14 @@ const REY_SEAM_COLUMN = 704;
 const REY_SEAM_ROW_START = 225;
 const SEAM_TREND_RADIUS_ROWS = 8;
 const SEAM_TRANSITION_COLUMNS = 24;
-const RELIEF_ENTRY_COLUMNS = 120;
+const RELIEF_LOCAL_ENTRY_COLUMNS = 48;
+const RELIEF_REGIONAL_ENTRY_COLUMNS = 120;
+const RELIEF_LOCAL_WEIGHT = 0.32;
+const RELIEF_EDGE_FLOOR = 0.58;
 const DRAINAGE_PROTECTED_COLUMNS = 24;
 const DRAINAGE_ENTRY_COLUMNS = 96;
-const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v8";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@8";
+const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v9";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@9";
 
 export function buildReyEasternUplandsTerrainSource(
   sceneDirectory = SCENE_DIRECTORY,
@@ -189,11 +192,15 @@ export function buildReyEasternUplandsTerrainSource(
       },
       synthesis: {
         elevation:
-          "bounded continuous domain-warped ridge and branching-valley geography whose displacement and first derivative are exactly zero on the shared western seam; the exact County edge slope continues through the first interior column, then a bounded corridor transitions into a low-pass boundary trend before independent landforms enter",
+          "bounded continuous domain-warped ridge and branching-valley geography whose displacement and first derivative are exactly zero on the shared western seam; the exact County edge slope continues through the first interior column, then a bounded corridor transitions into a low-pass boundary trend while weighted local and regional C2 envelopes distribute independent landforms across the remaining supported source",
         independent_relief: {
-          schema: "rey.authored-domain-warped-relief.v1",
-          entry_envelope: "sine_squared_smootherstep_full_width",
-          entry_envelope_columns: RELIEF_ENTRY_COLUMNS,
+          schema: "rey.authored-domain-warped-relief.v2",
+          entry_envelope: "weighted_local_and_regional_smootherstep",
+          local_entry_columns: RELIEF_LOCAL_ENTRY_COLUMNS,
+          local_entry_weight: RELIEF_LOCAL_WEIGHT,
+          regional_entry_columns: RELIEF_REGIONAL_ENTRY_COLUMNS,
+          edge_modulation: "sine_squared_with_nonzero_floor",
+          edge_floor: RELIEF_EDGE_FLOOR,
           domain_warp_octaves: 3,
           ridge_octaves: 5,
           valley_octaves: 4,
@@ -218,7 +225,7 @@ export function buildReyEasternUplandsTerrainSource(
     features: [
       {
         type: "Feature",
-        id: "rey-eastern-uplands-packed-terrain-v6",
+        id: "rey-eastern-uplands-packed-terrain-v7",
         properties: {
           title: "Rey Eastern Uplands admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
@@ -293,13 +300,19 @@ function terrainSample(
     };
   const x = (column - 1) / (COLUMNS - 2);
   const y = row / (ROWS - 1);
-  const edgeEnvelope = Math.sin(Math.PI * Math.min(1, x)) ** 2;
+  const edgeModulation =
+    RELIEF_EDGE_FLOOR +
+    (1 - RELIEF_EDGE_FLOOR) * Math.sin(Math.PI * Math.min(1, x)) ** 2;
   const transition = smootherstep((column - 1) / (SEAM_TRANSITION_COLUMNS - 1));
   const boundaryTrend =
     seamElevation + seamSlope + (column - 1) * seamSlopeTrend;
   const interiorTrend = seamTrend + smootherstep(x) * 155;
   const reliefEnvelope =
-    edgeEnvelope * smootherstep((column - 1) / RELIEF_ENTRY_COLUMNS);
+    edgeModulation *
+    (RELIEF_LOCAL_WEIGHT *
+      smootherstep((column - 1) / RELIEF_LOCAL_ENTRY_COLUMNS) +
+      (1 - RELIEF_LOCAL_WEIGHT) *
+        smootherstep((column - 1) / RELIEF_REGIONAL_ENTRY_COLUMNS));
   const regionalMass =
     66 * Math.sin((x * 1.2 + y * 0.38) * Math.PI) +
     42 * Math.cos((x * 0.48 - y * 1.42) * Math.PI);

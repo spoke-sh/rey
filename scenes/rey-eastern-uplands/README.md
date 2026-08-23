@@ -5,8 +5,10 @@ fixture. Its western grid edge copies the exact validity, centimeter elevation,
 material, and first interior elevation slope from the separately authored Rey
 County v16 eastern edge. A bounded corridor transitions from that exact edge
 into a low-pass boundary trend before authored continuous domain-warped ridges
-and branching valleys enter through one full-width sine-squared smootherstep
-zero-slope envelope inside its explicit boundary. A separately disclosed
+and branching valleys enter through weighted local and regional zero-slope
+smootherstep envelopes. A bounded nonzero edge floor prevents the authored
+form from collapsing into a flat strip at the unsupported eastern edge without
+expanding validity. A separately disclosed
 priority-flood and multiple-flow-direction source derivation incises bounded
 branching drainage only on actual downhill terrain, entering after a protected
 24-column seam corridor through its own smooth envelope. Neither source claims

@@ -92,16 +92,23 @@ describe("Rey regional source seam", () => {
     };
 
     expect(meanRowSecondDifference(8)).toBeLessThan(meanRowSecondDifference(1));
-    expect(meanRowSecondDifference(24)).toBeLessThan(0.25);
+    expect(meanRowSecondDifference(24)).toBeLessThan(
+      meanRowSecondDifference(1),
+    );
+    expect(meanRowSecondDifference(24)).toBeLessThan(0.75);
   });
 
   it("authors continuous source-scale ridges and valleys beyond the seam corridor", () => {
     expect(
       uplands.document.terrain_derivation.synthesis.independent_relief,
     ).toMatchObject({
-      schema: "rey.authored-domain-warped-relief.v1",
-      entry_envelope: "sine_squared_smootherstep_full_width",
-      entry_envelope_columns: 120,
+      schema: "rey.authored-domain-warped-relief.v2",
+      entry_envelope: "weighted_local_and_regional_smootherstep",
+      local_entry_columns: 48,
+      local_entry_weight: 0.32,
+      regional_entry_columns: 120,
+      edge_modulation: "sine_squared_with_nonzero_floor",
+      edge_floor: 0.58,
       domain_warp_octaves: 3,
       ridge_octaves: 5,
       valley_octaves: 4,
@@ -146,6 +153,43 @@ describe("Rey regional source seam", () => {
     expect(percentile(0.5)).toBeGreaterThan(50);
     expect(percentile(0.9)).toBeGreaterThan(90);
     expect(percentile(0.9)).toBeLessThan(130);
+
+    const reliefPercentile = (startColumn, endColumn, value) => {
+      const values = [];
+      for (let row = radius; row < 168 - radius; row += 4) {
+        for (let column = startColumn; column < endColumn; column += 4) {
+          let minimum = Number.POSITIVE_INFINITY;
+          let maximum = Number.NEGATIVE_INFINITY;
+          let supported = true;
+          for (
+            let sampleRow = row - radius;
+            sampleRow <= row + radius;
+            sampleRow += 1
+          ) {
+            for (
+              let sampleColumn = column - radius;
+              sampleColumn <= column + radius;
+              sampleColumn += 1
+            ) {
+              const sample =
+                uplands.cells[sampleRow * uplandsColumns + sampleColumn];
+              if (!sample.valid) {
+                supported = false;
+                break;
+              }
+              minimum = Math.min(minimum, sample.sample.elevation);
+              maximum = Math.max(maximum, sample.sample.elevation);
+            }
+            if (!supported) break;
+          }
+          if (supported) values.push(maximum - minimum);
+        }
+      }
+      values.sort((left, right) => left - right);
+      return values[Math.floor((values.length - 1) * value)];
+    };
+    expect(reliefPercentile(20, 60, 0.5)).toBeGreaterThan(28);
+    expect(reliefPercentile(140, 180, 0.5)).toBeGreaterThan(55);
 
     const gradientDirections = Array.from({ length: 12 }, () => 0);
     for (let row = 1; row < 167; row += 1) {

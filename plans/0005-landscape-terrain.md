@@ -1553,6 +1553,20 @@ landform; County remains low-contrast and broadly banded. The 203,964 ms voyage
 and 1,133.2/2,233.2 ms Landscape median/p95 presentation cadence remain
 explicit failures.
 
+Candidate `rey.agent-geography.rey-eastern-uplands@9` follows that visual
+finding by replacing the single relief ramp and zero-height eastern edge
+envelope with separately disclosed 48-column local and 120-column regional C2
+smootherstep entries, weighted 0.32/0.68, plus a bounded 0.58 sine-squared edge
+floor. The exact seam displacement and first derivative remain zero, while
+supported 4-cell relief across columns 20–59 rises from v8's 16.18/36.33 m
+p50/p90 to 31.10/60.17 m and terminal columns 140–179 rise from 35.05/72.94 m
+to 65.43/123.08 m. This removes the source's artificial flat terminal strip
+without expanding its unchanged 27,432 valid / 4,992 no-data support. The
+terrain-derived drainage recomputes over the changed source at 24.64 m maximum
+incision and still grants flood-parent escape topology zero displacement. A
+hard-cut admission and accelerated capture must decide whether the broader form
+removes the observed tonal zone without introducing another visible front.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence
