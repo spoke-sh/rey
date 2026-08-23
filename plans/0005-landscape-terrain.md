@@ -1067,9 +1067,18 @@ byte-derived identity before it can hit the hierarchy cache. In parallel,
 `rey.terrain.regional-linework@4` keys retained contour/drainage output by its
 actual interval and content profile, allowing Objects and Evidence to share
 their identical 25-meter profile instead of deriving it twice under different
-lens names. This is incomplete enabling work until a fresh retained voyage
-measures the cache-hit path and confirms unchanged lineage, seams, validity,
-and rendered output.
+lens names.
+
+The resulting 1920×1080 WebGPU steep-relief voyage passed in manifest
+`sha256:bc2b11a580f92a6dc9523a85ad3afbd094220a016ed217f6eb090b91eb065aa7`.
+It retained the same 317,297 valid and 124,033 no-data source counts, one exact
+mosaic/hierarchy/relief identity through the reverse and interrupted handoff,
+and zero tile seams, relief seams, or unsupported triangles. The cold
+Landscape miss measured 15.16 seconds, Objects' first 25-meter profile measured
+1.46 seconds, and Evidence's exact shared-profile hit measured 165
+milliseconds, down from 2.61 seconds in the revision-12 voyage. This closes the
+repeated content-key and identical-linework defect, but not the cold hierarchy,
+first-profile, total-voyage, or full performance-matrix gates.
 
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
