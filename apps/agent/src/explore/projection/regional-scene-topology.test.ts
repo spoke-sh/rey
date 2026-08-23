@@ -1045,7 +1045,7 @@ describe("regional scene topology projection", () => {
       "rey.explorer.regional-terrain-grid@4",
     );
     expect(snapshot.compiler_revisions).toContain(
-      "rey.terrain.regional-mosaic@7",
+      "rey.terrain.regional-mosaic@8",
     );
     expect(snapshot.compiler_revisions).toContain(
       "rey.atlas-landscape-projector@2",

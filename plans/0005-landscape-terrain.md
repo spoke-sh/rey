@@ -1057,6 +1057,20 @@ validity count with no empty terrain. Together with the normal voyage this
 closes the 8.6 transition-mechanism proof; the assessment still omits direct
 browser transport and the complete backend/viewport matrix.
 
+The next performance slice, `rey.terrain.compilation-worker@13`, preserves the
+revision-12 byte-derived hierarchy key while moving the reusable exact field
+identity to `rey.terrain.regional-mosaic@8`. The mosaic compiler hashes every
+composed typed channel, owner map, grid/frame parameter, and compiler revision
+once; camera-only jobs consume that identity after either an object reuse or a
+dedicated-worker structured clone. A new composition must establish a new
+byte-derived identity before it can hit the hierarchy cache. In parallel,
+`rey.terrain.regional-linework@4` keys retained contour/drainage output by its
+actual interval and content profile, allowing Objects and Evidence to share
+their identical 25-meter profile instead of deriving it twice under different
+lens names. This is incomplete enabling work until a fresh retained voyage
+measures the cache-hit path and confirms unchanged lineage, seams, validity,
+and rendered output.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

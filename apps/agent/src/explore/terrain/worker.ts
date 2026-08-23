@@ -46,7 +46,7 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@12" as const;
+  "rey.terrain.compilation-worker@13" as const;
 export const MAX_TERRAIN_COMPILATION_OUTPUT_BYTES = 112 * 1024 * 1024;
 export const MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES = 80 * 1024 * 1024;
 
@@ -391,6 +391,10 @@ const materializedLandscapeCache = new Map<
   string,
   MaterializedLandscapeCacheEntry
 >();
+const materializedLandscapeSourceKeyCache = new WeakMap<
+  TerrainFieldSet,
+  string
+>();
 let materializedLandscapeCacheGeneration = 0;
 let materializedLandscapeCacheBytes = 0;
 
@@ -441,6 +445,8 @@ function cachedMaterializedLandscapePyramid(sourceField: TerrainFieldSet): {
 }
 
 function materializedLandscapeCacheKey(field: TerrainFieldSet): string {
+  const retained = materializedLandscapeSourceKeyCache.get(field);
+  if (retained) return retained;
   const metadata = new TextEncoder().encode(
     JSON.stringify({
       worker_revision: TERRAIN_COMPILATION_WORKER_REVISION,
@@ -449,6 +455,7 @@ function materializedLandscapeCacheKey(field: TerrainFieldSet): string {
       height_revision: LANDSCAPE_HEIGHT_HIERARCHY_REVISION,
       relief_revision: LANDSCAPE_RELIEF_HIERARCHY_REVISION,
       field_set_id: field.field_set_id,
+      source_content_id: field.source_content_id,
       source_revision: field.source_revision,
       grid: field.grid,
       elevation_scale: field.elevation_scale,
@@ -467,19 +474,31 @@ function materializedLandscapeCacheKey(field: TerrainFieldSet): string {
       ],
     }),
   );
-  return landscapePyramidContentId("materialized-landscape-cache", [
-    metadata,
-    field.validity.values,
-    field.validity_classification?.values ?? new Uint8Array(),
-    field.elevation.values,
-    field.rainfall.values,
-    field.flow_direction.values,
-    field.flow_accumulation.values,
-    field.erosion.values,
-    field.normal.values,
-    field.curvature.values,
-    field.material.tint,
-    field.material.occlusion,
-    field.material.roughness,
-  ]);
+  const key = landscapePyramidContentId(
+    "materialized-landscape-cache",
+    field.source_content_id
+      ? [metadata]
+      : [
+          metadata,
+          field.validity.values,
+          field.validity_classification?.values ?? new Uint8Array(),
+          field.elevation.values,
+          field.rainfall.values,
+          field.flow_direction.values,
+          field.flow_accumulation.values,
+          field.erosion.values,
+          field.normal.values,
+          field.curvature.values,
+          field.material.tint,
+          field.material.occlusion,
+          field.material.roughness,
+        ],
+  );
+  // The mosaic compiler has already hashed every typed channel into
+  // source_content_id. Fixtures and non-mosaic fields retain the full fallback
+  // hash. Topology compilation also owns immutable TerrainFieldSet snapshots,
+  // so repeated main-thread jobs may reuse the resolved key by object identity;
+  // cloned dedicated-worker jobs still take the short content-id path.
+  materializedLandscapeSourceKeyCache.set(field, key);
+  return key;
 }

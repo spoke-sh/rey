@@ -71,6 +71,21 @@ describe("regional terrain mosaic", () => {
       compiled.manifest.mosaic_id,
     );
     expect(compiled.manifest.mosaic_id).toMatch(/^blake3:[0-9a-f]{64}$/);
+    expect(compiled.manifest.field_content_id).toMatch(/^blake3:[0-9a-f]{64}$/);
+    expect(compiled.field.source_content_id).toBe(
+      compiled.manifest.field_content_id,
+    );
+    expect(compiled.field.landscape_mosaic?.field_content_id).toBe(
+      compiled.manifest.field_content_id,
+    );
+    right.material.tint[3] = right.material.tint[3]! + 0.01;
+    const changedMaterial = compilePair(left, right, "adjacent");
+    expect(changedMaterial.manifest.field_content_id).not.toBe(
+      compiled.manifest.field_content_id,
+    );
+    expect(changedMaterial.manifest.mosaic_id).not.toBe(
+      compiled.manifest.mosaic_id,
+    );
     expect(compiled.field.field_set_id.length).toBeLessThan(128);
     expect(compiled.manifest.companion_attribution).toMatchObject({
       policy: "height_cannot_mint_companion_authority",

@@ -23,7 +23,7 @@ import { deriveTerrainNormals } from "./normals";
 export const REGIONAL_TERRAIN_MOSAIC_SCHEMA =
   "rey.landscape-mosaic.v1" as const;
 export const REGIONAL_TERRAIN_MOSAIC_REVISION =
-  "rey.terrain.regional-mosaic@7" as const;
+  "rey.terrain.regional-mosaic@8" as const;
 export const MAXIMUM_REGIONAL_TERRAIN_MOSAIC_CELLS = 2_000_000;
 
 export interface RegionalTerrainMosaicPatch {
@@ -59,6 +59,7 @@ export interface RegionalTerrainMosaicManifest {
   schema: typeof REGIONAL_TERRAIN_MOSAIC_SCHEMA;
   implementation_revision: typeof REGIONAL_TERRAIN_MOSAIC_REVISION;
   mosaic_id: string;
+  field_content_id: string;
   composition_revision: string;
   primary_patch_id: string;
   patch_ids: readonly string[];
@@ -542,6 +543,54 @@ export function compileRegionalTerrainMosaic(
     `companion-attribution:${landCoverId}:${heightId}:${validitySummary.validity_id}:height_cannot_mint_companion_authority`,
     [],
   );
+  const fieldContentId = mosaicContentId(
+    [
+      TERRAIN_FIELD_SCHEMA,
+      REGIONAL_TERRAIN_MOSAIC_REVISION,
+      compositionRevision,
+      primaryPatchId,
+      `${columns}x${rows}`,
+      `${bounds.x},${bounds.y},${bounds.width},${bounds.height}`,
+      `${elevationScale}`,
+      coordinateReference,
+      verticalReference,
+      validity.implementation_revision,
+      validityClassification.implementation_revision,
+      elevation.implementation_revision,
+      rainfall.implementation_revision,
+      flowDirection.implementation_revision,
+      flowAccumulation.implementation_revision,
+      erosion.implementation_revision,
+      relief.normal.implementation_revision,
+      relief.curvature.implementation_revision,
+      material.implementation_revision,
+      ...patchIds,
+    ].join("|"),
+    [
+      validityValues,
+      validityClassificationValues,
+      elevationValues,
+      rainfallValues,
+      flowDirectionValues,
+      flowAccumulationValues,
+      erosionValues,
+      new Uint8Array(
+        relief.normal.values.buffer,
+        relief.normal.values.byteOffset,
+        relief.normal.values.byteLength,
+      ),
+      relief.curvature.values,
+      tintValues,
+      occlusionValues,
+      roughnessValues,
+      occupancy,
+      conflictValues,
+      featherSecondaryOwners,
+      featherPrimaryWeights,
+      overviewCoverageValues,
+      landCoverOwnerIndices,
+    ],
+  );
   const mosaicId = mosaicContentId(
     [
       REGIONAL_TERRAIN_MOSAIC_SCHEMA,
@@ -566,6 +615,7 @@ export function compileRegionalTerrainMosaic(
       featherId,
       overviewCoverageId,
       companionAttributionId,
+      fieldContentId,
       `${columns}x${rows}`,
     ].join("|"),
     [
@@ -610,6 +660,7 @@ export function compileRegionalTerrainMosaic(
   const binding = Object.freeze({
     schema: "rey.landscape-mosaic-binding.v1" as const,
     mosaic_id: mosaicId,
+    field_content_id: fieldContentId,
     composition_revision: compositionRevision,
     primary_patch_id: primaryPatchId,
     patch_ids: patchIds,
@@ -634,6 +685,7 @@ export function compileRegionalTerrainMosaic(
     schema: REGIONAL_TERRAIN_MOSAIC_SCHEMA,
     implementation_revision: REGIONAL_TERRAIN_MOSAIC_REVISION,
     mosaic_id: mosaicId,
+    field_content_id: fieldContentId,
     composition_revision: compositionRevision,
     primary_patch_id: primaryPatchId,
     patch_ids: patchIds,
@@ -761,6 +813,7 @@ export function compileRegionalTerrainMosaic(
   const field = Object.freeze({
     schema: TERRAIN_FIELD_SCHEMA,
     field_set_id: `${TERRAIN_FIELD_SCHEMA}|${mosaicId}`,
+    source_content_id: fieldContentId,
     program_id: `regional-mosaic:${compositionRevision}`,
     working_set_id: `regional-mosaic:${mosaicId}`,
     active_band_ids: Object.freeze([

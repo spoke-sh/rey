@@ -364,10 +364,13 @@ remove coarse support but cannot become a valid coarse vertex. Camera
 selection chooses a uniform level from cumulative hierarchy error, preventing
 mixed-level edge cracks while retaining screen-space control.
 
-`rey.terrain.compilation-worker@12` runs hierarchy projection, haloed relief
+`rey.terrain.compilation-worker@13` runs hierarchy projection, haloed relief
 derivation, exact relief sampling, procedural field evaluation, partition and
 border parity checking, and mesh preparation in a cancellable dedicated
-worker. Its complete hierarchy plus selected-tile output has a separate
+worker. `rey.terrain.regional-mosaic@8` hashes every composed typed channel,
+grid/frame parameter, source owner, and compiler revision into an exact field
+content identity before the field reaches that worker. Its complete hierarchy
+plus selected-tile output has a separate
 112 MiB bound; that transient compilation-output bound is not the 48 MiB
 resident-tile budget. The deterministic reference field remains visible while work is
 pending or after failure. A disclosed main-thread fallback exists where
@@ -381,7 +384,15 @@ hits and misses are exposed in browser diagnostics. Cache identity is derived
 from the admitted field bytes plus the refinement and regional-geography
 revisions before those expensive derived channels are computed, so a hit
 reuses both the exact derived field and its hierarchy rather than rebuilding
-the field merely to discover that the hierarchy was already retained.
+the field merely to discover that the hierarchy was already retained. The
+worker consumes that exact field content identity rather than hashing the full
+payload again after every structured clone, and memoizes the resolved hierarchy
+key for the lifetime of an immutable topology field object. A newly composed
+field must establish a new byte-derived identity before it can reuse anything.
+Revisioned regional linework is likewise retained by exact derived-field and
+content profile. Objects and Evidence deliberately share the same 25-meter
+contour/drainage profile identity instead of recompiling identical linework
+under two lens names.
 
 When an Atlas contains exactly one admitted regional terrain field, the
 application may mount an invisible `rey.explorer.atlas-terrain-prewarm@2`

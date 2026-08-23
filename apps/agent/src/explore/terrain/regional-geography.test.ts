@@ -137,6 +137,14 @@ describe("regional terrain geography", () => {
       geography,
       "neighborhoods",
     );
+    const objectLines = deriveRegionalTerrainPresentationLines(
+      geography,
+      "objects",
+    );
+    const evidenceLines = deriveRegionalTerrainPresentationLines(
+      geography,
+      "evidence",
+    );
 
     expect(
       landscapeLines.filter(({ kind }) => kind === "derived_contour").length,
@@ -161,6 +169,12 @@ describe("regional terrain geography", () => {
       lines
         .filter(({ kind }) => kind.startsWith("derived_"))
         .every(({ authority }) => authority.includes("derived")),
+    ).toBe(true);
+    expect(evidenceLines).toBe(objectLines);
+    expect(
+      objectLines.every(({ id, source_revision }) =>
+        `${id}|${source_revision}`.includes("contours-25m-drainage"),
+      ),
     ).toBe(true);
   });
 });

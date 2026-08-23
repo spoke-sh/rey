@@ -15,7 +15,7 @@ import { deriveTerrainNormals } from "./normals";
 export const REGIONAL_TERRAIN_GEOGRAPHY_REVISION =
   "rey.terrain.regional-geography@7" as const;
 export const REGIONAL_TERRAIN_LINEWORK_REVISION =
-  "rey.terrain.regional-linework@3" as const;
+  "rey.terrain.regional-linework@4" as const;
 
 const DRAINAGE_EPSILON = 1e-7;
 const MAXIMUM_CHANNEL_INCISION = 0.0045;
@@ -37,6 +37,19 @@ interface DrainageTopology {
   hydraulic_height: Float32Array;
   receiver: Int32Array;
 }
+
+const REGIONAL_TERRAIN_LINEWORK_PROFILES: Record<LensRegime, string> = {
+  world: "none",
+  atlas: "none",
+  landscape: "contours-100m",
+  neighborhoods: "contours-50m-drainage",
+  objects: "contours-25m-drainage",
+  evidence: "contours-25m-drainage",
+};
+const regionalTerrainLineworkCache = new WeakMap<
+  TerrainFieldSet,
+  Map<string, readonly TerrainLineFeatureInput[]>
+>();
 
 /**
  * Builds presentation geography only inside an already-admitted validity
@@ -225,7 +238,15 @@ export function deriveRegionalTerrainPresentationLines(
 ): readonly TerrainLineFeatureInput[] {
   if (!field.active_band_ids.includes("derived_drainage"))
     return Object.freeze([]);
-  const revision = `${REGIONAL_TERRAIN_LINEWORK_REVISION}:${field.field_set_id}:${regime}`;
+  const profile = REGIONAL_TERRAIN_LINEWORK_PROFILES[regime];
+  let byProfile = regionalTerrainLineworkCache.get(field);
+  if (!byProfile) {
+    byProfile = new Map();
+    regionalTerrainLineworkCache.set(field, byProfile);
+  }
+  const retained = byProfile.get(profile);
+  if (retained) return retained;
+  const revision = `${REGIONAL_TERRAIN_LINEWORK_REVISION}:${field.field_set_id}:${profile}`;
   const lines: TerrainLineFeatureInput[] = [];
   for (const [index, threshold] of regionalTerrainContourThresholds(
     field,
@@ -248,7 +269,11 @@ export function deriveRegionalTerrainPresentationLines(
       }),
     );
   }
-  if (regime === "landscape") return Object.freeze(lines);
+  if (regime === "landscape") {
+    const result = Object.freeze(lines);
+    byProfile.set(profile, result);
+    return result;
+  }
   const streams = drainageSegments(
     field,
     STREAM_THRESHOLD,
@@ -286,7 +311,9 @@ export function deriveRegionalTerrainPresentationLines(
         width: 1.45,
       }),
     );
-  return Object.freeze(lines);
+  const result = Object.freeze(lines);
+  byProfile.set(profile, result);
+  return result;
 }
 
 function priorityFloodDrainage(field: TerrainFieldSet): DrainageTopology {

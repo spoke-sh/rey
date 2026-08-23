@@ -46,6 +46,7 @@ export interface TerrainProgram {
 export interface TerrainFieldSet {
   schema: typeof TERRAIN_FIELD_SCHEMA;
   field_set_id: string;
+  source_content_id?: string;
   program_id: string;
   working_set_id: string;
   active_band_ids: readonly string[];

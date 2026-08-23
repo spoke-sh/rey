@@ -79,6 +79,8 @@ export interface ExplorerGlobe {
 
 export interface TerrainFieldSetInput {
   field_set_id: string;
+  /** Exact content identity retained by the field compiler, when available. */
+  source_content_id?: string;
   source_revision?: string;
   field_cells: number;
   field_bytes: number;
@@ -129,6 +131,7 @@ export interface TerrainFieldSetInput {
   landscape_mosaic?: {
     schema: "rey.landscape-mosaic-binding.v1";
     mosaic_id: string;
+    field_content_id: string;
     composition_revision: string;
     primary_patch_id: string;
     patch_ids: readonly string[];
