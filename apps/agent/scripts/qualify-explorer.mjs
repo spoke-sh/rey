@@ -909,8 +909,11 @@ async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
         0.003 &&
       Math.abs(frame.atmosphere_shell_scale - expectedShellScale) <= 0.003 &&
       Math.abs(frame.surface_opacity - expectedSurfaceOpacity) <= 0.003 &&
+      // The live progress and fraction diagnostics are each retained to three
+      // decimal places. This curve's maximum slope is 8.5, so progress
+      // quantization can contribute 0.00425 before fraction quantization.
       Math.abs(frame.stipple_sample_fraction - expectedStippleSampleFraction) <=
-        0.003
+        0.005
     );
   });
   return {
