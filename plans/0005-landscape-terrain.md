@@ -1440,6 +1440,18 @@ validity, coordinate-gap, or no-data conflicts at seam
 These remain source/admission measurements, not perceptual acceptance;
 accelerated pixels are still required.
 
+The corresponding WebGL2 voyage passed its structural workload as
+`sha256:c5005f0cb560f92cbe7eb5dc36d91bca142fc11788bc06bcfffb149d2f70746a`,
+with zero partition, relief-seam, tile-seam, and no-data-leak mismatches across
+all 12 level-9 tiles. Its Landscape capture
+`sha256:3ca965974db2402ec4d1df62e83bd89ca97b5508f96ffe05b7726d453270485a`
+rejects the v5 source: the straight segment-distance ridges remain visibly
+literal as large crossing strokes even after the shared cartographic relief
+operators. This demonstrates that increased local-relief amplitude is not a
+sufficient geographic-form fixture. The next source revision must remove
+linear segment distance as height authority and test continuous ridge and
+drainage form before another admission.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence
