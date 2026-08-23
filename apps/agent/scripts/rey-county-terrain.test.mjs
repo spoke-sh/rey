@@ -80,11 +80,11 @@ describe("Rey County terrain source", () => {
 
   it("binds explicit multi-scale synthesis without claiming package seams", () => {
     expect(terrain.terrain_derivation).toMatchObject({
-      schema: "rey.county-terrain-source.v10",
-      dataset_id: "rey-county-semantic-terrain-v10",
-      compiler_revision: "rey.agent-geography.rey-county@10",
+      schema: "rey.county-terrain-source.v11",
+      dataset_id: "rey-county-semantic-terrain-v11",
+      compiler_revision: "rey.agent-geography.rey-county@11",
       synthesis: {
-        elevation: expect.stringContaining("hybrid multifractal mountain mass"),
+        elevation: expect.stringContaining("irregular mountain mass"),
         hydrology: expect.stringContaining("river and wetland areas"),
         land_cover: expect.stringContaining("moisture"),
         cartography: expect.stringContaining("railway"),
@@ -98,7 +98,9 @@ describe("Rey County terrain source", () => {
       drainage: {
         schema: "rey.county-source-drainage.v2",
         authority: expect.stringContaining("not observed hydrology"),
-        depression_handling: expect.stringContaining("stream-power"),
+        depression_handling: expect.stringContaining(
+          "flat escape topology cannot become visible height",
+        ),
         maximum_accumulation_vertices: expect.any(Number),
         derived_channel_vertices: expect.any(Number),
         channel_head_vertices: expect.any(Number),
@@ -149,10 +151,10 @@ describe("Rey County terrain source", () => {
     ).toBeGreaterThan(19_000);
     expect(
       terrain.terrain_derivation.geomorphology.local_relief_p50_meters,
-    ).toBeGreaterThan(30);
+    ).toBeGreaterThan(25);
     expect(
       terrain.terrain_derivation.geomorphology.local_relief_p90_meters,
-    ).toBeGreaterThan(60);
+    ).toBeGreaterThan(50);
 
     let supportedCenters = 0;
     let detailedCenters = 0;
@@ -218,12 +220,12 @@ describe("Rey County terrain source", () => {
   it("packs the complete source grid into one bounded GeoJSON feature", () => {
     expect(terrain.features).toHaveLength(1);
     expect(terrain.features[0]).toMatchObject({
-      id: "rey-county-packed-terrain-v10",
+      id: "rey-county-packed-terrain-v11",
       geometry: { type: "Polygon" },
       terrain_grid: {
         schema: "rey.packed-terrain-grid.v1",
-        dataset_id: "rey-county-semantic-terrain-v10",
-        compiler_revision: "rey.agent-geography.rey-county@10",
+        dataset_id: "rey-county-semantic-terrain-v11",
+        compiler_revision: "rey.agent-geography.rey-county@11",
         columns: 705,
         rows: 626,
         native_bounds_microdegrees: [

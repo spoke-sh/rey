@@ -1159,6 +1159,20 @@ major; the next candidate must localize ridge emphasis, restore irregular
 non-ridged mountain mass, and make incision respond to physical local slope so
 flat drainage topology cannot become visible height.
 
+Candidate `rey.agent-geography.rey-county@11` makes that source correction.
+Global and named-control mass is now dominated by domain-warped non-ridged
+fractal relief; cross-oriented hybrid ridges and sharp crests are subordinate
+local channels rather than the County-wide signal. Drainage still retains its
+complete deterministic topology, 467 heads, 384 junctions, and maximum
+Strahler order 5, but height incision is multiplied by the unfilled local
+terrain slope. Priority-flood escape paths across a flat basin therefore
+remain topology rather than rendered trenches. The exact validity mask is
+unchanged. At the same 528.85-meter sampling radius, median local relief is
+26.12 meters and the 90th percentile is 50.53 meters: lower than revision 10's
+band-inflated values by design, and still bounded source diagnostics rather
+than perceptual proof. This revision remains a candidate until admission and
+capture.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

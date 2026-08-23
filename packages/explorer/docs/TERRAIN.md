@@ -183,6 +183,9 @@ uses no renderer refinement. `SCENE@16` and scene-admission result
 `blake3:55081f5edc158b9a2bd83224eff3e96fb4e2e2c8eed42a96e9e8617e0fa40de5`
 qualify its exact native bytes as the current working field. Later source edits
 remain candidates until the editor and workload repeat that boundary.
+The checked-in `rey.agent-geography.rey-county@11` source is currently such a
+candidate: it replaces global fingerprint-like ridge emphasis with irregular
+mountain mass and conditions drainage incision on unfilled local slope.
 The density policy targets at least 320 intervals per axis, so lower-density
 admitted fields may refine by a bounded integer factor while this source stays
 exact.

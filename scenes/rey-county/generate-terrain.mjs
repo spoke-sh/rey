@@ -14,8 +14,8 @@ const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
 // beyond this bounded in-memory grid.
 const COLUMNS = 705;
 const ROWS = 626;
-const DATASET_ID = "rey-county-semantic-terrain-v10";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@10";
+const DATASET_ID = "rey-county-semantic-terrain-v11";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@11";
 const INPUT_FILES = [
   "boundary.geojson",
   "districts.geojson",
@@ -200,7 +200,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v10",
+      schema: "rey.county-terrain-source.v11",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -222,7 +222,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
         topology:
           "named terrain controls, exact County footprint, districts, hydrology, meadow, wetland, transport hierarchy, labels, and explicit unexplored polygon",
         elevation:
-          "anisotropic named landforms plus deterministic cross-oriented domain-warped hybrid multifractal mountain mass, branching sharp crests, incised ravines, and macro-to-fine relief followed by a slope-aware dendritic stream-power and valley-width drainage pass below the source-grid Nyquist limit",
+          "anisotropic named landforms plus deterministic domain-warped irregular mountain mass, locally bounded cross-oriented hybrid ridges, branching sharp crests, incised ravines, and macro-to-fine relief followed by slope-conditioned dendritic stream-power and valley-width drainage below the source-grid Nyquist limit",
         hydrology:
           "exact river and wetland areas accompany a tributary hierarchy; authored constraints and deterministic depression-safe source drainage carve the final height field without crossing no-data",
         land_cover:
@@ -265,7 +265,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     features: [
       {
         type: "Feature",
-        id: "rey-county-packed-terrain-v10",
+        id: "rey-county-packed-terrain-v11",
         properties: {
           title: "Rey County admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
@@ -424,9 +424,16 @@ function terrainSample(
   const reliefWeight = 0.24 + Math.min(1, roughness) * 0.76;
   const macroTexture =
     fractalNoise(warpedX, warpedY, 101, [1.2, 2.4, 4.8]) * 92;
-  const mesoTexture = fractalNoise(warpedX, warpedY, 211, [3.5, 7, 14]) * 38;
+  const mesoTexture = fractalNoise(warpedX, warpedY, 211, [3.5, 7, 14]) * 82;
   const ridgeTexture =
-    ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8, 17.6]) * 54;
+    ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8, 17.6]) * 24;
+  const ruggedMass =
+    fractalNoise(
+      warpedX + warpY * 0.37,
+      warpedY - warpX * 0.29,
+      337,
+      [4.7, 9.9, 20.3, 41.1, 83.7],
+    ) * 165;
   const mountainMass =
     hybridRidgedFractalNoise(
       warpedX + warpY * 1.3,
@@ -434,22 +441,23 @@ function terrainSample(
       521,
       [1.35, 2.7, 5.4, 10.8, 21.6],
     ) *
-      124 +
+      42 +
     hybridRidgedFractalNoise(
       warpedX * 0.72 - warpedY * 0.44,
       warpedY * 0.86 + warpedX * 0.31,
       557,
       [2.1, 4.2, 8.4, 16.8, 33.6],
     ) *
-      72;
+      24;
   const fineTexture =
-    fractalNoise(warpedX, warpedY, 401, [17, 37, 79, 157]) * 22;
+    fractalNoise(warpedX, warpedY, 401, [17, 37, 79, 157]) * 52;
   const fineRidges =
-    ridgedFractalNoise(warpedX, warpedY, 457, [19, 41, 83, 167, 223]) * 44;
+    ridgedFractalNoise(warpedX, warpedY, 457, [19, 41, 83, 167, 223]) * 14;
   elevation +=
     (macroTexture +
       mesoTexture +
       ridgeTexture +
+      ruggedMass +
       mountainMass +
       fineTexture +
       fineRidges) *
@@ -706,10 +714,12 @@ function applyDrainageIncision(
       normalizedAccumulation ** 0.46 *
       Math.min(1, Math.max(0.08, localSlope / 0.12)) ** 0.7;
     maximumStreamPower = Math.max(maximumStreamPower, streamPower);
+    const slopeResponse = smootherstep((localSlope - 0.0025) / 0.035);
     const incision =
-      strength[index] * (13 + streamPower * 17) +
-      innerValley[index] * 20 +
-      outerValley[index] * 6;
+      (strength[index] * (8 + streamPower * 22) +
+        innerValley[index] * 16 +
+        outerValley[index] * 4) *
+      (0.02 + slopeResponse * 0.98);
     cell.sample.elevation -= incision;
     maximumIncision = Math.max(maximumIncision, incision);
     if (channel[index] === 0) continue;
@@ -723,7 +733,7 @@ function applyDrainageIncision(
     authority:
       "deterministic authored-source derivation inside exact validity; not observed hydrology",
     depression_handling:
-      "priority flood seeded only from exact validity boundaries followed by steepest descent and slope-aware stream-power incision on the filled surface; variable valley widths never cross no-data",
+      "priority flood seeded only from exact validity boundaries followed by steepest descent and slope-conditioned stream-power incision on the unfilled local terrain slope; flat escape topology cannot become visible height and variable valley widths never cross no-data",
     maximum_accumulation_vertices: maximumAccumulation,
     derived_channel_vertices: derivedChannelVertices,
     channel_head_vertices: channelHeadVertices,
@@ -950,6 +960,12 @@ function orographicRelief(x, y, control, seed) {
     seed + 97,
     [1.3, 2.6, 5.2, 10.4, 20.8],
   );
+  const ruggedMass = fractalNoise(
+    massX + massY * 0.21,
+    massY - massX * 0.17,
+    seed + 93,
+    [0.95, 1.9, 3.9, 8.1, 16.5, 33.3],
+  );
   const ravines = Math.max(
     0,
     ridgedFractalNoise(
@@ -959,16 +975,17 @@ function orographicRelief(x, y, control, seed) {
       [2.4, 4.8, 9.6, 19.2],
     ),
   );
-  const gain = 145 + control.roughness * 205;
+  const gain = 180 + control.roughness * 250;
   return (
     envelope *
     gain *
-    (backbone * 0.2 +
-      branches * 0.14 +
-      sharpCrests * 0.2 +
-      mountainMass * 0.5 +
-      crossMass * 0.32 -
-      ravines * 0.3)
+    (backbone * 0.08 +
+      branches * 0.06 +
+      sharpCrests * 0.08 +
+      mountainMass * 0.16 +
+      crossMass * 0.1 +
+      ruggedMass * 0.76 -
+      ravines * 0.12)
   );
 }
 
