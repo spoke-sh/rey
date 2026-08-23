@@ -1387,8 +1387,17 @@ scar signal changed without flattening the named relief; they are not a
 perceptual acceptance result. The County validity boundary remains unchanged,
 and companion `rey.agent-geography.rey-eastern-uplands@4` copies the new exact
 168-sample seam and first interior slope before the same bounded low-pass
-transition. Both are candidate sources until fresh admission, regional
-composition, and accelerated pixels prove the source correction.
+transition. County `SCENE@23` was accepted by the hard-cut v4 admission as
+result
+`blake3:d6ccc796ca569ee4d65b5d30de71ffde01cfefa4c2dccf8081da5304744ded7d`;
+its exact 705×626 source retains 324,739 valid and 116,591 no-data vertices.
+Eastern Uplands `SCENE@5` was accepted as result
+`blake3:14c84ad5dc114a3a1e260f1d0cc53984fde833c710fa8c9aeb9173bd8fafe75b`;
+its exact 193×168 source retains 27,432 valid and 4,992 no-data vertices.
+Both human CLI runs expose the current v4 workload, package, snapshot,
+projection, validity, omission, and source-resolution lineage. Regional
+composition and accelerated pixels remain required before the source
+correction is perceptually accepted.
 
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`

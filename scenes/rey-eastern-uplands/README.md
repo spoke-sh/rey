@@ -3,7 +3,7 @@
 This source-controlled fictional region is a bounded multi-region Landscape
 fixture. Its western grid edge copies the exact validity, centimeter elevation,
 material, and first interior elevation slope from the separately authored Rey
-County v15 eastern edge. A bounded corridor transitions from that exact edge
+County v16 eastern edge. A bounded corridor transitions from that exact edge
 into a low-pass boundary trend before independent landforms enter through a
 zero-slope envelope inside its explicit boundary. Neither source claims a
 merge, gap fill, Earth elevation, or survey coverage.
