@@ -856,7 +856,7 @@ from visual composition.
       revision required by the predicted entry view. Keep the last compatible
       submitted terrain until its successor submits; never flash an empty or
       differently compiled field during handoff.
-- [ ] Prove wheel, click, back-navigation, interrupted traversal, and backend
+- [x] Prove wheel, click, back-navigation, interrupted traversal, and backend
       loss in both directions without a semantic field swap, tile flash, or
       validity expansion.
 
@@ -1029,6 +1029,33 @@ the 705×626 Nyquist limit. It changes exact elevation/material bytes under a
 new dataset revision and leaves admitted water geometry, terrain validity,
 renderer operators, and overlap policy untouched. The major perceptual result
 remains open until this candidate is admitted and captured.
+
+`SCENE@15` and scene-admission result
+`blake3:46146bddf1cb542a0344d44858f4eb9f84e1a8e1c406200d31bc1ce25857b0c9`
+now bind the exact revision-9 source through admission
+`blake3:6200328f51c577026562e47477eab91fd53ecc292b8e26b82ec870eba4badf78`.
+The corresponding 1920×1080 WebGPU steep-relief voyage passed in manifest
+`sha256:bc2b1b777ffd78e0ac5f2452d27b959080044840a8deaee80343d8f617cd40be`.
+Landscape retained 317,297 valid and 124,033 no-data source vertices across 88
+tiles with zero tile seams, relief seams, or unsupported triangles. The first
+view remained a 16.45-second main-thread cache miss; Objects and Evidence were
+exact derived-field hits at 2.69 and 2.61 seconds. The narrower water
+conditioning no longer dominates the full corridor width, and directional
+crests are more legible, but comparison with the operator reference still
+finds a major geomorphic-resolution gap: broad repeated source-scale bands do
+not yet read as sharply separated mountain mass, dendritic valleys, and local
+ravines. The perceptual and performance gates therefore remain open.
+
+The separately named WebGPU device-loss voyage passed in manifest
+`sha256:57ab8ecc3eebd03e23bd41134df6604dfb86b0acd6f4061f952d27a172480bde`.
+It induced loss before Atlas, observed the deterministic reference fallback,
+kept renderer degradation out of the Explorer footer, and recovered WebGPU by
+Landscape. Wheel entry, canonical click controls, reverse Atlas traversal,
+wheel interruption, Landscape re-entry, and same-document back navigation all
+retained one mosaic, height hierarchy, relief pyramid, terrain fabric, and
+validity count with no empty terrain. Together with the normal voyage this
+closes the 8.6 transition-mechanism proof; the assessment still omits direct
+browser transport and the complete backend/viewport matrix.
 
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
