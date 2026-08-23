@@ -2,7 +2,14 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { cpus, hostname, platform, release, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -34,6 +41,8 @@ const LANDSCAPE_WORKLOAD_SUITE = join(
   REPOSITORY_ROOT,
   "apps/agent/qualification/explorer-landscape-workloads.json",
 );
+const DIRECT_ATLAS_LANDSCAPE_MAXIMUM_MOVING_FRAME_GAP_MS = 250;
+const FULFILLED_ATLAS_LANDSCAPE_MAXIMUM_MOVING_FRAME_GAP_MS = 2_000;
 
 function usage() {
   return `Retain one bounded World → Atlas → County → Evidence browser voyage.
@@ -280,6 +289,18 @@ async function launchChrome(browser, backend, route, fulfilledDocuments) {
   let bootstrapPath = null;
   if (fulfilledDocuments) {
     bootstrapPath = join(profile, "explore.html");
+    const terrainWorkerEntry = (await readdir(join(DIST_ROOT, "assets"))).find(
+      (entry) => /^worker-entry-[A-Za-z0-9_-]+\.js$/.test(entry),
+    );
+    if (!terrainWorkerEntry) {
+      throw new Error(
+        "built Explorer distribution has no terrain worker entry asset",
+      );
+    }
+    const terrainWorkerSource = await readFile(
+      join(DIST_ROOT, "assets", terrainWorkerEntry),
+      "utf8",
+    );
     const serializedDocuments = JSON.stringify(fulfilledDocuments).replaceAll(
       "<",
       "\\u003c",
@@ -295,9 +316,24 @@ async function launchChrome(browser, backend, route, fulfilledDocuments) {
     <script>
       const documents = ${serializedDocuments};
       const distributionRoot = ${JSON.stringify(distributionRoot)};
-      // A module worker cannot load from this file-origin bootstrap. Exercise
-      // the engine's bounded fallback; direct transport owns worker coverage.
-      globalThis.Worker = undefined;
+      // Preserve the production worker boundary while the fulfilled transport
+      // loads the application from a file URL. The Vite worker entry is one
+      // self-contained bundle, so a blob gives it a loadable local origin
+      // without weakening the retained-document network boundary below.
+      const NativeWorker = globalThis.Worker;
+      const terrainWorkerUrl = URL.createObjectURL(
+        new Blob([${JSON.stringify(terrainWorkerSource)}], {
+          type: "text/javascript",
+        }),
+      );
+      globalThis.Worker = class ReyQualificationWorker extends NativeWorker {
+        constructor(url, options) {
+          const workerUrl = String(url).includes("/assets/worker-entry-")
+            ? terrainWorkerUrl
+            : url;
+          super(workerUrl, options);
+        }
+      };
       // The retained-document transport has no streaming response authority.
       // Direct transport owns scheduler-event revalidation coverage.
       globalThis.EventSource = undefined;
@@ -1028,17 +1064,36 @@ function regimeExpression(regime) {
 }
 
 async function waitForSubmittedTerrainFrame(connection, timeoutMs) {
-  await waitFor(
-    connection,
-    `(() => {
+  const expression = `(() => {
       const snapshot = document.querySelector('[data-scene-snapshot]')?.getAttribute('data-scene-snapshot');
       const diagnostics = document.querySelector('[data-renderer-diagnostics]');
       return snapshot !== null && snapshot !== undefined &&
-        diagnostics?.getAttribute('data-renderer-submitted-snapshot-id') === snapshot;
-    })()`,
-    "terrain renderer submission for the current semantic scene",
-    timeoutMs,
-  );
+        diagnostics?.getAttribute('data-renderer-terrain-surface-submitted-snapshot-id') === snapshot &&
+        Number(diagnostics?.getAttribute('data-renderer-terrain-surface-maximum-screen-error-pixels')) <= 1.5;
+    })()`;
+  try {
+    await waitFor(
+      connection,
+      expression,
+      "terrain renderer submission for the current semantic scene",
+      timeoutMs,
+    );
+  } catch (error) {
+    const observed = await connection.evaluate(`(() => {
+      const scene = document.querySelector('[data-scene-snapshot]');
+      const diagnostics = document.querySelector('[data-renderer-diagnostics]');
+      const value = (name) => diagnostics?.getAttribute('data-renderer-' + name) ?? null;
+      return {
+        active_tile_levels: value('terrain-surface-active-tile-levels'),
+        lifecycle: value('terrain-surface-lifecycle'),
+        maximum_screen_error_pixels: value('terrain-surface-maximum-screen-error-pixels'),
+        regime: document.querySelector('[data-lens-regime]')?.getAttribute('data-lens-regime') ?? null,
+        scene_snapshot_id: scene?.getAttribute('data-scene-snapshot') ?? null,
+        submitted_snapshot_id: value('terrain-surface-submitted-snapshot-id'),
+      };
+    })()`);
+    throw new Error(`${error.message}: ${JSON.stringify(observed)}`);
+  }
 }
 
 async function waitForPreparedTerrainFrame(connection, backend, timeoutMs) {
@@ -1068,13 +1123,223 @@ async function waitForAtlasTerrainPrewarm(connection, timeoutMs) {
   await waitFor(
     connection,
     `(() => {
-      const state = document.querySelector('[data-atlas-terrain-prewarm]')
-        ?.getAttribute('data-atlas-terrain-prewarm');
-      return state === 'prepared' || state === 'unavailable';
+      const scene = document.querySelector('[data-atlas-terrain-prewarm]');
+      const state = scene?.getAttribute('data-atlas-terrain-prewarm');
+      if (state === 'prepared') return true;
+      const projection = document.querySelector('[data-atlas-landscape-progress]');
+      const diagnostics = document.querySelector('[data-renderer-diagnostics]');
+      const value = (name) => diagnostics?.getAttribute('data-renderer-' + name);
+      return state === 'unavailable' &&
+        projection?.getAttribute('data-landscape-mosaic') &&
+        value('terrain-surface-lifecycle') === 'ready' &&
+        Boolean(value('terrain-surface-source-key')) &&
+        value('terrain-surface-source-key') !== 'unbound';
     })()`,
-    "idle Atlas terrain hierarchy preparation",
+    "idle Atlas terrain preparation for the connected Landscape mosaic",
     timeoutMs,
   );
+}
+
+async function zoomAtlasToLandscapeWithoutFocus(
+  connection,
+  timeoutMs,
+  maximumFrameGapBudgetMs,
+) {
+  const initial = await connection.evaluate(`(() => {
+    const scene = document.querySelector('[data-scene-snapshot]');
+    const projection = document.querySelector('[data-lens-regime]');
+    const viewport = document.querySelector('[role="application"]');
+    return {
+      focus_id: scene?.getAttribute('data-scene-focus') ?? null,
+      regime: projection?.getAttribute('data-lens-regime') ?? null,
+      zoom: Number(viewport?.getAttribute('data-camera-zoom') ?? 'NaN'),
+    };
+  })()`);
+  if (
+    initial.focus_id !== "cluster:portfolio" ||
+    initial.regime !== "atlas" ||
+    !Number.isFinite(initial.zoom)
+  )
+    throw new Error(
+      `wheel-only Landscape entry requires the unfocused Atlas posture, observed ${JSON.stringify(initial)}`,
+    );
+
+  const samples = await connection.evaluate(
+    `new Promise((resolve) => {
+      const viewport = document.querySelector('[role="application"]');
+      if (!viewport) {
+        resolve([]);
+        return;
+      }
+      const samples = [];
+      let frame = 0;
+      let regionalClicks = 0;
+      const countRegionalClick = (event) => {
+        if (event.target instanceof Element && event.target.closest('[data-semantic-identity]'))
+          regionalClicks += 1;
+      };
+      document.addEventListener('click', countRegionalClick, true);
+      const sample = () => {
+        const scene = document.querySelector('[data-scene-snapshot]');
+        const projection = document.querySelector('[data-lens-regime]');
+        const diagnostics = document.querySelector('[data-renderer-diagnostics]');
+        const value = (name) => diagnostics?.getAttribute('data-renderer-' + name) ?? null;
+        samples.push({
+          atlas_landscape_progress: Number(projection?.getAttribute('data-atlas-landscape-progress') ?? 'NaN'),
+          compilation_ms: Number(scene?.getAttribute('data-scene-compilation-ms') ?? 'NaN'),
+          focus_id: scene?.getAttribute('data-scene-focus') ?? null,
+          frame,
+          mosaic_id: projection?.getAttribute('data-landscape-mosaic') ?? null,
+          prewarm: scene?.getAttribute('data-atlas-terrain-prewarm') ?? null,
+          regime: projection?.getAttribute('data-lens-regime') ?? null,
+          regional_clicks: regionalClicks,
+          terrain_active_tile_levels: value('terrain-surface-active-tile-levels'),
+          terrain_surface_active_tile_count: Number(value('terrain-surface-active-tile-count') ?? 'NaN'),
+          terrain_surface_lifecycle: value('terrain-surface-lifecycle'),
+          terrain_source_key: value('terrain-surface-source-key'),
+          terrain_triangles: Number(value('terrain-surface-triangles') ?? 'NaN'),
+          terrain_worker_execution: value('terrain-surface-worker-execution'),
+          sampled_at_ms: performance.now(),
+          zoom: Number(viewport.getAttribute('data-camera-zoom') ?? 'NaN'),
+        });
+        frame += 1;
+        const last = samples.at(-1);
+        if (
+          frame >= 240 ||
+          (last.regime === 'landscape' &&
+            last.zoom >= 0.66 &&
+            last.atlas_landscape_progress >= 0.999)
+        ) {
+          document.removeEventListener('click', countRegionalClick, true);
+          resolve(samples);
+          return;
+        }
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+      for (let index = 0; index < 9; index += 1) {
+        viewport.dispatchEvent(new WheelEvent('wheel', {
+          bubbles: true,
+          cancelable: true,
+          clientX: innerWidth / 2,
+          clientY: innerHeight / 2,
+          deltaY: -100,
+          view: window,
+        }));
+      }
+    })`,
+    timeoutMs,
+  );
+  const final = samples.at(-1);
+  const finiteSamples = samples.filter(
+    ({ atlas_landscape_progress, zoom }) =>
+      Number.isFinite(atlas_landscape_progress) && Number.isFinite(zoom),
+  );
+  const monotonicZoom = finiteSamples.every(
+    ({ zoom }, index) => index === 0 || zoom >= finiteSamples[index - 1].zoom,
+  );
+  const monotonicMorph = finiteSamples.every(
+    ({ atlas_landscape_progress }, index) =>
+      index === 0 ||
+      atlas_landscape_progress >=
+        finiteSamples[index - 1].atlas_landscape_progress,
+  );
+  const terrainSourceKeys = finiteSamples
+    .map(({ terrain_source_key }) => terrain_source_key)
+    .filter((value) => value && value !== "unbound");
+  const mosaicIds = finiteSamples
+    .map(({ mosaic_id }) => mosaic_id)
+    .filter((value) => value && value !== "unbound-mosaic");
+  const maximumFrameGapMs = finiteSamples.reduce(
+    (maximum, { sampled_at_ms }, index) =>
+      index === 0
+        ? maximum
+        : Math.max(
+            maximum,
+            sampled_at_ms - finiteSamples[index - 1].sampled_at_ms,
+          ),
+    0,
+  );
+  const longAnimationFrames = await connection.evaluate(`performance
+    .getEntriesByType('long-animation-frame')
+    .filter((entry) => entry.startTime >= ${finiteSamples[0]?.sampled_at_ms ?? 0})
+    .slice(-12)
+    .map((entry) => ({
+      blocking_duration_ms: entry.blockingDuration,
+      duration_ms: entry.duration,
+      render_start_ms: entry.renderStart,
+      scripts: [...(entry.scripts ?? [])].slice(0, 8).map((script) => ({
+        duration_ms: script.duration,
+        invoker: script.invoker,
+        source_function_name: script.sourceFunctionName,
+        source_url: script.sourceURL,
+      })),
+      start_ms: entry.startTime,
+    }))`);
+  const result = {
+    authority:
+      "same-page animation-frame sampling over wheel input; no regional selection event; fulfilled file transport uses a disclosed SwiftShader tolerance and is not hardware frame-rate proof",
+    final,
+    initial,
+    intermediate_morph_observed: finiteSamples.some(
+      ({ atlas_landscape_progress }) =>
+        atlas_landscape_progress > 0 && atlas_landscape_progress < 1,
+    ),
+    long_animation_frames: longAnimationFrames,
+    monotonic_morph: monotonicMorph,
+    monotonic_zoom: monotonicZoom,
+    maximum_frame_gap_ms: maximumFrameGapMs,
+    maximum_frame_gap_budget_ms: maximumFrameGapBudgetMs,
+    no_regional_clicks: finiteSamples.every(
+      ({ regional_clicks }) => regional_clicks === 0,
+    ),
+    observed:
+      final?.regime === "landscape" &&
+      final?.focus_id?.startsWith("regional:") === true &&
+      final?.zoom >= 0.66 &&
+      final?.atlas_landscape_progress >= 0.999 &&
+      monotonicZoom &&
+      monotonicMorph &&
+      maximumFrameGapMs <= maximumFrameGapBudgetMs &&
+      finiteSamples.some(
+        ({ atlas_landscape_progress }) =>
+          atlas_landscape_progress > 0 && atlas_landscape_progress < 1,
+      ) &&
+      finiteSamples.every(({ regional_clicks }) => regional_clicks === 0) &&
+      terrainSourceKeys.length > 0 &&
+      new Set(terrainSourceKeys).size === 1 &&
+      mosaicIds.length > 0 &&
+      new Set(mosaicIds).size === 1,
+    samples,
+    stable_mosaic: mosaicIds.length > 0 && new Set(mosaicIds).size === 1,
+    stable_terrain_source:
+      terrainSourceKeys.length > 0 && new Set(terrainSourceKeys).size === 1,
+  };
+  if (!result.observed)
+    throw new Error(
+      `wheel-only Atlas/Landscape entry did not remain continuous: ${JSON.stringify(result)}`,
+    );
+  return result;
+}
+
+async function dispatchViewportWheelBurst(connection, deltaY, count) {
+  const dispatched = await connection.evaluate(`(() => {
+    const viewport = document.querySelector('[role="application"]');
+    if (!viewport) return false;
+    for (let index = 0; index < ${count}; index += 1) {
+      viewport.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: innerWidth / 2,
+        clientY: innerHeight / 2,
+        deltaY: ${deltaY},
+        view: window,
+      }));
+    }
+    return true;
+  })()`);
+  if (!dispatched)
+    throw new Error("the Explorer wheel viewport is unavailable");
 }
 
 async function terrainContinuitySample(connection, label) {
@@ -1115,8 +1380,16 @@ async function terrainContinuitySample(connection, label) {
       active_tile_count: Number(attribute('terrain-surface-active-tile-count') ?? 'NaN'),
       renderer_backend: attribute('backend'),
       renderer_lifecycle: attribute('terrain-surface-lifecycle'),
-      fabric_hierarchy_ids: [...new Set(fabricHierarchies)],
-      fabric_relief_ids: [...new Set(fabricRelief)],
+      fabric_hierarchy_ids: [...new Set(
+        fabricHierarchies.length > 0
+          ? fabricHierarchies
+          : (attribute('terrain-surface-height-hierarchies') ?? '').split(',').filter(Boolean)
+      )],
+      fabric_relief_ids: [...new Set(
+        fabricRelief.length > 0
+          ? fabricRelief
+          : (attribute('terrain-surface-relief-pyramids') ?? '').split(',').filter(Boolean)
+      )],
       reference_support_present: document.querySelector('[data-regional-terrain-reference]') !== null,
     };
   })()`);
@@ -1136,57 +1409,32 @@ async function verifyAtlasLandscapeContinuity(
     location.href + '#rey-landscape-continuity'
   )`);
 
-  await dispatchClick(
-    connection,
-    `document.querySelector('[aria-label="Zoom out one semantic level"]')`,
-    "Landscape reverse control",
-    timeoutMs,
-  );
+  await dispatchViewportWheelBurst(connection, 100, 9);
   await waitFor(
     connection,
-    regimeExpression("atlas"),
-    "reverse Atlas projection",
+    `${regimeExpression("atlas")} && Number(document.querySelector('[role="application"]')?.getAttribute('data-camera-zoom')) < 0.3`,
+    "wheel-reversed Atlas projection",
     timeoutMs,
   );
   samples.push(await terrainContinuitySample(connection, "reverse-atlas"));
 
-  const canonicalRegion = `document.querySelector('[role="button"][data-chart-wrap-index="0"][data-semantic-identity]')`;
-  await dispatchClick(
-    connection,
-    canonicalRegion,
-    "interrupted Atlas region entry",
-    timeoutMs,
-  );
+  await dispatchViewportWheelBurst(connection, -100, 4);
   await waitFor(
     connection,
     `(() => {
       const zoom = Number(document.querySelector('[role="application"]')?.getAttribute('data-camera-zoom'));
-      return zoom > 0.36 && zoom < 0.56;
+      return ${regimeExpression("atlas")} && zoom > 0.4 && zoom < 0.45;
     })()`,
-    "intermediate Atlas-to-Landscape frame",
+    "wheel-driven intermediate Atlas-to-Landscape frame",
     timeoutMs,
   );
   samples.push(
     await terrainContinuitySample(connection, "interrupted-entry-frame"),
   );
-  await connection.evaluate(`(() => {
-    const viewport = document.querySelector('[role="application"]');
-    if (!viewport) return false;
-    for (let index = 0; index < 5; index += 1) {
-      viewport.dispatchEvent(new WheelEvent('wheel', {
-        bubbles: true,
-        cancelable: true,
-        clientX: innerWidth / 2,
-        clientY: innerHeight / 2,
-        deltaY: 100,
-        view: window,
-      }));
-    }
-    return true;
-  })()`);
+  await dispatchViewportWheelBurst(connection, 100, 4);
   await waitFor(
     connection,
-    `${regimeExpression("atlas")} && Number(document.querySelector('[role="application"]')?.getAttribute('data-camera-zoom')) < 0.37`,
+    `${regimeExpression("atlas")} && Number(document.querySelector('[role="application"]')?.getAttribute('data-camera-zoom')) < 0.3`,
     "wheel-interrupted Atlas return",
     timeoutMs,
   );
@@ -1194,16 +1442,11 @@ async function verifyAtlasLandscapeContinuity(
     await terrainContinuitySample(connection, "wheel-interrupted-atlas"),
   );
 
-  await dispatchClick(
-    connection,
-    canonicalRegion,
-    "Atlas region re-entry",
-    timeoutMs,
-  );
+  await dispatchViewportWheelBurst(connection, -100, 9);
   await waitFor(
     connection,
-    regimeExpression("landscape"),
-    "Landscape re-entry",
+    `${regimeExpression("landscape")} && Number(document.querySelector('[role="application"]')?.getAttribute('data-camera-zoom')) >= 0.66`,
+    "wheel-only Landscape re-entry",
     timeoutMs,
   );
   if (loss === "none")
@@ -1631,6 +1874,7 @@ async function runVoyage(options) {
   let outsideGlobePan = null;
   let rotatedWorldAtlasUnfurl = null;
   let smoothWorldWheel = null;
+  let atlasLandscapeWheelEntry = null;
   let atlasLandscapeContinuity = null;
   const startedAt = performance.now();
   const startedAtUnixMs = Date.now();
@@ -1876,33 +2120,34 @@ async function runVoyage(options) {
       return true;
     })()`);
     await measureInteraction(interactions, "atlas_to_county", async () => {
-      await dispatchClick(
+      atlasLandscapeWheelEntry = await zoomAtlasToLandscapeWithoutFocus(
         connection,
-        `document.querySelector('[role="button"][data-chart-wrap-index="0"][data-semantic-identity]')`,
-        "canonical Atlas region",
         options.timeoutMs,
-      );
-      await waitFor(
-        connection,
-        regimeExpression("landscape"),
-        "County landscape",
-        options.timeoutMs,
+        options.transport === "direct"
+          ? DIRECT_ATLAS_LANDSCAPE_MAXIMUM_MOVING_FRAME_GAP_MS
+          : FULFILLED_ATLAS_LANDSCAPE_MAXIMUM_MOVING_FRAME_GAP_MS,
       );
     });
     await waitFor(
       connection,
-      `window.__reyQualificationFooterNotices?.some((notice) => notice.includes("FOCUS /")) === true`,
-      "Explorer focus notice",
+      `window.__reyQualificationFooterNotices?.some((notice) => notice.includes("LENS / TELESCOPE")) === true`,
+      "Explorer wheel-driven Landscape notice",
       options.timeoutMs,
     );
-    mapNoticeObserved = true;
+    mapNoticeObserved = await connection.evaluate(`(() => {
+      const notices = window.__reyQualificationFooterNotices ?? [];
+      return notices.some((notice) => notice.includes('LENS / TELESCOPE')) &&
+        notices.every((notice) => !notice.includes('FOCUS /'));
+    })()`);
     await connection.evaluate(`(() => {
       window.__reyQualificationFooterObserver?.disconnect();
       delete window.__reyQualificationFooterObserver;
       return true;
     })()`);
     if (!mapNoticeObserved)
-      throw new Error("the Explorer focus notice did not resurface");
+      throw new Error(
+        "wheel-only Landscape entry published a focus notice or omitted its lens notice",
+      );
     await waitForPreparedTerrainFrame(
       connection,
       options.backend,
@@ -2172,6 +2417,7 @@ async function runVoyage(options) {
     smoothWorldWheel?.observed === true &&
     outsideGlobePan?.observed === true &&
     rotatedWorldAtlasUnfurl?.observed === true &&
+    atlasLandscapeWheelEntry?.observed === true &&
     atlasLandscapeContinuity?.observed === true &&
     landscapeWorkloadEvaluation?.passed !== false &&
     lossFallbackObserved !== false &&
@@ -2283,6 +2529,8 @@ async function runVoyage(options) {
       outside_globe_pan_observed: outsideGlobePan?.observed ?? false,
       rotated_world_atlas_unfurl_observed:
         rotatedWorldAtlasUnfurl?.observed ?? false,
+      wheel_only_atlas_landscape_entry_observed:
+        atlasLandscapeWheelEntry?.observed ?? false,
       atlas_landscape_continuity_observed:
         atlasLandscapeContinuity?.observed ?? false,
       landscape_workload_passed: landscapeWorkloadEvaluation?.passed ?? null,
@@ -2293,6 +2541,7 @@ async function runVoyage(options) {
     interactions,
     world_wheel_zoom: smoothWorldWheel,
     rotated_world_atlas_unfurl: rotatedWorldAtlasUnfurl,
+    atlas_landscape_wheel_entry: atlasLandscapeWheelEntry,
     atlas_landscape_continuity: atlasLandscapeContinuity,
     world_drag_partition: outsideGlobePan,
     landscape_workload: landscapeWorkloadEvaluation,

@@ -1701,6 +1701,34 @@ not a height seam. The neighbor's broad low-detail forms and the County's
 source-scale bands remain major fidelity gaps, so this accepts only the C1
 source-continuity correction and does not advance the overall perceptual gate.
 
+The Mercator entry hard cut now follows the continuous-lens contract rather
+than requiring a regional card selection. `3d81884`, `3901bae`, and `d7761ae`
+derive the Landscape focus from the connected Atlas member as wheel scale
+crosses the boundary, retain one predicted source/mosaic submission, and keep
+one dedicated terrain worker alive across prewarm, movement, reversal, and
+settled refinement. Moving frames use a half-resolution level-6 ceiling and a
+fixed endpoint camera composite (9,979 triangles in the named voyage); after a
+300 ms settled delay the exact level-9 working set replaces it with zero
+screen error. Main-thread regional contour and full-pyramid derivation no
+longer run during accelerated movement.
+
+`rey.terrain.compilation-worker@20` now projects the exact finest admitted
+relief samples into the Atlas fabric with retained source sample, field,
+hierarchy, relief, salience, tangent, brightness, and reveal-order identity.
+The accelerated morph paints 16 bounded prefixes into one lifetime-stable
+canvas and changes only compositor opacity on intervening wheel frames; the
+reference path retains its deterministic SVG projection. Fulfilled-transport
+WebGL2 voyage
+`sha256:386b608a60af9f1da47b0d0af5b693f6902199c6f8137987a98f3d6697ff8d1a`
+entered Landscape with zero regional clicks and retained stable mosaic,
+terrain-source, validity, height-hierarchy, relief-pyramid, and fabric
+identities through forward, reverse, interrupted, re-entry, and same-document
+back-navigation samples, with no empty terrain frame. Its maximum sampled
+wheel-frame gap was 1,121.8 ms under the disclosed 2,000 ms fulfilled
+SwiftShader tolerance. This is continuity evidence, not hardware frame-rate
+proof: the 250 ms direct-transport budget and the full retained performance
+matrix remain open.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
