@@ -5,6 +5,7 @@ import {
   retainCompatibleTerrainSubmission,
   terrainCanvasReportMayPublish,
   terrainCompilationSourceKey,
+  terrainReferenceLifecycle,
 } from "./accelerated-terrain";
 
 function terrainScene(
@@ -87,5 +88,12 @@ describe("accelerated terrain browser qualification", () => {
     expect(terrainCanvasReportMayPublish(false, false)).toBe(true);
     expect(terrainCanvasReportMayPublish(true, false)).toBe(false);
     expect(terrainCanvasReportMayPublish(true, true)).toBe(true);
+  });
+
+  it("does not report reference terrain ready before exact compilation", () => {
+    expect(terrainReferenceLifecycle(false, true, false)).toBe("initializing");
+    expect(terrainReferenceLifecycle(true, true, false)).toBe("ready");
+    expect(terrainReferenceLifecycle(false, false, false)).toBe("ready");
+    expect(terrainReferenceLifecycle(false, true, true)).toBe("failed");
   });
 });

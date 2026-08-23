@@ -319,6 +319,16 @@ export function terrainCanvasReportMayPublish(
   return !prewarmOnly || explicitPrewarmReport;
 }
 
+export function terrainReferenceLifecycle(
+  hasContent: boolean,
+  terrainRequested: boolean,
+  failed: boolean,
+): RendererStatus["lifecycle"] {
+  if (failed) return "failed";
+  if (hasContent || !terrainRequested) return "ready";
+  return "initializing";
+}
+
 export function rendererPreference(search: string): RendererPreference {
   const requested = new URLSearchParams(search).get("renderer");
   if (
@@ -528,6 +538,10 @@ export function AcceleratedTerrainSurface({
     .flatMap((requests) => requests.map((request) => request.working_set_id))
     .join("|");
   const terrainSourceKey = terrainCompilationSourceKey(snapshot.scene);
+  const terrainRequested =
+    !semanticGlobe &&
+    (snapshot.scene.terrain_fields.length > 0 ||
+      snapshot.scene.terrain_programs.length > 0);
   const terrainCompilationView = useMemo(
     () => ({
       ...view,
@@ -1051,6 +1065,11 @@ export function AcceleratedTerrainSurface({
 
   useEffect(() => {
     if (content) return;
+    const lifecycle = terrainReferenceLifecycle(
+      false,
+      terrainRequested,
+      terrainFailure !== null,
+    );
     completeReport({
       status: terrainFailure
         ? {
@@ -1062,13 +1081,17 @@ export function AcceleratedTerrainSurface({
           }
         : {
             ...REFERENCE_TERRAIN_REPORT.status,
-            lifecycle: "ready",
+            lifecycle,
+            detail:
+              lifecycle === "initializing"
+                ? "compiling the exact terrain hierarchy for the deterministic reference renderer"
+                : REFERENCE_TERRAIN_REPORT.status.detail,
           },
       draw_calls: 0,
       render_submission_ms: 0,
       submitted_frame: null,
     });
-  }, [content, snapshot.snapshot_id, terrainFailure]);
+  }, [content, snapshot.snapshot_id, terrainFailure, terrainRequested]);
 
   useEffect(() => {
     if (!prewarmOnly || !terrainCompilation) return;
