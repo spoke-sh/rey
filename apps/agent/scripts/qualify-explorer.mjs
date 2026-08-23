@@ -1022,6 +1022,29 @@ async function waitForSubmittedTerrainFrame(connection, timeoutMs) {
   );
 }
 
+async function waitForPreparedTerrainFrame(connection, backend, timeoutMs) {
+  if (backend !== "reference") {
+    await waitForSubmittedTerrainFrame(connection, timeoutMs);
+    return;
+  }
+  await waitFor(
+    connection,
+    `(() => {
+      const diagnostics = document.querySelector('[data-renderer-diagnostics]');
+      const value = (name) => diagnostics?.getAttribute('data-renderer-' + name);
+      return value('lifecycle') === 'ready' &&
+        value('landscape-height-hierarchy-complete') === 'true' &&
+        value('landscape-pyramid-complete') === 'true' &&
+        Boolean(value('landscape-height-hierarchies')) &&
+        Boolean(value('landscape-relief-pyramids')) &&
+        Boolean(value('render-pass-set-id')) &&
+        value('render-pass-set-id') !== 'unbound';
+    })()`,
+    "complete exact terrain preparation for the reference renderer",
+    timeoutMs,
+  );
+}
+
 async function waitForAtlasTerrainPrewarm(connection, timeoutMs) {
   await waitFor(
     connection,
@@ -1164,8 +1187,8 @@ async function verifyAtlasLandscapeContinuity(
     "Landscape re-entry",
     timeoutMs,
   );
-  if (backend !== "reference" && loss === "none")
-    await waitForSubmittedTerrainFrame(connection, timeoutMs);
+  if (loss === "none")
+    await waitForPreparedTerrainFrame(connection, backend, timeoutMs);
   samples.push(await terrainContinuitySample(connection, "landscape-reentry"));
 
   await connection.evaluate(`new Promise((resolve) => {
@@ -1837,8 +1860,11 @@ async function runVoyage(options) {
     })()`);
     if (!mapNoticeObserved)
       throw new Error("the Explorer focus notice did not resurface");
-    if (options.backend !== "reference")
-      await waitForSubmittedTerrainFrame(connection, options.timeoutMs);
+    await waitForPreparedTerrainFrame(
+      connection,
+      options.backend,
+      options.timeoutMs,
+    );
     process.stdout.write("READY landscape\n");
     captures.push(
       await captureStage(connection, voyageDirectory, "landscape", startedAt),
@@ -1897,8 +1923,11 @@ async function runVoyage(options) {
         );
       },
     );
-    if (options.backend !== "reference")
-      await waitForSubmittedTerrainFrame(connection, options.timeoutMs);
+    await waitForPreparedTerrainFrame(
+      connection,
+      options.backend,
+      options.timeoutMs,
+    );
     process.stdout.write("READY objects\n");
     captures.push(
       await captureStage(connection, voyageDirectory, "objects", startedAt),
@@ -1924,8 +1953,11 @@ async function runVoyage(options) {
         options.timeoutMs,
       );
     });
-    if (options.backend !== "reference")
-      await waitForSubmittedTerrainFrame(connection, options.timeoutMs);
+    await waitForPreparedTerrainFrame(
+      connection,
+      options.backend,
+      options.timeoutMs,
+    );
     process.stdout.write("READY evidence\n");
     captures.push(
       await captureStage(connection, voyageDirectory, "evidence", startedAt),
