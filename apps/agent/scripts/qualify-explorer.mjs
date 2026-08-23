@@ -750,6 +750,7 @@ async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
         atmosphere_repeat_opacity: Number(canvas?.getAttribute('data-globe-atmosphere-repeat-opacity') ?? '0'),
         atmosphere_shell_scale: Number(canvas?.getAttribute('data-globe-atmosphere-shell-scale') ?? '0'),
         surface_opacity: Number(canvas?.getAttribute('data-globe-surface-opacity') ?? '0'),
+        stipple_sample_fraction: Number(canvas?.getAttribute('data-globe-stipple-sample-fraction') ?? 'NaN'),
         zoom: Number(viewport?.getAttribute('data-camera-zoom')),
       });
       if (samples.length >= 120 || regime === 'atlas') resolve(samples);
@@ -790,6 +791,7 @@ async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
       horizontal_wrap_indexes: canvas?.getAttribute('data-globe-horizontal-wrap-indexes') ?? null,
       horizontal_wrap_depth: Number(canvas?.getAttribute('data-globe-horizontal-wrap-depth') ?? 'NaN'),
       horizontal_wrap_opacity: Number(canvas?.getAttribute('data-globe-horizontal-wrap-opacity') ?? 'NaN'),
+      stipple_sample_fraction: Number(canvas?.getAttribute('data-globe-stipple-sample-fraction') ?? 'NaN'),
       horizontal_wrap_layout: canvasBounds && sceneBounds ? {
         canvas_center_x: canvasBounds.x + canvasBounds.width / 2,
         canvas_width: canvasBounds.width,
@@ -885,6 +887,16 @@ async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
         surfaceFadeProgress *
           surfaceFadeProgress *
           (3 - 2 * surfaceFadeProgress));
+    const stippleEndpointDistance = Math.min(progress, 1 - progress);
+    const stippleReductionProgress = Math.min(
+      1,
+      stippleEndpointDistance / 0.12,
+    );
+    const stippleReduction =
+      stippleReductionProgress *
+      stippleReductionProgress *
+      (3 - 2 * stippleReductionProgress);
+    const expectedStippleSampleFraction = 1 - 0.68 * stippleReduction;
     return (
       Number.isFinite(frame.atmosphere_opacity) &&
       Number.isFinite(frame.atmosphere_repeat_opacity) &&
@@ -896,7 +908,9 @@ async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
       Math.abs(frame.atmosphere_repeat_opacity - expectedRepeatOpacity) <=
         0.003 &&
       Math.abs(frame.atmosphere_shell_scale - expectedShellScale) <= 0.003 &&
-      Math.abs(frame.surface_opacity - expectedSurfaceOpacity) <= 0.003
+      Math.abs(frame.surface_opacity - expectedSurfaceOpacity) <= 0.003 &&
+      Math.abs(frame.stipple_sample_fraction - expectedStippleSampleFraction) <=
+        0.003
     );
   });
   return {
@@ -934,6 +948,7 @@ async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
       after.horizontal_wrap_indexes === "-1,0,1" &&
       after.horizontal_wrap_depth === 0 &&
       after.horizontal_wrap_opacity === 1 &&
+      after.stipple_sample_fraction === 1 &&
       after.horizontal_wrap_layout !== null &&
       Math.abs(
         after.horizontal_wrap_layout.canvas_center_x -
@@ -974,6 +989,7 @@ async function sampleWheelProjectionTransition(
         atmosphere_repeat_opacity: Number(canvas?.getAttribute('data-globe-atmosphere-repeat-opacity') ?? '0'),
         atmosphere_shell_scale: Number(canvas?.getAttribute('data-globe-atmosphere-shell-scale') ?? '0'),
         surface_opacity: Number(canvas?.getAttribute('data-globe-surface-opacity') ?? '0'),
+        stipple_sample_fraction: Number(canvas?.getAttribute('data-globe-stipple-sample-fraction') ?? 'NaN'),
         zoom: Number(viewport?.getAttribute('data-camera-zoom')),
       };
     };

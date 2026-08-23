@@ -199,15 +199,26 @@ The canonical (non-repeated) stipple field blends this same cached spherical
 instance transform toward its cached Atlas position entirely inside the
 vertex shader, one scalar `mix()` between two fixed endpoints.
 
+Moving projection frames submit a deterministic progressive subset of those
+same sample identities. A coordinate-derived stable rank keeps each prefix
+spatially distributed instead of retaining an arbitrary latitude band, and
+the repeat copies apply the same fraction after their connected-seam prefix is
+selected. The fraction eases from the complete fabric at both stable endpoints
+to a bounded 32 percent through the body of the morph. This is presentation
+LOD only: it does not resample, move, invent, or re-author a stipple, and the
+full World and Mercator postures remain unchanged. The canvas discloses the
+live fraction as `data-globe-stipple-sample-fraction` for retained transition
+qualification.
+
 The indexed surface's own sphere/Mercator endpoints are cached the same way
 and blended per vertex every frame with a cheap array lerp rather than full
 per-vertex reprojection. Because pitch lives in the camera (`globeCameraPose`)
 rather than in either cached endpoint's vertex data, this plain lerp is
 exact — a real camera rotation never shears interpolated geometry the way a
 naive blend between two differently-view-rotated vertex sets would, so no
-correction step is needed here at all. Repeat
-instances are ordered from the joined seam toward the outer edge, and each
-frame submits only the prefix that the dissolve can make visible. Transparent
+correction step is needed here at all. Repeat instances are ordered from the
+joined seam toward the outer edge, and each frame submits only the
+progressively bounded prefix that the dissolve can make visible. Transparent
 cached dots are not draw work.
 Entry and exit therefore add no per-frame instance reprojection, material
 rebuild, GPU canvas resize, scale jump, or framing jump. Raster and submission

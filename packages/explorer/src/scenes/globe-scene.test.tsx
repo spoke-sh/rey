@@ -28,6 +28,7 @@ import {
   globeAtmosphereRepeatOpacity,
   globeCameraPose,
   globeProjectionMorphRemaining,
+  globeTransitionStippleSampleFraction,
   projectGlobeCoordinate,
 } from "../globe-projection";
 import { globeFixture } from "../test-fixtures";
@@ -94,6 +95,7 @@ describe("globe scene", () => {
       name: "context-globe-samples:0",
     }).instance as InstancedMesh;
     expect(sampleField.count).toBeGreaterThan(0);
+    expect(sampleField.count).toBe(sampleField.instanceMatrix.count);
     expect((sampleField.material as MeshBasicNodeMaterial).color.getHex()).toBe(
       0x708079,
     );
@@ -118,6 +120,7 @@ describe("globe scene", () => {
     const sampleField = renderer.scene.findByProps({
       name: "context-globe-samples:0",
     }).instance as InstancedMesh;
+    expect(sampleField.count).toBe(sampleField.instanceMatrix.count);
     const poleField = renderer.scene.findByProps({
       name: "context-globe-pole-pattern:north",
     }).instance as InstancedMesh;
@@ -239,6 +242,16 @@ describe("globe scene", () => {
       (repeated.material as MeshBasicNodeMaterial).positionNode,
     ).not.toBeNull();
     expect(canonical.userData.reyStippleMorphExecution).toBe("gpu_uniform");
+    expect(canonical.userData.reyStippleSampleFraction).toBe(
+      globeTransitionStippleSampleFraction(progress),
+    );
+    expect(canonical.count).toBe(
+      Math.ceil(
+        canonical.instanceMatrix.count *
+          globeTransitionStippleSampleFraction(progress),
+      ),
+    );
+    expect(canonical.count).toBeLessThan(canonical.instanceMatrix.count);
     expect(repeated.userData.reyStippleMorphExecution).toBe("gpu_uniform");
     expect(rightGradient.count).toBe(repeated.instanceMatrix.count);
     expect(leftGradient.count).toBe(repeatedLeft.instanceMatrix.count);

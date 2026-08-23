@@ -14,6 +14,8 @@ export const GLOBE_ATLAS_REPEAT_MAX_DEPTH = GLOBE_RADIUS * 0.72;
 export const GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT = 0.72;
 export const GLOBE_SURFACE_FADE_START = 0.38;
 export const GLOBE_SURFACE_FADE_END = 0.62;
+export const GLOBE_TRANSITION_MINIMUM_STIPPLE_SAMPLE_FRACTION = 0.32;
+const GLOBE_TRANSITION_STIPPLE_ENDPOINT_WINDOW = 0.12;
 
 export interface GlobeProjectionWorld {
   width: number;
@@ -183,6 +185,22 @@ export function globeProjectionMorphRemaining(progress: number) {
   if (!Number.isFinite(progress))
     throw new Error("globe projection progress must be finite");
   return 1 - smoothstep(Math.max(0, Math.min(1, progress)));
+}
+
+/**
+ * Bounds stipple submission while the shared sphere/Mercator field is moving.
+ * Both stable endpoints retain the complete fabric; intermediate frames draw a
+ * deterministic progressive subset of the same native samples.
+ */
+export function globeTransitionStippleSampleFraction(progress: number) {
+  if (!Number.isFinite(progress))
+    throw new Error("globe transition stipple progress must be finite");
+  const boundedProgress = Math.max(0, Math.min(1, progress));
+  const endpointDistance = Math.min(boundedProgress, 1 - boundedProgress);
+  const reduction = smoothstep(
+    Math.min(1, endpointDistance / GLOBE_TRANSITION_STIPPLE_ENDPOINT_WINDOW),
+  );
+  return 1 - (1 - GLOBE_TRANSITION_MINIMUM_STIPPLE_SAMPLE_FRACTION) * reduction;
 }
 
 export function globeSurfaceOpacity(progress: number) {

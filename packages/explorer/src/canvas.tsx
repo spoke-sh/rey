@@ -19,6 +19,7 @@ import {
   globeAtmosphereRepeatOpacity,
   globeAtmosphereShellScale,
   globeSurfaceOpacity,
+  globeTransitionStippleSampleFraction,
 } from "./globe-projection";
 import {
   ReactThreeFiberRendererAdapter,
@@ -347,6 +348,13 @@ export function ExplorerCanvas({
       data-globe-surface-opacity={
         content.kind === "globe"
           ? globeSurfaceOpacity(
+              content.view.projection_morph_progress ?? 0,
+            ).toFixed(3)
+          : undefined
+      }
+      data-globe-stipple-sample-fraction={
+        content.kind === "globe"
+          ? globeTransitionStippleSampleFraction(
               content.view.projection_morph_progress ?? 0,
             ).toFixed(3)
           : undefined

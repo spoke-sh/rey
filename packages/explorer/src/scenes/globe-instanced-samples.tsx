@@ -29,6 +29,7 @@ import {
   globeAtlasRepeatSeamWeight,
   globeAtlasWidth,
   globeProjectionMorphRemaining,
+  globeTransitionStippleSampleFraction,
   projectGlobeCoordinate,
 } from "../globe-projection";
 import {
@@ -54,6 +55,7 @@ interface GlobeCanonicalProjectionCache {
   readonly matrices: Float32Array;
   readonly projectionRevision: string;
   readonly sourceBucket: CompiledContextGlobe["sample_buckets"][number];
+  readonly sourceIndexes: Uint32Array;
 }
 
 export function GlobeSampleField({
@@ -75,6 +77,7 @@ export function GlobeSampleField({
   const postureOpacity =
     bucket.opacity * (1 - progress * (1 - MERCATOR_STIPPLE_OPACITY_SCALE));
   const morphRemaining = globeProjectionMorphRemaining(progress);
+  const stippleSampleFraction = globeTransitionStippleSampleFraction(progress);
   const canonicalMaterialState = useMemo(() => {
     const morphProgressNode = uniform(0);
     const atlasPosition = attribute<"vec3">("reyAtlasPosition", "vec3");
@@ -238,12 +241,19 @@ export function GlobeSampleField({
         matrices: new Float32Array(bucket.samples.length * 16),
         projectionRevision,
         sourceBucket: bucket,
+        sourceIndexes: progressiveGlobeSampleIndexes(bucket.samples),
       };
       const planarMatrices = new Float32Array(bucket.samples.length * 16);
       const planarPositions = new Float32Array(bucket.samples.length * 3);
       const closedSeamPositions = new Float32Array(bucket.samples.length * 3);
       const normalizedChartXs = new Float32Array(bucket.samples.length);
-      for (const [index, sample] of bucket.samples.entries()) {
+      for (
+        let index = 0;
+        index < canonicalCache.sourceIndexes.length;
+        index += 1
+      ) {
+        const sourceIndex = canonicalCache.sourceIndexes[index]!;
+        const sample = bucket.samples[sourceIndex]!;
         const spherical = projectGlobeCoordinate(
           sample.longitude_degrees,
           sample.latitude_degrees,
@@ -287,10 +297,10 @@ export function GlobeSampleField({
       }
       const caches = new Map<number, GlobeRepeatProjectionCache>();
       for (const [wrapIndex, repeat] of repeatMeshes) {
-        const sourceIndexes = Uint32Array.from(
+        const canonicalIndexes = Uint32Array.from(
           bucket.samples.map((_, index) => index),
         );
-        sourceIndexes.sort((left, right) => {
+        canonicalIndexes.sort((left, right) => {
           const weightDifference =
             globeAtlasRepeatSeamWeight(normalizedChartXs[right]!, wrapIndex) -
             globeAtlasRepeatSeamWeight(normalizedChartXs[left]!, wrapIndex);
@@ -302,16 +312,18 @@ export function GlobeSampleField({
           projectionRevision,
           seamWeights: new Float32Array(bucket.samples.length),
           sourceBucket: bucket,
-          sourceIndexes,
+          sourceIndexes: new Uint32Array(bucket.samples.length),
         };
-        for (let index = 0; index < sourceIndexes.length; index += 1) {
-          const sourceIndex = sourceIndexes[index]!;
+        for (let index = 0; index < canonicalIndexes.length; index += 1) {
+          const canonicalIndex = canonicalIndexes[index]!;
+          cache.sourceIndexes[index] =
+            canonicalCache.sourceIndexes[canonicalIndex]!;
           const matrixOffset = index * 16;
-          const sourceMatrixOffset = sourceIndex * 16;
+          const sourceMatrixOffset = canonicalIndex * 16;
           const morphOffset = index * 3;
-          const sourceMorphOffset = sourceIndex * 3;
+          const sourceMorphOffset = canonicalIndex * 3;
           const seamWeight = globeAtlasRepeatSeamWeight(
-            normalizedChartXs[sourceIndex]!,
+            normalizedChartXs[canonicalIndex]!,
             wrapIndex,
           );
           const connectionProgress =
@@ -359,6 +371,11 @@ export function GlobeSampleField({
         repeat.mesh.userData.reyStippleMorphExecution = "gpu_uniform";
       }
     }
+    canonicalMesh.count = Math.max(
+      1,
+      Math.ceil(bucket.samples.length * stippleSampleFraction),
+    );
+    canonicalMesh.userData.reyStippleSampleFraction = stippleSampleFraction;
     for (const repeat of repeatMeshes.values()) {
       const cache = repeat.cache!;
       if (repeatOpacity <= 0) repeat.mesh.count = 0;
@@ -370,10 +387,14 @@ export function GlobeSampleField({
           cache.seamWeights[visibleCount]! > visibleStart
         )
           visibleCount += 1;
-        repeat.mesh.count = visibleCount;
+        repeat.mesh.count =
+          visibleCount === 0
+            ? 0
+            : Math.max(1, Math.ceil(visibleCount * stippleSampleFraction));
       }
+      repeat.mesh.userData.reyStippleSampleFraction = stippleSampleFraction;
     }
-  }, [bucket, progress, view, world, wrapIndexes]);
+  }, [bucket, progress, stippleSampleFraction, view, world, wrapIndexes]);
   return wrapIndexes.map((wrapIndex) => (
     <group
       key={wrapIndex}
@@ -392,4 +413,29 @@ export function GlobeSampleField({
       </instancedMesh>
     </group>
   ));
+}
+
+function progressiveGlobeSampleIndexes(
+  samples: CompiledContextGlobe["sample_buckets"][number]["samples"],
+) {
+  const indexes = Uint32Array.from(samples.map((_, index) => index));
+  indexes.sort((left, right) => {
+    const rankDifference =
+      globeSampleProgressiveRank(samples[left]!) -
+      globeSampleProgressiveRank(samples[right]!);
+    return rankDifference || left - right;
+  });
+  return indexes;
+}
+
+function globeSampleProgressiveRank(sample: {
+  longitude_degrees: number;
+  latitude_degrees: number;
+}) {
+  const longitude = Math.round((sample.longitude_degrees + 180) * 1_000_000);
+  const latitude = Math.round((sample.latitude_degrees + 90) * 1_000_000);
+  let value = (longitude ^ Math.imul(latitude, 0x9e37_79b1)) >>> 0;
+  value = Math.imul(value ^ (value >>> 16), 0x85eb_ca6b) >>> 0;
+  value = Math.imul(value ^ (value >>> 13), 0xc2b2_ae35) >>> 0;
+  return (value ^ (value >>> 16)) >>> 0;
 }

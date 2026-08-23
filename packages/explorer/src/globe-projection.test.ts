@@ -9,6 +9,7 @@ import {
   GLOBE_ATLAS_REPEAT_MAX_DEPTH,
   GLOBE_CAMERA_DISTANCE,
   GLOBE_CAMERA_HALF_HEIGHT,
+  GLOBE_TRANSITION_MINIMUM_STIPPLE_SAMPLE_FRACTION,
   globeAtlasRepeatDepthOffset,
   globeAtlasRepeatOpacity,
   globeAtlasRepeatOffset,
@@ -25,6 +26,7 @@ import {
   globeCameraPose,
   globeProjectionMorphRemaining,
   globeSurfaceOpacity,
+  globeTransitionStippleSampleFraction,
   interpolateProjectedGlobeMeshes,
   projectGlobeAtlasRepeatCoordinate,
   projectGlobeCoordinate,
@@ -42,6 +44,26 @@ describe("declarative globe-to-Mercator projection", () => {
     expect(globeProjectionMorphRemaining(2)).toBe(0);
     expect(() => globeProjectionMorphRemaining(Number.NaN)).toThrow(
       "globe projection progress must be finite",
+    );
+  });
+
+  it("retains full endpoint stipples and bounds moving-frame submission", () => {
+    expect(globeTransitionStippleSampleFraction(-1)).toBe(1);
+    expect(globeTransitionStippleSampleFraction(0)).toBe(1);
+    expect(globeTransitionStippleSampleFraction(0.5)).toBeCloseTo(
+      GLOBE_TRANSITION_MINIMUM_STIPPLE_SAMPLE_FRACTION,
+    );
+    expect(globeTransitionStippleSampleFraction(1)).toBe(1);
+    expect(globeTransitionStippleSampleFraction(2)).toBe(1);
+    expect(globeTransitionStippleSampleFraction(0.08)).toBeCloseTo(
+      globeTransitionStippleSampleFraction(0.92),
+    );
+    expect(globeTransitionStippleSampleFraction(0.08)).toBeGreaterThan(
+      GLOBE_TRANSITION_MINIMUM_STIPPLE_SAMPLE_FRACTION,
+    );
+    expect(globeTransitionStippleSampleFraction(0.08)).toBeLessThan(1);
+    expect(() => globeTransitionStippleSampleFraction(Number.NaN)).toThrow(
+      "globe transition stipple progress must be finite",
     );
   });
 

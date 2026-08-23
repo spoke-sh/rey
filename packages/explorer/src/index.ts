@@ -42,6 +42,7 @@ export {
   GLOBE_ATLAS_REPEAT_MAX_DEPTH,
   GLOBE_SURFACE_FADE_END,
   GLOBE_SURFACE_FADE_START,
+  GLOBE_TRANSITION_MINIMUM_STIPPLE_SAMPLE_FRACTION,
   globeAtlasRepeatConnectionProgress,
   globeAtlasRepeatDepthOffset,
   globeAtlasRepeatOpacity,
@@ -57,6 +58,7 @@ export {
   globeAtmosphereShellScale,
   globeProjectionMorphRemaining,
   globeSurfaceOpacity,
+  globeTransitionStippleSampleFraction,
   interpolateProjectedGlobeMeshes,
   projectGlobeAtlasRepeatCoordinate,
 } from "./globe-projection";

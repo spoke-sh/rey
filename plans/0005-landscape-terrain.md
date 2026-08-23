@@ -1342,6 +1342,16 @@ reverse dissolve frame amid roughly 690 ms presentation gaps. That transition
 stall remains open, and no multi-region browser-capture or fidelity checkbox
 advances from these attempts.
 
+`rey.semantic-globe.tsl-stippled-atmosphere@39` addresses that pre-terrain
+submission bottleneck without changing either endpoint or sample authority.
+It orders the same coordinate-identified stipples into a deterministic,
+spatially distributed progressive sequence, retains the complete fabric at
+stable World and Mercator, and eases moving frames down to a bounded 32
+percent. Repeat charts apply the same fraction only after their connected-seam
+prefix is selected. The live fraction is retained in browser transition
+diagnostics; forward and reverse WebGPU qualification must still demonstrate
+enough distinct dissolve/depth frames before the stall is considered closed.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence
