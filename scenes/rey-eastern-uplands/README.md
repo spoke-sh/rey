@@ -5,9 +5,9 @@ fixture. Its western grid edge copies the exact validity, centimeter elevation,
 material, and first interior elevation slope from the separately authored Rey
 County v16 eastern edge. A bounded corridor transitions from that exact edge
 into a low-pass boundary trend before authored continuous domain-warped ridges
-and branching valleys enter through a zero-slope envelope inside its explicit
-boundary. Neither source claims a merge, gap fill, Earth elevation, or survey
-coverage.
+and branching valleys enter through one full-width sine-squared smootherstep
+zero-slope envelope inside its explicit boundary. Neither source claims a
+merge, gap fill, Earth elevation, or survey coverage.
 
 Regenerate and verify the packed terrain with:
 

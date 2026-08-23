@@ -1484,6 +1484,17 @@ continuous full-width zero-slope envelope rather than a second transition
 boundary. The 208,655 ms voyage and 566.6/1,500 ms Landscape median/p95
 presentation cadence remain failures.
 
+Candidate `rey.agent-geography.rey-eastern-uplands@7` removes the separate
+zero-then-ramp envelope. The same continuous domain-warped relief now enters
+from the exact seam through one sine-squared smootherstep envelope over 120
+columns, with zero first derivative at the boundary and no interior switch-on
+coordinate. Mean row second difference falls from 1.393 m at the exact first
+interior slope to 0.140 m at corridor column 24 before independently authored
+form grows continuously; supported interior 4-cell relief remains bounded at
+52.34/90.53 m p50/p90. All 13 County/seam fixtures and the byte-stable
+generator pass over the unchanged 27,432 valid / 4,992 no-data mask. Admission,
+composition, and accelerated pixels remain required.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence

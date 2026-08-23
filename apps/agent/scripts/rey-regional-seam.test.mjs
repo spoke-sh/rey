@@ -100,7 +100,8 @@ describe("Rey regional source seam", () => {
       uplands.document.terrain_derivation.synthesis.independent_relief,
     ).toMatchObject({
       schema: "rey.authored-domain-warped-relief.v1",
-      transition_columns: 36,
+      entry_envelope: "sine_squared_smootherstep_full_width",
+      entry_envelope_columns: 120,
       domain_warp_octaves: 3,
       ridge_octaves: 5,
       valley_octaves: 4,
