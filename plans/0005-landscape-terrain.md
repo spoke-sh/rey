@@ -1170,8 +1170,24 @@ remain topology rather than rendered trenches. The exact validity mask is
 unchanged. At the same 528.85-meter sampling radius, median local relief is
 26.12 meters and the 90th percentile is 50.53 meters: lower than revision 10's
 band-inflated values by design, and still bounded source diagnostics rather
-than perceptual proof. This revision remains a candidate until admission and
-capture.
+than perceptual proof.
+
+`SCENE@17` and accepted scene-admission result
+`blake3:ebd0fa454becd58f694cf8447428559c4ac0538c38e0f93009e63c5ac0e01d2d`
+now hard-cut the browser to those exact bytes through admission
+`blake3:f76159218de59316db676d55f3b88ab8bc7dd643dc927ecd4e8ae612e4159640`.
+The 1920×1080 WebGPU steep-relief voyage passed in manifest
+`sha256:02c5caf9b11f6960617d973ca1f772b69910aa670ce22d997a8257d45883412d`.
+It retained 88 tiles, 130,223 line segments, two terrain-bound areas, exact
+Atlas/Landscape hierarchy identity, and zero tile seams, relief seams,
+partition mismatches, or unsupported triangles. Landscape entry reused the
+prewarmed hierarchy and completed its terrain update in 588.3 milliseconds on
+the fulfilled main-thread fallback. Visual inspection confirms that the
+rectilinear Runtime Basin trenches are absent and the County-wide fingerprint
+signal is substantially reduced. The remaining broad, low-contrast, rounded
+relief still lacks the sharply separated ridges, dendritic valleys, and local
+ravines of the operator reference. The explicit geomorphic and multi-scale
+relief judgment therefore remains major and keeps the fidelity gate open.
 
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
