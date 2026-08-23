@@ -14,8 +14,8 @@ const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
 // beyond this bounded in-memory grid.
 const COLUMNS = 705;
 const ROWS = 626;
-const DATASET_ID = "rey-county-semantic-terrain-v14";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@14";
+const DATASET_ID = "rey-county-semantic-terrain-v15";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@15";
 const INPUT_FILES = [
   "boundary.geojson",
   "districts.geojson",
@@ -205,7 +205,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v14",
+      schema: "rey.county-terrain-source.v15",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -235,11 +235,12 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
         cartography:
           "separately admitted district, highway, road, railway, marker, and label sources form a scale-aware hierarchy without changing terrain validity",
         stitching: {
-          strategy: "single bounded County authoring domain",
+          strategy:
+            "single bounded County authoring domain with one exact grid-aligned eastern boundary segment reserved for separately admitted adjacency assessment",
           seam_count: 0,
           conflict_count: 0,
           omissions: [
-            "cross-package seam and conflict resolution is not implemented by this compiler revision",
+            "this source declares no cross-package merge; a separately admitted composition must assess any neighboring boundary",
           ],
         },
       },
@@ -271,7 +272,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     features: [
       {
         type: "Feature",
-        id: "rey-county-packed-terrain-v14",
+        id: "rey-county-packed-terrain-v15",
         properties: {
           title: "Rey County admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",

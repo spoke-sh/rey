@@ -1,0 +1,31 @@
+{
+  "type": "FeatureCollection",
+  "name": "Rey Eastern Uplands authored boundary",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "rey-eastern-uplands-boundary-v1",
+      "properties": {
+        "name": "REY EASTERN UPLANDS",
+        "kind": "regional_candidate_boundary",
+        "authority": "authored_candidate_only",
+        "coordinate_note": "arbitrary OGC CRS84 editor extent; not an Earth survey",
+        "shared_boundary": "the exact western segment is independently assessed against an admitted Rey County package"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-159.12, -19.52],
+            [-158.95, -19.52],
+            [-158.88, -19.59],
+            [-158.91, -19.68],
+            [-159.02, -19.7204],
+            [-159.12, -19.7204],
+            [-159.12, -19.52]
+          ]
+        ]
+      }
+    }
+  ]
+}

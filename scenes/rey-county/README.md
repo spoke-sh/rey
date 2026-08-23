@@ -75,11 +75,11 @@ the renderer.
 
 The terrain grid contains 441,330 cells at exact integer-microdegree spacing:
 
-- 317,297 valid cells;
-- 116,192 no-data cells outside the County footprint;
+- 324,739 valid cells;
+- 108,750 no-data cells outside the County footprint;
 - 9,471 no-data cells in Unexplored Scrub (some exterior cells satisfy both
-  predicates, producing 124,033 unique no-data cells);
-- 158.04–1,826.03 meters of authored relief; and
+  predicates, producing 116,591 unique no-data cells);
+- 127.84–1,826.03 meters of authored relief; and
 - `granite`, `rock`, `sand`, `soil`, and `vegetation` material identifiers.
 
 Seven hundred four longitudinal and 625 latitudinal intervals preserve the
@@ -92,11 +92,14 @@ admission limit. This is a source-native density improvement, not the final
 resolution target; a tiled raster adapter is still required beyond the bounded
 in-memory regional grid.
 
-The embedded `rey.agent-geography.rey-county@14` compiler record states the
+The embedded `rey.agent-geography.rey-county@15` compiler record states the
 topology, elevation, hydrology, land-cover, and stitching contracts. This
 revision owns one County-wide authoring domain and therefore reports zero
 seams and conflicts while explicitly omitting cross-package seam resolution.
-It does not imply that multiple editor packages have already been stitched.
+Its exact grid-aligned eastern boundary segment allows a separately admitted
+neighbor to be assessed without an implicit merge. It does not imply that
+multiple editor packages have already been stitched.
+
 Its elevation compiler resolves each rough named landform into bounded,
 domain-warped irregular mountain mass with restrained structural ridges and
 substantially reduced unstructured fine-noise amplitude. Exact authored
@@ -105,14 +108,14 @@ landform. A priority-flood pass starts only at exact validity boundaries and
 derives source drainage. Its displacement responds to unfilled local terrain
 slope, and flood-parent escape cells contribute exactly zero height
 displacement so their topology cannot become a visible rectilinear scar. The
-retained derivation reports 26,377 channel cells, 474 heads, 384 branch
-junctions, maximum Strahler order 5, maximum stream power `0.882567`, a
-78.07-meter maximum incision, and a maximum contributing area of 218,955 valid
-cells. It applies nonzero incision at 221,973 genuinely downhill cells and at
+retained derivation reports 18,417 channel cells, 427 heads, 339 branch
+junctions, maximum Strahler order 5, maximum stream power `0.88082`, a
+77.94-meter maximum incision, and a maximum contributing area of 230,890 valid
+cells. It applies nonzero incision at 222,124 genuinely downhill cells and at
 zero flat escape cells. Only after those valleys exist, a bounded source-scale pass separates
-drainage divides and valleys at the 311,343 cells with fully valid
-five-by-five neighborhoods; 5,954 valid boundary cells remain unchanged. Its
-displacement is bounded to a 48.98-meter raise and a 57.85-meter lowering and
+drainage divides and valleys at the 318,781 cells with fully valid
+five-by-five neighborhoods; 5,958 valid boundary cells remain unchanged. Its
+displacement is bounded to a 48.21-meter raise and a 57.8-meter lowering and
 is authored source geometry, not renderer detail. The
 separate authored-source local-relief summary samples a 528.85-meter radius:
 the median is 26.00 meters, the 90th percentile is 53.73 meters, and neither is

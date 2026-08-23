@@ -1288,6 +1288,17 @@ terrain-source slice must provide materially stronger admitted geomorphic
 resolution, while the next engine slice must exercise the already-frozen
 multi-region contracts with an actual connected, conflict-free source set.
 
+Candidate `rey.agent-geography.rey-county@15` adds one exact, grid-aligned
+eastern boundary segment without changing the rectangular source lattice.
+Candidate `rey.agent-geography.rey-eastern-uplands@1` independently authors a
+193×168 neighboring field while copying only the 168 shared validity,
+centimeter-elevation, and material samples. A deterministic source fixture
+reports zero conflicts across all three seam channels and retains 27,432 valid
+and 4,992 no-data neighbor vertices. Neither candidate is runtime evidence yet:
+both exact packages must pass scene admission, the server-owned composition
+must retain their qualified connected component, and a browser capture must
+prove a two-patch mosaic before the multi-region delivery item can close.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

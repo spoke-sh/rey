@@ -113,6 +113,7 @@
           ./docs/decisions/README.md
           ./plans/0003-scene-to-explorer.md
           ./scenes/rey-county
+          ./scenes/rey-eastern-uplands
           ./sys/context-anchor-survey
         ];
       };
