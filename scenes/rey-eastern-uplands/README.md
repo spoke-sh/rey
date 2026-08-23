@@ -2,9 +2,10 @@
 
 This source-controlled fictional region is a bounded multi-region Landscape
 fixture. Its western grid edge copies the exact validity, centimeter elevation,
-and material samples from the separately authored Rey County v15 eastern edge.
-The interior is independently generated inside its explicit boundary. Neither
-source claims a merge, gap fill, Earth elevation, or survey coverage.
+material, and first interior elevation slope from the separately authored Rey
+County v15 eastern edge. Independent landforms enter through a zero-slope
+envelope inside its explicit boundary. Neither source claims a merge, gap fill,
+Earth elevation, or survey coverage.
 
 Regenerate and verify the packed terrain with:
 

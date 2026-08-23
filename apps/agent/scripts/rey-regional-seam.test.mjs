@@ -39,12 +39,32 @@ describe("Rey regional source seam", () => {
       });
     }
     expect(uplands.document.terrain_derivation.seam).toMatchObject({
+      schema: "rey.authored-regional-seam.v2",
       source_dataset_id: "rey-county-semantic-terrain-v15",
+      source_interior_context_columns: 1,
       compared_vertices: 168,
       validity_conflicts: 0,
       elevation_conflicts: 0,
       material_conflicts: 0,
     });
+  });
+
+  it("continues the exact County edge slope into the first interior column", () => {
+    for (let row = 0; row < 168; row += 1) {
+      const countyInterior = county.cells[(225 + row) * countyColumns + 703];
+      const countySeam = county.cells[(225 + row) * countyColumns + 704];
+      const uplandsSeam = uplands.cells[row * uplandsColumns];
+      const uplandsInterior = uplands.cells[row * uplandsColumns + 1];
+      expect(countyInterior.valid).toBe(true);
+      expect(uplandsInterior.valid).toBe(true);
+      expect(
+        countySeam.sample.elevation - countyInterior.sample.elevation,
+      ).toBeCloseTo(
+        uplandsInterior.sample.elevation - uplandsSeam.sample.elevation,
+        10,
+      );
+      expect(uplandsInterior.sample.material).toBe(uplandsSeam.sample.material);
+    }
   });
 
   it("keeps independently authored interior support bounded by its polygon", () => {

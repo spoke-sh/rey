@@ -22,8 +22,8 @@ const LONGITUDE_STEP = 0.00125;
 const LATITUDE_STEP = 0.0012;
 const REY_SEAM_COLUMN = 704;
 const REY_SEAM_ROW_START = 225;
-const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v1";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@1";
+const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v2";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@2";
 
 export function buildReyEasternUplandsTerrainSource(
   sceneDirectory = SCENE_DIRECTORY,
@@ -62,8 +62,12 @@ export function buildReyEasternUplandsTerrainSource(
     const latitude = roundCoordinate(NORTH - row * LATITUDE_STEP);
     const sourceIndex =
       (REY_SEAM_ROW_START + row) * sourceGrid.columns + REY_SEAM_COLUMN;
+    const sourceInteriorIndex = sourceIndex - 1;
     const seamValid = sourceValidity[sourceIndex] === 1;
     const seamElevation = sourceElevations.readInt32LE(sourceIndex * 4) / 100;
+    const seamSlope =
+      seamElevation -
+      sourceElevations.readInt32LE(sourceInteriorIndex * 4) / 100;
     const seamMaterial = seamValid
       ? sourceGrid.material_palette[sourceMaterials[sourceIndex]]
       : null;
@@ -73,7 +77,7 @@ export function buildReyEasternUplandsTerrainSource(
       const inside = pointInRing([longitude, latitude], ring);
       const valid = column === 0 ? seamValid : inside;
       const sample = valid
-        ? terrainSample(column, row, seamElevation, seamMaterial)
+        ? terrainSample(column, row, seamElevation, seamMaterial, seamSlope)
         : null;
       if (valid) {
         validity[index] = 1;
@@ -128,7 +132,7 @@ export function buildReyEasternUplandsTerrainSource(
         },
       ],
       seam: {
-        schema: "rey.authored-regional-seam.v1",
+        schema: "rey.authored-regional-seam.v2",
         axis: "longitude",
         coordinate_microdegrees: -159120000,
         start_microdegrees: -19720400,
@@ -136,6 +140,7 @@ export function buildReyEasternUplandsTerrainSource(
         source_dataset_id: sourceGrid.dataset_id,
         source_column: REY_SEAM_COLUMN,
         source_row_start: REY_SEAM_ROW_START,
+        source_interior_context_columns: 1,
         compared_vertices: ROWS,
         validity_conflicts: 0,
         elevation_conflicts: 0,
@@ -145,7 +150,7 @@ export function buildReyEasternUplandsTerrainSource(
       },
       synthesis: {
         elevation:
-          "smooth bounded upland folds and valleys whose displacement is exactly zero on the shared western seam",
+          "smooth bounded upland folds and valleys whose displacement and first derivative are exactly zero on the shared western seam after continuing the County edge slope through the first interior column",
         validity:
           "explicit polygon-contained support; no-data outside the authored boundary remains unsupported",
         stitching:
@@ -220,13 +225,20 @@ function verifySourceGrid(grid) {
     );
 }
 
-function terrainSample(column, row, seamElevation, seamMaterial) {
+function terrainSample(column, row, seamElevation, seamMaterial, seamSlope) {
   if (column === 0) return { elevation: seamElevation, material: seamMaterial };
-  const x = column / (COLUMNS - 1);
+  if (column === 1)
+    return {
+      elevation: roundElevation(seamElevation + seamSlope),
+      material: seamMaterial,
+    };
+  const x = (column - 1) / (COLUMNS - 2);
   const y = row / (ROWS - 1);
-  const edgeEnvelope = Math.sin(Math.PI * Math.min(1, x));
+  const edgeEnvelope = Math.sin(Math.PI * Math.min(1, x)) ** 2;
+  const seamSlopeContinuation =
+    seamSlope * column * Math.exp(-Math.pow((column - 1) / 32, 2));
   const folds =
-    138 * Math.sin(Math.PI * x) * Math.cos((y * 2.2 + x * 0.35) * Math.PI) +
+    138 * edgeEnvelope * Math.cos((y * 2.2 + x * 0.35) * Math.PI) +
     74 * edgeEnvelope * Math.sin((x * 4.1 - y * 3.4) * Math.PI) +
     36 * edgeEnvelope * Math.cos((x * 9.3 + y * 5.7) * Math.PI);
   const ridge =
@@ -236,12 +248,25 @@ function terrainSample(column, row, seamElevation, seamMaterial) {
   const valley =
     118 * edgeEnvelope * Math.exp(-Math.pow((y - (0.7 - 0.18 * x)) / 0.085, 2));
   const elevation = roundElevation(
-    Math.max(32, seamElevation + x * 95 + folds + ridge - valley),
+    Math.max(
+      32,
+      seamElevation +
+        seamSlopeContinuation +
+        smootherstep(x) * 95 +
+        folds +
+        ridge -
+        valley,
+    ),
   );
   return {
     elevation,
     material: classifyMaterial(elevation, y),
   };
+}
+
+function smootherstep(value) {
+  const bounded = Math.max(0, Math.min(1, value));
+  return bounded ** 3 * (bounded * (bounded * 6 - 15) + 10);
 }
 
 function classifyMaterial(elevation, moisture) {

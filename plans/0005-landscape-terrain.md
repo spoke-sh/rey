@@ -1389,6 +1389,19 @@ backend therefore proves that full-detail LOD alone does not close fidelity.
 Its 211,260 ms voyage and 750/1,783.2 ms Landscape median/p95 presentation
 cadence also fail the retained performance bar.
 
+The accelerated capture's exact eastern edge was not a renderer-tile seam.
+Source inspection found a C⁰-only package join: all 168 boundary elevations
+matched, but the one-sided first derivative differed by 3.36 m at p50,
+10.64 m at p99, and 10.97 m at maximum over one roughly 131 m cell; 46 first
+interior material samples also changed immediately. Candidate
+`rey.agent-geography.rey-eastern-uplands@2` retains one exact County interior
+context column, continues its edge slope through the first Uplands column,
+and introduces independent relief through a zero-slope envelope. Its source
+fixture now reports zero elevation-gradient and material discontinuities at
+all 168 seam samples. This is a source-contract correction rather than a
+renderer feather; a fresh scene admission and accelerated capture are still
+required before the visible-edge major judgment can change.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
