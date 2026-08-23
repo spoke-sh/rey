@@ -11,6 +11,7 @@ import { refineRegionalTerrainField } from "./refinement";
 import { TerrainCompilationWorkerClient } from "./worker-client";
 import {
   executeTerrainCompilationJob,
+  MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES,
   MAX_TERRAIN_COMPILATION_OUTPUT_BYTES,
   TERRAIN_COMPILATION_WORKER_REVISION,
 } from "./worker";
@@ -19,9 +20,10 @@ import { admittedField, terrainTileView } from "./tiles.fixture";
 describe("bounded terrain compilation worker", () => {
   it("retains the bounded high-density hierarchy output budget", () => {
     expect(TERRAIN_COMPILATION_WORKER_REVISION).toBe(
-      "rey.terrain.compilation-worker@10",
+      "rey.terrain.compilation-worker@11",
     );
     expect(MAX_TERRAIN_COMPILATION_OUTPUT_BYTES).toBe(112 * 1024 * 1024);
+    expect(MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES).toBe(80 * 1024 * 1024);
   });
 
   it("projects, resamples, and prepares a named tile workload", () => {
@@ -145,6 +147,23 @@ describe("bounded terrain compilation worker", () => {
         expect(tile.fields.validity.values[index]).toBe(1);
     }
     expect(independentlyDerivedTileDiffers).toBe(true);
+    const retained = executeTerrainCompilationJob({
+      job_id: "terrain-job:two",
+      workload_id: "landscape-seam-fixture",
+      regime: "objects",
+      fields: [source],
+      programs: [],
+      view: terrainTileView(5),
+      maximum_cpu_bytes: 24 * 1024 * 1024,
+      maximum_gpu_bytes: 8 * 1024 * 1024,
+    });
+    expect(retained.metrics).toMatchObject({
+      materialized_pyramid_cache_hits: 1,
+      materialized_pyramid_cache_misses: 0,
+    });
+    expect(retained.height_hierarchies[0]!.hierarchy_id).toBe(
+      result.height_hierarchies[0]!.hierarchy_id,
+    );
   }, 15_000);
 
   it("rejects CPU overflow and cancels before fallback evaluation", async () => {

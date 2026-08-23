@@ -361,7 +361,7 @@ remove coarse support but cannot become a valid coarse vertex. Camera
 selection chooses a uniform level from cumulative hierarchy error, preventing
 mixed-level edge cracks while retaining screen-space control.
 
-`rey.terrain.compilation-worker@10` runs hierarchy projection, haloed relief
+`rey.terrain.compilation-worker@11` runs hierarchy projection, haloed relief
 derivation, exact relief sampling, procedural field evaluation, partition and
 border parity checking, and mesh preparation in a cancellable dedicated
 worker. Its complete hierarchy plus selected-tile output has a separate
@@ -372,7 +372,7 @@ pending or after failure. A disclosed main-thread fallback exists where
 under independent 48 MiB CPU and 64 MiB GPU budgets, rejects a tile whose
 compiled relief differs from its cache identity, and evicts the oldest
 unrequested exact identity first. The worker also retains a separately bounded
-48 MiB exact materialized-pyramid cache keyed from every contributing typed
+80 MiB exact materialized-pyramid cache keyed from every contributing typed
 array and the mosaic, hierarchy, relief, validity, and material revisions; its
 hits and misses are exposed in browser diagnostics.
 

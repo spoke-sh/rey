@@ -983,6 +983,20 @@ hidden when prewarm-only mode began overwrote the explicit prepared report.
 callbacks while still publishing the exact prepared result. This corrects a
 handoff state race; it does not relax any source, validity, or residency bound.
 
+The replacement 1920×1080 WebGPU steep-relief voyage passed in manifest
+`sha256:a282d173be4ae339bc8318b2f83aeb3d2a0cfe10044115a75cb999a0d65bd20b`.
+Its reverse Atlas, wheel-interrupted Atlas, Landscape re-entry, and same-page
+back-navigation samples retained one mosaic, height hierarchy, relief pyramid,
+source counts, and terrain fabric with no empty terrain or validity change.
+The Landscape frame selected 88 tiles under 40,898,000 CPU and 32,362,388 GPU
+resident bytes with zero support leaks or relief seams. The voyage also
+exposed an unacceptable 16-second per-view hierarchy projection on the
+fulfilled main-thread fallback: the exact 72.5 MiB materialized hierarchy was
+larger than the 48 MiB hierarchy cache and therefore re-derived for every
+semantic view. `rey.terrain.compilation-worker@11` raises that separately
+bounded exact cache to 80 MiB so this one admitted hierarchy can be retained;
+the 48 MiB tile-residency budget remains unchanged.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
