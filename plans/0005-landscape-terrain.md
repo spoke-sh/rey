@@ -1395,9 +1395,14 @@ Eastern Uplands `SCENE@5` was accepted as result
 `blake3:14c84ad5dc114a3a1e260f1d0cc53984fde833c710fa8c9aeb9173bd8fafe75b`;
 its exact 193×168 source retains 27,432 valid and 4,992 no-data vertices.
 Both human CLI runs expose the current v4 workload, package, snapshot,
-projection, validity, omission, and source-resolution lineage. Regional
-composition and accelerated pixels remain required before the source
-correction is perceptually accepted.
+projection, validity, omission, and source-resolution lineage. Server-owned
+composition
+`blake3:e95a7638f1362a4b7bc0541a0d569d7d145230fddc812ca8956c459972ae34f8`
+is READY over those exact admissions. Its qualified seam
+`blake3:e9eec322cfc288ec46b15223f60b161639115beda1a27ae1c4c41876cab347a1`
+compares all 168 shared vertices with zero elevation, material, validity,
+coordinate-gap, or no-data conflicts. Accelerated pixels remain required
+before the source correction is perceptually accepted.
 
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
