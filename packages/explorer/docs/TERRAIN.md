@@ -178,18 +178,17 @@ WebGL2, and WebGPU compilation use one contract.
 `@rey/explorer` sees the same structural field contract in both cases and
 cannot upgrade either source's authority.
 
-The source-controlled `rey.agent-geography.rey-county@12` field is 705×626 and
-uses no renderer refinement. `SCENE@18` and scene-admission result
-`blake3:a5d4d21586751260b7600d6edce92be932c8bcc9d4b1ca476ec577ecea038ecd`
+The source-controlled `rey.agent-geography.rey-county@13` field is 705×626 and
+uses no renderer refinement. `SCENE@19` and scene-admission result
+`blake3:98728f184f1d473f803abdd181d389c8ca35de68fb8c593040c0a0b6f85ea532`
 qualify its exact native bytes as the current working field. This revision
-applies validity-contained convex/concave separation before a stronger
-slope-conditioned drainage pass; neither operation adds a sample or changes
-the exact no-data mask. Later source edits remain candidates until the editor
-and workload repeat that boundary.
-The checked-in `rey.agent-geography.rey-county@13` source is currently such a
-candidate. It reduces unstructured fine octaves, derives slope-supported
-fluvial valleys first, and applies validity-contained divide/valley separation
-only after that drainage structure exists.
+reduces unstructured fine octaves, derives slope-supported fluvial valleys
+first, and applies validity-contained divide/valley separation only after that
+drainage structure exists. Later source edits remain candidates until the
+editor and workload repeat that boundary.
+The checked-in `rey.agent-geography.rey-county@14` source is currently such a
+candidate. It further requires a genuine downhill receiver for any drainage
+height displacement; priority-flood escape topology contributes exactly zero.
 The density policy targets at least 320 intervals per axis, so lower-density
 admitted fields may refine by a bounded integer factor while this source stays
 exact.

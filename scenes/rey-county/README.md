@@ -92,7 +92,7 @@ admission limit. This is a source-native density improvement, not the final
 resolution target; a tiled raster adapter is still required beyond the bounded
 in-memory regional grid.
 
-The embedded `rey.agent-geography.rey-county@13` compiler record states the
+The embedded `rey.agent-geography.rey-county@14` compiler record states the
 topology, elevation, hydrology, land-cover, and stitching contracts. This
 revision owns one County-wide authoring domain and therefore reports zero
 seams and conflicts while explicitly omitting cross-package seam resolution.
@@ -103,11 +103,13 @@ substantially reduced unstructured fine-noise amplitude. Exact authored
 waterways condition only narrow shallow corridors instead of dominating the
 landform. A priority-flood pass starts only at exact validity boundaries and
 derives source drainage. Its displacement responds to unfilled local terrain
-slope so a flat escape path cannot become a visible rectilinear scar. The
+slope, and flood-parent escape cells contribute exactly zero height
+displacement so their topology cannot become a visible rectilinear scar. The
 retained derivation reports 26,377 channel cells, 474 heads, 384 branch
 junctions, maximum Strahler order 5, maximum stream power `0.882567`, a
 78.07-meter maximum incision, and a maximum contributing area of 218,955 valid
-cells. Only after those valleys exist, a bounded source-scale pass separates
+cells. It applies nonzero incision at 221,973 genuinely downhill cells and at
+zero flat escape cells. Only after those valleys exist, a bounded source-scale pass separates
 drainage divides and valleys at the 311,343 cells with fully valid
 five-by-five neighborhoods; 5,954 valid boundary cells remain unchanged. Its
 displacement is bounded to a 48.98-meter raise and a 57.85-meter lowering and

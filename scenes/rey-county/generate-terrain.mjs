@@ -14,8 +14,8 @@ const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
 // beyond this bounded in-memory grid.
 const COLUMNS = 705;
 const ROWS = 626;
-const DATASET_ID = "rey-county-semantic-terrain-v13";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@13";
+const DATASET_ID = "rey-county-semantic-terrain-v14";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@14";
 const INPUT_FILES = [
   "boundary.geojson",
   "districts.geojson",
@@ -205,7 +205,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v13",
+      schema: "rey.county-terrain-source.v14",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -271,7 +271,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     features: [
       {
         type: "Feature",
-        id: "rey-county-packed-terrain-v13",
+        id: "rey-county-packed-terrain-v14",
         properties: {
           title: "Rey County admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
@@ -636,6 +636,7 @@ function applyDrainageIncision(
   const hydraulicHeight = new Float64Array(count);
   const receiver = new Int32Array(count);
   receiver.fill(-1);
+  const slopeSupportedReceiver = new Uint8Array(count);
   const floodParent = new Int32Array(count);
   floodParent.fill(-1);
   const visited = new Uint8Array(count);
@@ -732,8 +733,12 @@ function applyDrainageIncision(
         steepestReceiver = next;
       }
     }
-    receiver[index] =
-      steepestReceiver >= 0 ? steepestReceiver : floodParent[index];
+    if (steepestReceiver >= 0) {
+      receiver[index] = steepestReceiver;
+      slopeSupportedReceiver[index] = 1;
+    } else {
+      receiver[index] = floodParent[index];
+    }
   }
 
   const ordered = cells
@@ -760,8 +765,11 @@ function applyDrainageIncision(
     const normalized = Math.log1p(accumulation[index]) / denominator;
     strength[index] = smootherstep((normalized - 0.36) / 0.52);
   }
-  const innerValley = smoothWithinValidity(strength, cells, 1);
-  const outerValley = smoothWithinValidity(strength, cells, 4);
+  const incisionStrength = strength.slice();
+  for (const { index } of ordered)
+    if (slopeSupportedReceiver[index] === 0) incisionStrength[index] = 0;
+  const innerValley = smoothWithinValidity(incisionStrength, cells, 1);
+  const outerValley = smoothWithinValidity(incisionStrength, cells, 4);
   const channel = new Uint8Array(count);
   const incomingChannels = new Uint16Array(count);
   for (const { index } of ordered) {
@@ -794,6 +802,7 @@ function applyDrainageIncision(
   }
   let maximumIncision = 0;
   let maximumStreamPower = 0;
+  let slopeSupportedIncisionVertices = 0;
   let derivedChannelVertices = 0;
   let channelHeadVertices = 0;
   let branchJunctionVertices = 0;
@@ -822,12 +831,15 @@ function applyDrainageIncision(
     maximumStreamPower = Math.max(maximumStreamPower, streamPower);
     const slopeResponse = smootherstep((localSlope - 0.0025) / 0.035);
     const incision =
-      (strength[index] * (18 + streamPower * 55) +
-        innerValley[index] * 42 +
-        outerValley[index] * 12) *
-      (0.02 + slopeResponse * 0.98);
+      slopeSupportedReceiver[index] === 0
+        ? 0
+        : (incisionStrength[index] * (18 + streamPower * 55) +
+            innerValley[index] * 42 +
+            outerValley[index] * 12) *
+          (0.02 + slopeResponse * 0.98);
     cell.sample.elevation -= incision;
     maximumIncision = Math.max(maximumIncision, incision);
+    if (incision > 0) slopeSupportedIncisionVertices += 1;
     if (channel[index] === 0) continue;
     derivedChannelVertices += 1;
     if (incomingChannels[index] === 0) channelHeadVertices += 1;
@@ -835,11 +847,11 @@ function applyDrainageIncision(
     maximumStrahlerOrder = Math.max(maximumStrahlerOrder, strahlerOrder[index]);
   }
   return {
-    schema: "rey.county-source-drainage.v2",
+    schema: "rey.county-source-drainage.v3",
     authority:
       "deterministic authored-source derivation inside exact validity; not observed hydrology",
     depression_handling:
-      "priority flood seeded only from exact validity boundaries followed by steepest descent and slope-conditioned stream-power incision on the unfilled local terrain slope; flat escape topology cannot become visible height and variable valley widths never cross no-data",
+      "priority flood seeded only from exact validity boundaries followed by steepest descent and slope-conditioned stream-power incision on the unfilled local terrain slope; flood-parent escape topology contributes exactly zero height displacement and variable valley widths never cross no-data",
     maximum_accumulation_vertices: maximumAccumulation,
     derived_channel_vertices: derivedChannelVertices,
     channel_head_vertices: channelHeadVertices,
@@ -848,6 +860,8 @@ function applyDrainageIncision(
     maximum_incision_meters: roundElevation(maximumIncision),
     maximum_stream_power: Number(maximumStreamPower.toFixed(6)),
     maximum_valley_half_width_cells: 6,
+    slope_supported_incision_vertices: slopeSupportedIncisionVertices,
+    flat_escape_incision_vertices: 0,
   };
 }
 

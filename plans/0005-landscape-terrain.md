@@ -1227,6 +1227,25 @@ cells with fully valid five-by-five support and remains bounded to +48.98 /
 candidate must still cross scene admission and visual capture before it can
 replace the major assessment.
 
+`SCENE@19` and accepted scene-admission result
+`blake3:98728f184f1d473f803abdd181d389c8ca35de68fb8c593040c0a0b6f85ea532`
+hard-cut revision 13 through admission
+`blake3:9df6fea04b8276505cbcb499b52fb55daf7f057fd8292f25ef51b3d4b0f46edb`.
+Its 1920×1080 WebGPU steep-relief voyage passed in manifest
+`sha256:a74ccd0e77bc118fbb9c306e8a4c89d0c4d1dd85b314a2eb34b57bbd16024522`
+with 88 tiles, 153,062 line segments, two areas, and zero validity or seam
+failures. Landscape reused the prewarmed hierarchy in a 547.8-millisecond
+terrain update. The frame nevertheless exposes vertical D8/priority-flood
+tree scars across the central basin. This is a major regression despite the
+valid lifecycle and means the fluvial ordering alone is not acceptable.
+
+Candidate `rey.agent-geography.rey-county@14` makes the missing semantic
+distinction explicit. Priority flood may retain an escape parent to prove
+bounded topology, but height displacement is admitted only for the 221,973
+cells with a genuine downhill receiver; the retained count for flat-escape
+incision is exactly zero. No source sample or validity class changes. A fresh
+scene and capture must prove that the visible tree scars are gone.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
