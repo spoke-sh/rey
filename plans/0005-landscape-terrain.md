@@ -1009,6 +1009,27 @@ with exact channel bytes plus refinement/geography revisions, then retains the
 corresponding derived field beside its materialized pyramid. This preserves
 the exact cache boundary while moving expensive derivation behind the miss.
 
+Revision 12 passed the same voyage in manifest
+`sha256:874b14294456ca1f1e3c6c4edfde076ee57ea0da573b14e6090d29af215a39fa`.
+Exact cache hits now include the derived regional field; Objects and Evidence
+updates measured 2.74 and 2.64 seconds respectively on the fulfilled
+main-thread fallback. The remaining hit cost is bounded source-key hashing,
+view-specific linework, tile materialization, and mesh preparation, not a
+hierarchy miss. This is improvement but not completion of the performance
+matrix.
+
+Visual inspection of that exact Landscape capture found a new actionable
+source defect: the higher-density crests are present, but exact-waterway
+conditioning still cuts broad grey trenches through the map and overwhelms
+the subtler ridge network. The next source candidate,
+`rey.agent-geography.rey-county@9`, narrows main and tributary conditioning to
+bounded three-to-four-cell corridors, reduces their direct depth, and
+strengthens only source-authored directional crests and ridge octaves below
+the 705×626 Nyquist limit. It changes exact elevation/material bytes under a
+new dataset revision and leaves admitted water geometry, terrain validity,
+renderer operators, and overlap policy untouched. The major perceptual result
+remains open until this candidate is admitted and captured.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

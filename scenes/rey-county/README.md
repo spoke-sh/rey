@@ -59,19 +59,19 @@ the renderer.
 
 ## Native Sources
 
-| File                       | Editor role       | Meaning                                                             |
-| -------------------------- | ----------------- | ------------------------------------------------------------------- |
-| `boundary.geojson`         | `boundary`        | Exact County footprint and validity boundary                        |
-| `terrain.geojson`          | `terrain`         | Packed 705×626 elevation/material grid with explicit validity        |
-| `terrain-controls.geojson` | `terrain_control` | Candidate-only named landform influences; never observed height     |
+| File                       | Editor role       | Meaning                                                                  |
+| -------------------------- | ----------------- | ------------------------------------------------------------------------ |
+| `boundary.geojson`         | `boundary`        | Exact County footprint and validity boundary                             |
+| `terrain.geojson`          | `terrain`         | Packed 705×626 elevation/material grid with explicit validity            |
+| `terrain-controls.geojson` | `terrain_control` | Candidate-only named landform influences; never observed height          |
 | `hydrology.geojson`        | `hydrology`       | Authored typed rivers, streams, runoff, river area, and wetland geometry |
-| `features.geojson`         | `features`        | Meadow land cover and the explicit unexplored region                |
-| `markers.geojson`          | `markers`         | Semantic points of interest with independent label LOD              |
-| `districts.geojson`        | `district`        | Subordinate administrative and semantic boundaries                  |
-| `highways.geojson`         | `highway`         | Primary and secondary authored transport hierarchy                  |
-| `roads.geojson`            | `road`            | Terrain-aware local route candidates                                |
-| `railways.geojson`         | `railway`         | Regional and industrial rail candidates                             |
-| `labels.geojson`           | `label`           | Geographic names with exact zoom and collision policy               |
+| `features.geojson`         | `features`        | Meadow land cover and the explicit unexplored region                     |
+| `markers.geojson`          | `markers`         | Semantic points of interest with independent label LOD                   |
+| `districts.geojson`        | `district`        | Subordinate administrative and semantic boundaries                       |
+| `highways.geojson`         | `highway`         | Primary and secondary authored transport hierarchy                       |
+| `roads.geojson`            | `road`            | Terrain-aware local route candidates                                     |
+| `railways.geojson`         | `railway`         | Regional and industrial rail candidates                                  |
+| `labels.geojson`           | `label`           | Geographic names with exact zoom and collision policy                    |
 
 The terrain grid contains 441,330 cells at exact integer-microdegree spacing:
 
@@ -79,7 +79,7 @@ The terrain grid contains 441,330 cells at exact integer-microdegree spacing:
 - 116,192 no-data cells outside the County footprint;
 - 9,471 no-data cells in Unexplored Scrub (some exterior cells satisfy both
   predicates, producing 124,033 unique no-data cells);
-- 83.23–1,801.08 meters of authored relief; and
+- 167.63–1,843.59 meters of authored relief; and
 - `granite`, `rock`, `sand`, `soil`, and `vegetation` material identifiers.
 
 Seven hundred four longitudinal and 625 latitudinal intervals preserve the
@@ -92,7 +92,7 @@ admission limit. This is a source-native density improvement, not the final
 resolution target; a tiled raster adapter is still required beyond the bounded
 in-memory regional grid.
 
-The embedded `rey.agent-geography.rey-county@8` compiler record states the
+The embedded `rey.agent-geography.rey-county@9` compiler record states the
 topology, elevation, hydrology, land-cover, and stitching contracts. This
 revision owns one County-wide authoring domain and therefore reports zero
 seams and conflicts while explicitly omitting cross-package seam resolution.
@@ -104,8 +104,8 @@ height. A second bounded pass priority-floods only from exact validity
 boundaries, derives source drainage, selects steepest descent over the
 depression-safe surface, and applies slope-aware stream-power incision across
 bounded inner and outer valley widths without crossing no-data. The retained
-derivation reports 10,414 channel cells, maximum stream power `0.862713`, a
-32.82-meter maximum incision, and a maximum contributing area of 194,761 valid
+derivation reports 10,046 channel cells, maximum stream power `0.929072`, a
+36.46-meter maximum incision, and a maximum contributing area of 187,347 valid
 cells. The main river and wetland are exact admitted areas;
 tributaries remain exact paths. This is source geography rather than renderer
 noise, and every no-data vertex remains absent.

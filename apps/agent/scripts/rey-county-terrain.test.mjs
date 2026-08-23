@@ -80,9 +80,9 @@ describe("Rey County terrain source", () => {
 
   it("binds explicit multi-scale synthesis without claiming package seams", () => {
     expect(terrain.terrain_derivation).toMatchObject({
-      schema: "rey.county-terrain-source.v8",
-      dataset_id: "rey-county-semantic-terrain-v8",
-      compiler_revision: "rey.agent-geography.rey-county@8",
+      schema: "rey.county-terrain-source.v9",
+      dataset_id: "rey-county-semantic-terrain-v9",
+      compiler_revision: "rey.agent-geography.rey-county@9",
       synthesis: {
         elevation: expect.stringContaining("orographic backbones"),
         hydrology: expect.stringContaining("river and wetland areas"),
@@ -186,12 +186,12 @@ describe("Rey County terrain source", () => {
   it("packs the complete source grid into one bounded GeoJSON feature", () => {
     expect(terrain.features).toHaveLength(1);
     expect(terrain.features[0]).toMatchObject({
-      id: "rey-county-packed-terrain-v8",
+      id: "rey-county-packed-terrain-v9",
       geometry: { type: "Polygon" },
       terrain_grid: {
         schema: "rey.packed-terrain-grid.v1",
-        dataset_id: "rey-county-semantic-terrain-v8",
-        compiler_revision: "rey.agent-geography.rey-county@8",
+        dataset_id: "rey-county-semantic-terrain-v9",
+        compiler_revision: "rey.agent-geography.rey-county@9",
         columns: 705,
         rows: 626,
         native_bounds_microdegrees: [

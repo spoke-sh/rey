@@ -178,8 +178,8 @@ WebGL2, and WebGPU compilation use one contract.
 `@rey/explorer` sees the same structural field contract in both cases and
 cannot upgrade either source's authority.
 
-The source-controlled Rey County candidate is now 705×626 and uses no renderer
-refinement. It becomes the qualified working field only after editor retention
+The source-controlled `rey.agent-geography.rey-county@9` candidate is 705×626
+and uses no renderer refinement. It becomes the qualified working field only after editor retention
 and the scene-admission workload accept its exact native bytes. The density
 policy targets at least 320 intervals per axis, so lower-density admitted
 fields may refine by a bounded integer factor while this source stays exact.

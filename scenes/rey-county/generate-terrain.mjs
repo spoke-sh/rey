@@ -14,8 +14,8 @@ const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
 // beyond this bounded in-memory grid.
 const COLUMNS = 705;
 const ROWS = 626;
-const DATASET_ID = "rey-county-semantic-terrain-v8";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@8";
+const DATASET_ID = "rey-county-semantic-terrain-v9";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@9";
 const INPUT_FILES = [
   "boundary.geojson",
   "districts.geojson",
@@ -191,7 +191,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v8",
+      schema: "rey.county-terrain-source.v9",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -257,7 +257,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     features: [
       {
         type: "Feature",
-        id: "rey-county-packed-terrain-v8",
+        id: "rey-county-packed-terrain-v9",
         properties: {
           title: "Rey County admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
@@ -373,11 +373,11 @@ function terrainSample(
     fractalNoise(warpedX, warpedY, 101, [1.2, 2.4, 4.8]) * 92;
   const mesoTexture = fractalNoise(warpedX, warpedY, 211, [3.5, 7, 14]) * 38;
   const ridgeTexture =
-    ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8, 17.6]) * 72;
+    ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8, 17.6]) * 90;
   const fineTexture =
     fractalNoise(warpedX, warpedY, 401, [17, 37, 79, 157]) * 22;
   const fineRidges =
-    ridgedFractalNoise(warpedX, warpedY, 457, [19, 41, 83, 167, 223]) * 28;
+    ridgedFractalNoise(warpedX, warpedY, 457, [19, 41, 83, 167, 223]) * 36;
   elevation +=
     (macroTexture + mesoTexture + ridgeTexture + fineTexture + fineRidges) *
     reliefWeight;
@@ -394,8 +394,8 @@ function terrainSample(
     if (distance < nearestWaterway.distance)
       nearestWaterway = { id: waterway.id, distance };
     const main = waterway.id === "hydrology-evidence-river";
-    const width = main ? 0.011 : 0.0065;
-    const depth = main ? 122 : 62;
+    const width = main ? 0.0045 : 0.0028;
+    const depth = main ? 78 : 42;
     elevation -= depth * Math.exp(-((distance / width) ** 2));
   }
 
@@ -813,11 +813,11 @@ function orographicRelief(x, y, control, seed) {
       [2.4, 4.8, 9.6, 19.2],
     ),
   );
-  const gain = 54 + control.roughness * 74;
+  const gain = 72 + control.roughness * 105;
   return (
     envelope *
     gain *
-    (backbone * 0.48 + branches * 0.3 + sharpCrests * 0.28 - ravines * 0.38)
+    (backbone * 0.46 + branches * 0.28 + sharpCrests * 0.42 - ravines * 0.38)
   );
 }
 
