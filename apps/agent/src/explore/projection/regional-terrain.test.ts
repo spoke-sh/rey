@@ -165,6 +165,7 @@ describe("regional terrain projection", () => {
     ]) {
       bounds.west_microdegrees += shift;
       bounds.east_microdegrees += shift;
+      bounds.south_microdegrees += 500_000;
     }
     const westGrid = west.projection.terrain!.grid!;
     const eastGrid = east.projection.terrain!.grid!;
@@ -173,7 +174,9 @@ describe("regional terrain projection", () => {
       eastGrid.schema !== "rey.regional-terrain-grid.v1"
     )
       throw new Error("shared-frame fixture requires expanded grid cells");
-    for (let row = 0; row < westGrid.rows; row += 1) {
+    eastGrid.rows = 2;
+    eastGrid.cells = eastGrid.cells.slice(0, eastGrid.columns * eastGrid.rows);
+    for (let row = 0; row < eastGrid.rows; row += 1) {
       const westCell =
         westGrid.cells[row * westGrid.columns + westGrid.columns - 1]!;
       const eastCell = eastGrid.cells[row * eastGrid.columns]!;
@@ -211,7 +214,15 @@ describe("regional terrain projection", () => {
       eastField.grid.bounds.x,
       8,
     );
-    for (let row = 0; row < westField.grid.rows; row += 1)
+    expect(westField.relief_metrics?.sample_spacing_x_meters).toBeCloseTo(
+      eastField.relief_metrics!.sample_spacing_x_meters,
+      10,
+    );
+    expect(westField.relief_metrics?.sample_spacing_y_meters).toBeCloseTo(
+      eastField.relief_metrics!.sample_spacing_y_meters,
+      10,
+    );
+    for (let row = 0; row < eastField.grid.rows; row += 1)
       expect(
         westField.elevation.values[
           row * westField.grid.columns + westField.grid.columns - 1

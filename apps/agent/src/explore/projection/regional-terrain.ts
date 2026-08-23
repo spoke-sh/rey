@@ -26,7 +26,7 @@ import type {
 import { nativePositionToCountyLocal } from "./county-frame";
 
 export const REGIONAL_TERRAIN_SCENE_COMPILER_REVISION =
-  "rey.explorer.regional-terrain-grid@4";
+  "rey.explorer.regional-terrain-grid@5";
 
 export interface RegionalTerrainLandscapeFrame {
   frame_id: string;
@@ -274,6 +274,7 @@ function compileRegionalTerrainFieldUncached(
       dataset.columns,
       dataset.rows,
       elevationRange,
+      landscapeFrame?.native_bounds,
     ),
     landscape_reference: landscapeReference,
     field_cells: cells,
@@ -289,9 +290,13 @@ function regionalTerrainReliefMetrics(
   columns: number,
   rows: number,
   elevationRangeMeters: number,
+  sharedMetricBounds = bounds,
 ) {
   const centerLatitudeRadians =
-    (((bounds.south_microdegrees + bounds.north_microdegrees) / 2) * Math.PI) /
+    (((sharedMetricBounds.south_microdegrees +
+      sharedMetricBounds.north_microdegrees) /
+      2) *
+      Math.PI) /
     180_000_000;
   const longitudeSpanDegrees =
     (bounds.east_microdegrees - bounds.west_microdegrees) / 1_000_000;
@@ -316,7 +321,7 @@ function regionalTerrainReliefMetrics(
     sample_spacing_y_meters: sampleSpacingY,
     elevation_range_meters: elevationRangeMeters,
     authority:
-      "local metric relief scale derived from the exact CRS84 grid bounds, dimensions, center latitude, and admitted elevation range; presentation only and not a geodetic transform",
+      "local metric relief scale derived from the exact CRS84 grid bounds, dimensions, admitted elevation range, and the shared component-center latitude when a regional frame is bound; presentation only and not a geodetic transform",
   });
 }
 

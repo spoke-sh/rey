@@ -1042,7 +1042,7 @@ describe("regional scene topology projection", () => {
     );
     expect(snapshot.source_revisions).toContain("terrain-dataset:grid");
     expect(snapshot.compiler_revisions).toContain(
-      "rey.explorer.regional-terrain-grid@4",
+      "rey.explorer.regional-terrain-grid@5",
     );
     expect(snapshot.compiler_revisions).toContain(
       "rey.terrain.regional-mosaic@8",
@@ -1063,8 +1063,12 @@ describe("regional scene topology projection", () => {
       }),
     );
     expect(markup).toContain("data-regional-terrain-reference");
-    expect(markup).toContain("Explicit no-data vertices remain holes");
-    expect(markup).toContain("data-terrain-triangle");
+    expect(markup).toContain("<canvas");
+    expect(markup).not.toContain("data-terrain-triangle");
+    expect(markup).toContain(
+      'data-landscape-gap-policy="unsupported_remains_transparent"',
+    );
+    expect(county.terrain_fields[0]?.source_summary?.no_data_vertices).toBe(1);
 
     const compactPortfolio = structuredClone(terrainPortfolio);
     const compactScene =

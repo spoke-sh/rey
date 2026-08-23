@@ -163,6 +163,12 @@ only across retained, terrain-qualified, conflict-free edge seams. A disjoint
 or conflicted region stays outside the field; a component that fails the
 stricter renderer alignment contract falls back to the focused patch and
 retains that omission for the footer, diagnostics, and qualification report.
+`rey.explorer.regional-terrain-grid@5` evaluates every member's nominal metric
+sample spacing at the exact shared component-center latitude. This removes a
+false per-patch spacing conflict for grid-aligned regions whose native latitude
+extents differ, while retaining each source's exact angular sample interval.
+It is a deterministic presentation-frame scale, not a geodetic transform or
+permission to resample an unqualified seam.
 
 `@rey/agent` derives these fields from two admitted sources:
 
