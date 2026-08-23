@@ -177,4 +177,28 @@ describe("regional terrain geography", () => {
       ),
     ).toBe(true);
   });
+
+  it("leaves a flat retained sink without inventing a drainage tree", () => {
+    const source = admittedField();
+    source.elevation.values.fill(0.5);
+    const geography = deriveRegionalTerrainGeography({
+      ...source,
+      source_summary: {
+        columns: source.grid.columns,
+        rows: source.grid.rows,
+        valid_vertices: source.field_cells,
+        no_data_vertices: 0,
+        elevation_minimum: 500,
+        elevation_maximum: 500,
+      },
+    });
+
+    expect(
+      [...geography.flow_direction.values].every((value) => value === 0),
+    ).toBe(true);
+    expect(geography.detail_authority).toContain("retained sinks");
+    expect(geography.flow_direction.implementation_revision).toContain(
+      "genuine-downhill-flow",
+    );
+  });
 });

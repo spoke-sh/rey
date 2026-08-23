@@ -1262,6 +1262,16 @@ channel, not the admitted DEM, is making escape topology visible. The next
 smallest engine commit must hard-cut accumulation to genuine downhill flow and
 leave sinks as sinks.
 
+`rey.terrain.regional-geography@8` and
+`rey.terrain.regional-linework@5` make that hard cut. The browser now chooses
+only the steepest neighbor with a positive admitted-elevation drop, propagates
+rainfall in exact descending source-height order, and leaves local minima with
+no receiver. Flow direction, accumulation, erosion potential, land cover,
+linework, worker cache identity, and diagnostics all bind the new revision.
+A deterministic flat-field fixture proves every flow vector remains zero and
+the derived authority discloses retained sinks. This is enabling engine work
+until a new exact v14 capture demonstrates removal of the presentation scars.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

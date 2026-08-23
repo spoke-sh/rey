@@ -13,11 +13,11 @@ import { regionalTerrainContourThresholds } from "./contours";
 import { deriveTerrainNormals } from "./normals";
 
 export const REGIONAL_TERRAIN_GEOGRAPHY_REVISION =
-  "rey.terrain.regional-geography@7" as const;
+  "rey.terrain.regional-geography@8" as const;
 export const REGIONAL_TERRAIN_LINEWORK_REVISION =
-  "rey.terrain.regional-linework@4" as const;
+  "rey.terrain.regional-linework@5" as const;
 
-const DRAINAGE_EPSILON = 1e-7;
+const MINIMUM_DOWNHILL_DROP = 1e-6;
 const MAXIMUM_CHANNEL_INCISION = 0.0045;
 const STREAM_THRESHOLD = 0.58;
 const RIVER_THRESHOLD = 0.78;
@@ -34,7 +34,7 @@ const NEIGHBORS = Object.freeze([
 ] as const);
 
 interface DrainageTopology {
-  hydraulic_height: Float32Array;
+  ordering_height: Float32Array;
   receiver: Int32Array;
 }
 
@@ -60,7 +60,7 @@ export function deriveRegionalTerrainGeography(
   source: TerrainFieldSet,
 ): TerrainFieldSet {
   if (!source.active_band_ids.includes("admitted_dem")) return source;
-  const drainage = priorityFloodDrainage(source);
+  const drainage = slopeSupportedDrainage(source);
   const cells = fieldCellCount(source.grid);
   const rainfallValues = new Float32Array(cells);
   const accumulationValues = new Float32Array(cells);
@@ -105,7 +105,7 @@ export function deriveRegionalTerrainGeography(
     .filter((index) => source.validity.values[index] !== 0)
     .sort(
       (left, right) =>
-        drainage.hydraulic_height[right]! - drainage.hydraulic_height[left]! ||
+        drainage.ordering_height[right]! - drainage.ordering_height[left]! ||
         right - left,
     );
   for (const index of descending) {
@@ -160,14 +160,14 @@ export function deriveRegionalTerrainGeography(
   );
   const flowDirection = vectorField(
     "flow_direction",
-    `${revision}:priority-flood-flow`,
+    `${revision}:genuine-downhill-flow`,
     source.grid,
     2,
     directionValues,
   );
   const flowAccumulation = scalarField(
     "flow_accumulation",
-    `${revision}:full-basin-accumulation`,
+    `${revision}:slope-supported-accumulation`,
     source.grid,
     accumulationValues,
   );
@@ -216,7 +216,7 @@ export function deriveRegionalTerrainGeography(
         "derived_multiscale_relief",
       ]),
     ]),
-    detail_authority: `${source.detail_authority}; depression-safe drainage, non-displacing erosion potential, validity-bounded continuous hypsometry, and slope-triggered rock exposure are deterministic presentation derivations within admitted support; admitted elevation remains unchanged and the result is not observed hydrology, land cover, or new geographic evidence`,
+    detail_authority: `${source.detail_authority}; genuine-downhill drainage with retained sinks, non-displacing erosion potential, validity-bounded continuous hypsometry, and slope-triggered rock exposure are deterministic presentation derivations within admitted support; admitted elevation remains unchanged and the result is not observed hydrology, land cover, or new geographic evidence`,
     elevation,
     rainfall,
     flow_direction: flowDirection,
@@ -316,71 +316,46 @@ export function deriveRegionalTerrainPresentationLines(
   return result;
 }
 
-function priorityFloodDrainage(field: TerrainFieldSet): DrainageTopology {
+function slopeSupportedDrainage(field: TerrainFieldSet): DrainageTopology {
   const cells = fieldCellCount(field.grid);
-  const hydraulicHeight = new Float32Array(cells);
+  const orderingHeight = new Float32Array(cells);
   const receiver = new Int32Array(cells);
   receiver.fill(-1);
-  const visited = new Uint8Array(cells);
-  const queue = new MinimumHeap();
   for (let row = 0; row < field.grid.rows; row += 1) {
     for (let column = 0; column < field.grid.columns; column += 1) {
       const index = row * field.grid.columns + column;
-      if (
-        field.validity.values[index] === 0 ||
-        !isValidityBoundary(field, column, row)
-      )
-        continue;
-      visited[index] = 1;
-      hydraulicHeight[index] = field.elevation.values[index]!;
-      queue.push(index, hydraulicHeight[index]!);
+      if (field.validity.values[index] === 0) continue;
+      const height = field.elevation.values[index]!;
+      orderingHeight[index] = height;
+      let steepestReceiver = -1;
+      let steepestSlope = 0;
+      for (const [columnOffset, rowOffset] of NEIGHBORS) {
+        const nextColumn = column + columnOffset;
+        const nextRow = row + rowOffset;
+        if (
+          nextColumn < 0 ||
+          nextColumn >= field.grid.columns ||
+          nextRow < 0 ||
+          nextRow >= field.grid.rows
+        )
+          continue;
+        const next = nextRow * field.grid.columns + nextColumn;
+        if (field.validity.values[next] === 0) continue;
+        const drop = height - field.elevation.values[next]!;
+        if (drop <= MINIMUM_DOWNHILL_DROP) continue;
+        const slope = drop / Math.hypot(columnOffset, rowOffset);
+        if (
+          slope > steepestSlope ||
+          (slope === steepestSlope && next < steepestReceiver)
+        ) {
+          steepestSlope = slope;
+          steepestReceiver = next;
+        }
+      }
+      receiver[index] = steepestReceiver;
     }
   }
-  while (queue.size > 0) {
-    const current = queue.pop()!;
-    const column = current.index % field.grid.columns;
-    const row = Math.floor(current.index / field.grid.columns);
-    for (const [columnOffset, rowOffset] of NEIGHBORS) {
-      const nextColumn = column + columnOffset;
-      const nextRow = row + rowOffset;
-      if (
-        nextColumn < 0 ||
-        nextColumn >= field.grid.columns ||
-        nextRow < 0 ||
-        nextRow >= field.grid.rows
-      )
-        continue;
-      const next = nextRow * field.grid.columns + nextColumn;
-      if (field.validity.values[next] === 0 || visited[next] !== 0) continue;
-      visited[next] = 1;
-      receiver[next] = current.index;
-      hydraulicHeight[next] = Math.max(
-        field.elevation.values[next]!,
-        current.height + DRAINAGE_EPSILON,
-      );
-      queue.push(next, hydraulicHeight[next]!);
-    }
-  }
-  return { hydraulic_height: hydraulicHeight, receiver };
-}
-
-function isValidityBoundary(
-  field: TerrainFieldSet,
-  column: number,
-  row: number,
-): boolean {
-  if (
-    column === 0 ||
-    row === 0 ||
-    column === field.grid.columns - 1 ||
-    row === field.grid.rows - 1
-  )
-    return true;
-  return NEIGHBORS.some(([columnOffset, rowOffset]) => {
-    const index =
-      (row + rowOffset) * field.grid.columns + column + columnOffset;
-    return field.validity.values[index] === 0;
-  });
+  return { ordering_height: orderingHeight, receiver };
 }
 
 function deriveRegionalLandCover(
@@ -707,49 +682,6 @@ function smoothScalarWithinValidity(
     values = next;
   }
   return values;
-}
-
-class MinimumHeap {
-  readonly entries: Array<{ index: number; height: number }> = [];
-
-  get size() {
-    return this.entries.length;
-  }
-
-  push(index: number, height: number) {
-    const entry = { index, height };
-    this.entries.push(entry);
-    let position = this.entries.length - 1;
-    while (position > 0) {
-      const parent = Math.floor((position - 1) / 2);
-      if (this.entries[parent]!.height <= height) break;
-      this.entries[position] = this.entries[parent]!;
-      position = parent;
-    }
-    this.entries[position] = entry;
-  }
-
-  pop() {
-    const first = this.entries[0];
-    const tail = this.entries.pop();
-    if (!first || !tail || this.entries.length === 0) return first;
-    let position = 0;
-    while (true) {
-      const left = position * 2 + 1;
-      const right = left + 1;
-      if (left >= this.entries.length) break;
-      const child =
-        right < this.entries.length &&
-        this.entries[right]!.height < this.entries[left]!.height
-          ? right
-          : left;
-      if (this.entries[child]!.height >= tail.height) break;
-      this.entries[position] = this.entries[child]!;
-      position = child;
-    }
-    this.entries[position] = tail;
-    return first;
-  }
 }
 
 function valueNoise(x: number, y: number, seed: number): number {
