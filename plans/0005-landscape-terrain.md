@@ -1402,6 +1402,25 @@ all 168 seam samples. This is a source-contract correction rather than a
 renderer feather; a fresh scene admission and accelerated capture are still
 required before the visible-edge major judgment can change.
 
+Fresh Eastern Uplands `SCENE@3` admission result
+`blake3:977e56a1b03fbd84607985cdda60902f6989b6c1c4b583b0898166d35aa986ee`
+produced READY regional composition
+`blake3:e462743f3526922c7bfcc99bf4babef7c3d36f5a4f415438c8fb1208b6ed04ff`.
+Its WebGL2 voyage passed structurally as
+`sha256:e07c76af678add0ea9fe072ac8bf6d76b6212da7a746a4fba03dba8ec5623c98`,
+but capture
+`sha256:9089000fff2efda1f5f13b67c49b5a122802d5d8a8534050c3cb09e8e3ec4c0f`
+showed that carrying each exact row slope deep into the neighbor created
+unacceptable horizontal bands. Candidate
+`rey.agent-geography.rey-eastern-uplands@3` confines exact C¹ matching to the
+first interior column, then transitions over 24 columns into an eight-row
+low-pass boundary height/slope trend before independent landforms take over.
+The mean row second difference at corridor column 8 falls from 4.845 m to
+1.251 m and reaches 0.170 m at column 24 while all 168 seam derivative and
+material differences remain zero. This replacement is again candidate-only
+until fresh admission and capture; the failed visual iteration advances no
+fidelity judgment.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

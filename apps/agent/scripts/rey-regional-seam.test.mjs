@@ -39,9 +39,11 @@ describe("Rey regional source seam", () => {
       });
     }
     expect(uplands.document.terrain_derivation.seam).toMatchObject({
-      schema: "rey.authored-regional-seam.v2",
+      schema: "rey.authored-regional-seam.v3",
       source_dataset_id: "rey-county-semantic-terrain-v15",
       source_interior_context_columns: 1,
+      low_pass_trend_radius_rows: 8,
+      transition_columns: 24,
       compared_vertices: 168,
       validity_conflicts: 0,
       elevation_conflicts: 0,
@@ -65,6 +67,32 @@ describe("Rey regional source seam", () => {
       );
       expect(uplandsInterior.sample.material).toBe(uplandsSeam.sample.material);
     }
+  });
+
+  it("damps row-scale edge noise before independent relief takes over", () => {
+    const meanRowSecondDifference = (column) => {
+      const differences = [];
+      for (let row = 1; row < 167; row += 1) {
+        const north = uplands.cells[(row - 1) * uplandsColumns + column];
+        const center = uplands.cells[row * uplandsColumns + column];
+        const south = uplands.cells[(row + 1) * uplandsColumns + column];
+        if (!north.valid || !center.valid || !south.valid) continue;
+        differences.push(
+          Math.abs(
+            north.sample.elevation -
+              2 * center.sample.elevation +
+              south.sample.elevation,
+          ),
+        );
+      }
+      return (
+        differences.reduce((total, value) => total + value, 0) /
+        differences.length
+      );
+    };
+
+    expect(meanRowSecondDifference(8)).toBeLessThan(meanRowSecondDifference(1));
+    expect(meanRowSecondDifference(24)).toBeLessThan(0.25);
   });
 
   it("keeps independently authored interior support bounded by its polygon", () => {

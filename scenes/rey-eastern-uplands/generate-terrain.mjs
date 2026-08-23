@@ -22,8 +22,10 @@ const LONGITUDE_STEP = 0.00125;
 const LATITUDE_STEP = 0.0012;
 const REY_SEAM_COLUMN = 704;
 const REY_SEAM_ROW_START = 225;
-const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v2";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@2";
+const SEAM_TREND_RADIUS_ROWS = 8;
+const SEAM_TRANSITION_COLUMNS = 24;
+const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v3";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@3";
 
 export function buildReyEasternUplandsTerrainSource(
   sceneDirectory = SCENE_DIRECTORY,
@@ -57,27 +59,47 @@ export function buildReyEasternUplandsTerrainSource(
   let minimumElevation = Number.POSITIVE_INFINITY;
   let maximumElevation = Number.NEGATIVE_INFINITY;
   const materialCounts = {};
-
-  for (let row = 0; row < ROWS; row += 1) {
-    const latitude = roundCoordinate(NORTH - row * LATITUDE_STEP);
+  const seamContexts = Array.from({ length: ROWS }, (_, row) => {
     const sourceIndex =
       (REY_SEAM_ROW_START + row) * sourceGrid.columns + REY_SEAM_COLUMN;
     const sourceInteriorIndex = sourceIndex - 1;
-    const seamValid = sourceValidity[sourceIndex] === 1;
-    const seamElevation = sourceElevations.readInt32LE(sourceIndex * 4) / 100;
-    const seamSlope =
-      seamElevation -
-      sourceElevations.readInt32LE(sourceInteriorIndex * 4) / 100;
-    const seamMaterial = seamValid
-      ? sourceGrid.material_palette[sourceMaterials[sourceIndex]]
-      : null;
+    const valid = sourceValidity[sourceIndex] === 1;
+    const elevation = sourceElevations.readInt32LE(sourceIndex * 4) / 100;
+    return {
+      valid,
+      elevation,
+      slope:
+        elevation - sourceElevations.readInt32LE(sourceInteriorIndex * 4) / 100,
+      material: valid
+        ? sourceGrid.material_palette[sourceMaterials[sourceIndex]]
+        : null,
+    };
+  });
+  const seamTrend = seamContexts.map((_, row) =>
+    smoothedSeamValue(seamContexts, row, "elevation"),
+  );
+  const seamSlopeTrend = seamContexts.map((_, row) =>
+    smoothedSeamValue(seamContexts, row, "slope"),
+  );
+
+  for (let row = 0; row < ROWS; row += 1) {
+    const latitude = roundCoordinate(NORTH - row * LATITUDE_STEP);
+    const seam = seamContexts[row];
     for (let column = 0; column < COLUMNS; column += 1) {
       const index = row * COLUMNS + column;
       const longitude = roundCoordinate(WEST + column * LONGITUDE_STEP);
       const inside = pointInRing([longitude, latitude], ring);
-      const valid = column === 0 ? seamValid : inside;
+      const valid = column === 0 ? seam.valid : inside;
       const sample = valid
-        ? terrainSample(column, row, seamElevation, seamMaterial, seamSlope)
+        ? terrainSample(
+            column,
+            row,
+            seam.elevation,
+            seam.material,
+            seam.slope,
+            seamTrend[row],
+            seamSlopeTrend[row],
+          )
         : null;
       if (valid) {
         validity[index] = 1;
@@ -132,7 +154,7 @@ export function buildReyEasternUplandsTerrainSource(
         },
       ],
       seam: {
-        schema: "rey.authored-regional-seam.v2",
+        schema: "rey.authored-regional-seam.v3",
         axis: "longitude",
         coordinate_microdegrees: -159120000,
         start_microdegrees: -19720400,
@@ -141,6 +163,8 @@ export function buildReyEasternUplandsTerrainSource(
         source_column: REY_SEAM_COLUMN,
         source_row_start: REY_SEAM_ROW_START,
         source_interior_context_columns: 1,
+        low_pass_trend_radius_rows: SEAM_TREND_RADIUS_ROWS,
+        transition_columns: SEAM_TRANSITION_COLUMNS,
         compared_vertices: ROWS,
         validity_conflicts: 0,
         elevation_conflicts: 0,
@@ -150,7 +174,7 @@ export function buildReyEasternUplandsTerrainSource(
       },
       synthesis: {
         elevation:
-          "smooth bounded upland folds and valleys whose displacement and first derivative are exactly zero on the shared western seam after continuing the County edge slope through the first interior column",
+          "smooth bounded upland folds and valleys whose displacement and first derivative are exactly zero on the shared western seam; the exact County edge slope continues through the first interior column, then a bounded corridor transitions into a low-pass boundary trend before independent landforms enter",
         validity:
           "explicit polygon-contained support; no-data outside the authored boundary remains unsupported",
         stitching:
@@ -225,7 +249,15 @@ function verifySourceGrid(grid) {
     );
 }
 
-function terrainSample(column, row, seamElevation, seamMaterial, seamSlope) {
+function terrainSample(
+  column,
+  row,
+  seamElevation,
+  seamMaterial,
+  seamSlope,
+  seamTrend,
+  seamSlopeTrend,
+) {
   if (column === 0) return { elevation: seamElevation, material: seamMaterial };
   if (column === 1)
     return {
@@ -235,8 +267,10 @@ function terrainSample(column, row, seamElevation, seamMaterial, seamSlope) {
   const x = (column - 1) / (COLUMNS - 2);
   const y = row / (ROWS - 1);
   const edgeEnvelope = Math.sin(Math.PI * Math.min(1, x)) ** 2;
-  const seamSlopeContinuation =
-    seamSlope * column * Math.exp(-Math.pow((column - 1) / 32, 2));
+  const transition = smootherstep((column - 1) / (SEAM_TRANSITION_COLUMNS - 1));
+  const boundaryTrend =
+    seamElevation + seamSlope + (column - 1) * seamSlopeTrend;
+  const interiorTrend = seamTrend + smootherstep(x) * 95;
   const folds =
     138 * edgeEnvelope * Math.cos((y * 2.2 + x * 0.35) * Math.PI) +
     74 * edgeEnvelope * Math.sin((x * 4.1 - y * 3.4) * Math.PI) +
@@ -250,9 +284,8 @@ function terrainSample(column, row, seamElevation, seamMaterial, seamSlope) {
   const elevation = roundElevation(
     Math.max(
       32,
-      seamElevation +
-        seamSlopeContinuation +
-        smootherstep(x) * 95 +
+      boundaryTrend * (1 - transition) +
+        interiorTrend * transition +
         folds +
         ridge -
         valley,
@@ -262,6 +295,25 @@ function terrainSample(column, row, seamElevation, seamMaterial, seamSlope) {
     elevation,
     material: classifyMaterial(elevation, y),
   };
+}
+
+function smoothedSeamValue(seamContexts, row, key) {
+  let total = 0;
+  let weightTotal = 0;
+  for (
+    let offset = -SEAM_TREND_RADIUS_ROWS;
+    offset <= SEAM_TREND_RADIUS_ROWS;
+    offset += 1
+  ) {
+    const context = seamContexts[row + offset];
+    if (!context?.valid) continue;
+    const weight = SEAM_TREND_RADIUS_ROWS + 1 - Math.abs(offset);
+    total += context[key] * weight;
+    weightTotal += weight;
+  }
+  if (weightTotal === 0)
+    throw new Error(`Rey Eastern Uplands seam ${key} has no valid support`);
+  return total / weightTotal;
 }
 
 function smootherstep(value) {
