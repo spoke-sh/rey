@@ -1370,6 +1370,25 @@ not the backend/viewport matrix: the 199,538 ms fulfilled voyage and
 performance failures, and accelerated pixels plus operator perceptual
 judgments are still required.
 
+The matching fulfilled-transport WebGL2 voyage passed as
+`sha256:b5e08ba0f0977a9f579dcf2acbcbf7207f9e90bb47a63ffb070e0a785a9e8228`
+with Landscape capture
+`sha256:07c722cc12b38ec5fba270a573d0569a4a464a2dfe3dcb68dd0f655da1c2ce34`.
+It retained the same exact mosaic, 12 level-9 tiles, zero screen error, and
+zero partition, relief-seam, tile-seam, and no-data-leak mismatches. The
+operator-supplied cropped Google Maps terrain reference is bound for this
+assessment as
+`sha256:3a756185922d5293240570f4e0148288636e85f0d40d92d50a421f1dcd0a1635`;
+it is an acceptance reference only, not scene evidence or a redistributable
+asset. Side-by-side inspection keeps major judgments open for multi-scale
+form, hillshade continuity, valley/SVF depth, chromatic lighting, hypsometric
+coherence, flat scalar mud, plastic smoothing, and the visible regional edge.
+Terrain-bound hydrology is materially clearer and remains a minor gap; contour
+and vector hierarchy remain subordinate but incomplete. The accelerated
+backend therefore proves that full-detail LOD alone does not close fidelity.
+Its 211,260 ms voyage and 750/1,783.2 ms Landscape median/p95 presentation
+cadence also fail the retained performance bar.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
