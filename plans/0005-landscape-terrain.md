@@ -997,6 +997,18 @@ semantic view. `rey.terrain.compilation-worker@11` raises that separately
 bounded exact cache to 80 MiB so this one admitted hierarchy can be retained;
 the 48 MiB tile-residency budget remains unchanged.
 
+Worker revision 11 passed the same 1920×1080 WebGPU steep-relief voyage in
+manifest
+`sha256:c3e82298c5e73341d6e355adb8986f4653c01cf68832863a9bf826dc91dbb75d`.
+Objects and Evidence both recorded one exact hierarchy-cache hit and zero
+misses, reducing their main-thread update from roughly 16 seconds to 3.1
+seconds. Inspection showed that a hit still paid to refine the admitted field
+and derive regional geography before hashing the completed hierarchy key.
+`rey.terrain.compilation-worker@12` now content-identifies the admitted input
+with exact channel bytes plus refinement/geography revisions, then retains the
+corresponding derived field beside its materialized pyramid. This preserves
+the exact cache boundary while moving expensive derivation behind the miss.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

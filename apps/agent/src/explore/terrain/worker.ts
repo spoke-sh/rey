@@ -24,10 +24,14 @@ import {
   LANDSCAPE_RELIEF_HIERARCHY_REVISION,
   type MaterializedLandscapePyramid,
 } from "./relief-pyramid";
-import { refineRegionalTerrainField } from "./refinement";
+import {
+  refineRegionalTerrainField,
+  REGIONAL_TERRAIN_REFINEMENT_REVISION,
+} from "./refinement";
 import {
   deriveRegionalTerrainGeography,
   deriveRegionalTerrainPresentationLines,
+  REGIONAL_TERRAIN_GEOGRAPHY_REVISION,
 } from "./regional-geography";
 import {
   materializeTerrainTile,
@@ -42,7 +46,7 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@11" as const;
+  "rey.terrain.compilation-worker@12" as const;
 export const MAX_TERRAIN_COMPILATION_OUTPUT_BYTES = 112 * 1024 * 1024;
 export const MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES = 80 * 1024 * 1024;
 
@@ -125,12 +129,10 @@ export function executeTerrainCompilationJob(
   const admittedSourceFields = job.fields.filter((field) =>
     field.active_band_ids.includes("admitted_dem"),
   );
-  const admittedFields = admittedSourceFields
-    .map((field) => refineRegionalTerrainField(field))
-    .map(deriveRegionalTerrainGeography);
-  const materializedResults = admittedFields.map((field) =>
+  const materializedResults = admittedSourceFields.map((field) =>
     cachedMaterializedLandscapePyramid(field),
   );
+  const admittedFields = materializedResults.map(({ field }) => field);
   const materializedLandscapePyramids = materializedResults.map(
     ({ pyramid }) => pyramid,
   );
@@ -380,6 +382,7 @@ function measurementNow(): number {
 }
 
 interface MaterializedLandscapeCacheEntry {
+  field: TerrainFieldSet;
   pyramid: MaterializedLandscapePyramid;
   last_requested_generation: number;
 }
@@ -391,20 +394,29 @@ const materializedLandscapeCache = new Map<
 let materializedLandscapeCacheGeneration = 0;
 let materializedLandscapeCacheBytes = 0;
 
-function cachedMaterializedLandscapePyramid(field: TerrainFieldSet): {
+function cachedMaterializedLandscapePyramid(sourceField: TerrainFieldSet): {
+  field: TerrainFieldSet;
   pyramid: MaterializedLandscapePyramid;
   cache_hit: boolean;
 } {
   materializedLandscapeCacheGeneration += 1;
-  const key = materializedLandscapeCacheKey(field);
+  const key = materializedLandscapeCacheKey(sourceField);
   const retained = materializedLandscapeCache.get(key);
   if (retained) {
     retained.last_requested_generation = materializedLandscapeCacheGeneration;
-    return { pyramid: retained.pyramid, cache_hit: true };
+    return {
+      field: retained.field,
+      pyramid: retained.pyramid,
+      cache_hit: true,
+    };
   }
+  const field = deriveRegionalTerrainGeography(
+    refineRegionalTerrainField(sourceField),
+  );
   const pyramid = compileMaterializedLandscapePyramid(field);
   if (pyramid.byte_length <= MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES) {
     materializedLandscapeCache.set(key, {
+      field,
       pyramid,
       last_requested_generation: materializedLandscapeCacheGeneration,
     });
@@ -425,13 +437,15 @@ function cachedMaterializedLandscapePyramid(field: TerrainFieldSet): {
       materializedLandscapeCacheBytes -= candidate.pyramid.byte_length;
     }
   }
-  return { pyramid, cache_hit: false };
+  return { field, pyramid, cache_hit: false };
 }
 
 function materializedLandscapeCacheKey(field: TerrainFieldSet): string {
   const metadata = new TextEncoder().encode(
     JSON.stringify({
       worker_revision: TERRAIN_COMPILATION_WORKER_REVISION,
+      refinement_revision: REGIONAL_TERRAIN_REFINEMENT_REVISION,
+      geography_revision: REGIONAL_TERRAIN_GEOGRAPHY_REVISION,
       height_revision: LANDSCAPE_HEIGHT_HIERARCHY_REVISION,
       relief_revision: LANDSCAPE_RELIEF_HIERARCHY_REVISION,
       field_set_id: field.field_set_id,

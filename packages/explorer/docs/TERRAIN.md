@@ -361,7 +361,7 @@ remove coarse support but cannot become a valid coarse vertex. Camera
 selection chooses a uniform level from cumulative hierarchy error, preventing
 mixed-level edge cracks while retaining screen-space control.
 
-`rey.terrain.compilation-worker@11` runs hierarchy projection, haloed relief
+`rey.terrain.compilation-worker@12` runs hierarchy projection, haloed relief
 derivation, exact relief sampling, procedural field evaluation, partition and
 border parity checking, and mesh preparation in a cancellable dedicated
 worker. Its complete hierarchy plus selected-tile output has a separate
@@ -374,7 +374,11 @@ compiled relief differs from its cache identity, and evicts the oldest
 unrequested exact identity first. The worker also retains a separately bounded
 80 MiB exact materialized-pyramid cache keyed from every contributing typed
 array and the mosaic, hierarchy, relief, validity, and material revisions; its
-hits and misses are exposed in browser diagnostics.
+hits and misses are exposed in browser diagnostics. Cache identity is derived
+from the admitted field bytes plus the refinement and regional-geography
+revisions before those expensive derived channels are computed, so a hit
+reuses both the exact derived field and its hierarchy rather than rebuilding
+the field merely to discover that the hierarchy was already retained.
 
 When an Atlas contains exactly one admitted regional terrain field, the
 application may mount an invisible `rey.explorer.atlas-terrain-prewarm@2`
