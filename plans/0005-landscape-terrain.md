@@ -974,6 +974,15 @@ exposes the terrain-surface failure detail to qualification diagnostics. The
 48 MiB CPU and 64 MiB GPU resident budgets remain unchanged pending the next
 voyage.
 
+That next WebGPU attempt materialized the hierarchy and selected 88 entry
+tiles, but retained failure manifest
+`sha256:dcce4c3b764af1e5ee9e2ac7711971cfa8255af05deb4c05da09fa5e6da422f6`
+showed the Atlas prewarm stuck in `initializing`: a late report from the canvas
+hidden when prewarm-only mode began overwrote the explicit prepared report.
+`rey.explorer.atlas-terrain-prewarm@2` suppresses those stale hidden-canvas
+callbacks while still publishing the exact prepared result. This corrects a
+handoff state race; it does not relax any source, validity, or residency bound.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

@@ -3,6 +3,7 @@ import type { TopologyScene } from "../../topology";
 import {
   rendererPreference,
   retainCompatibleTerrainSubmission,
+  terrainCanvasReportMayPublish,
   terrainCompilationSourceKey,
 } from "./accelerated-terrain";
 
@@ -80,5 +81,11 @@ describe("accelerated terrain browser qualification", () => {
         terrainCompilationSourceKey(terrainScene({ source: "source:2" })),
       ),
     ).toBeNull();
+  });
+
+  it("keeps a late hidden-canvas callback from replacing prepared Atlas terrain", () => {
+    expect(terrainCanvasReportMayPublish(false, false)).toBe(true);
+    expect(terrainCanvasReportMayPublish(true, false)).toBe(false);
+    expect(terrainCanvasReportMayPublish(true, true)).toBe(true);
   });
 });

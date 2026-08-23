@@ -312,6 +312,13 @@ export function retainCompatibleTerrainSubmission<
   return submission?.source_key === sourceKey ? submission : null;
 }
 
+export function terrainCanvasReportMayPublish(
+  prewarmOnly: boolean,
+  explicitPrewarmReport: boolean,
+): boolean {
+  return !prewarmOnly || explicitPrewarmReport;
+}
+
 export function rendererPreference(search: string): RendererPreference {
   const requested = new URLSearchParams(search).get("renderer");
   if (
@@ -351,6 +358,8 @@ export function AcceleratedTerrainSurface({
   if (!workerClientRef.current)
     workerClientRef.current = new TerrainCompilationWorkerClient();
   if (!residencyRef.current) residencyRef.current = new TerrainTileResidency();
+  const prewarmOnlyRef = useRef(prewarmOnly);
+  prewarmOnlyRef.current = prewarmOnly;
   const retainedTransitionGlobeRef = useRef<
     | {
         atlas_revision: string;
@@ -780,7 +789,17 @@ export function AcceleratedTerrainSurface({
     material_revision: materialRevision,
     render_graph_id: snapshot.render_graph.graph_id,
   };
-  const completeReport = (canvasReport: ExplorerCanvasReport) =>
+  const completeReport = (
+    canvasReport: ExplorerCanvasReport,
+    explicitPrewarmReport = false,
+  ) => {
+    if (
+      !terrainCanvasReportMayPublish(
+        prewarmOnlyRef.current,
+        explicitPrewarmReport,
+      )
+    )
+      return;
     onReport({
       status: canvasReport.status as RendererStatus,
       submitted_frame: canvasReport.submitted_frame,
@@ -1028,6 +1047,7 @@ export function AcceleratedTerrainSurface({
         terrainCompilation?.render_passes?.omissions ?? Object.freeze([]),
       measurement_authority: "transient_cpu_unretained",
     });
+  };
 
   useEffect(() => {
     if (content) return;
@@ -1052,19 +1072,22 @@ export function AcceleratedTerrainSurface({
 
   useEffect(() => {
     if (!prewarmOnly || !terrainCompilation) return;
-    completeReport({
-      status: {
-        lifecycle: "ready",
-        backend: "reference",
-        renderer_revision: "rey.explorer.terrain-prewarm@1",
-        degraded: false,
-        detail:
-          "the exact terrain hierarchy and material inputs are prepared; accelerated submission is deferred until Landscape entry",
+    completeReport(
+      {
+        status: {
+          lifecycle: "ready",
+          backend: "reference",
+          renderer_revision: "rey.explorer.terrain-prewarm@2",
+          degraded: false,
+          detail:
+            "the exact terrain hierarchy and material inputs are prepared; accelerated submission is deferred until Landscape entry",
+        },
+        draw_calls: 0,
+        render_submission_ms: 0,
+        submitted_frame: null,
       },
-      draw_calls: 0,
-      render_submission_ms: 0,
-      submitted_frame: null,
-    });
+      true,
+    );
   }, [prewarmOnly, terrainCompilation, activeTerrain?.job_id]);
 
   return content && !prewarmOnly ? (

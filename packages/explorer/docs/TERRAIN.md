@@ -377,19 +377,21 @@ array and the mosaic, hierarchy, relief, validity, and material revisions; its
 hits and misses are exposed in browser diagnostics.
 
 When an Atlas contains exactly one admitted regional terrain field, the
-application may mount an invisible `rey.explorer.atlas-terrain-prewarm@1`
+application may mount an invisible `rey.explorer.atlas-terrain-prewarm@2`
 terrain canvas after the Atlas camera has remained stable for 600 milliseconds
 and before selection. Any camera movement cancels and reschedules that idle
 work. Prewarm uses the exact predicted Landscape entry scale, viewport, pitch,
 yaw, mosaic identity, hierarchy/operator revisions, and material revision. The
 source key is shared with the visible renderer, while view-only successor jobs
-retain the last compatible submitted terrain until they submit. It compiles
+retain the last compatible submitted terrain until they submit. A late
+callback from a canvas that was hidden as prewarm-only cannot replace the
+explicit prepared report or stall the handoff. It compiles
 only that already admitted field; it does not select the
 County, change the camera, render coverage, execute a locator, or widen
 evidence. The same field identity and resident compilation remain available
 when Atlas-to-Landscape traversal begins, avoiding an avoidable
 first-visible-frame setup stall without racing an active projection morph. The
-application exposes `scheduled`, `mounted`, and `submitted` states so
+application exposes `scheduled`, `mounted`, and `prepared` states so
 qualification can require actual renderer submission instead of inferring
 warmth from elapsed time.
 
