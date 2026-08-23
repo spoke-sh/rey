@@ -62,7 +62,7 @@ the renderer.
 | File                       | Editor role       | Meaning                                                             |
 | -------------------------- | ----------------- | ------------------------------------------------------------------- |
 | `boundary.geojson`         | `boundary`        | Exact County footprint and validity boundary                        |
-| `terrain.geojson`          | `terrain`         | Packed 501×501 elevation/material grid with explicit validity        |
+| `terrain.geojson`          | `terrain`         | Packed 705×626 elevation/material grid with explicit validity        |
 | `terrain-controls.geojson` | `terrain_control` | Candidate-only named landform influences; never observed height     |
 | `hydrology.geojson`        | `hydrology`       | Authored typed rivers, streams, runoff, river area, and wetland geometry |
 | `features.geojson`         | `features`        | Meadow land cover and the explicit unexplored region                |
@@ -73,40 +73,40 @@ the renderer.
 | `railways.geojson`         | `railway`         | Regional and industrial rail candidates                             |
 | `labels.geojson`           | `label`           | Geographic names with exact zoom and collision policy               |
 
-The terrain grid contains 251,001 cells at exact integer-microdegree spacing:
+The terrain grid contains 441,330 cells at exact integer-microdegree spacing:
 
-- 180,279 valid cells;
-- 66,265 no-data cells outside the County footprint;
-- 5,379 no-data cells in Unexplored Scrub (some exterior cells satisfy both
-  predicates, producing 70,722 unique no-data cells);
-- 32–1,784.12 meters of authored relief; and
+- 317,297 valid cells;
+- 116,192 no-data cells outside the County footprint;
+- 9,471 no-data cells in Unexplored Scrub (some exterior cells satisfy both
+  predicates, producing 124,033 unique no-data cells);
+- 83.23–1,801.08 meters of authored relief; and
 - `granite`, `rock`, `sand`, `soil`, and `vegetation` material identifiers.
 
-Five hundred intervals per axis preserve the County's exact bounds at
-approximately 167–185-meter sample spacing. One
+Seven hundred four longitudinal and 625 latitudinal intervals preserve the
+County's exact bounds with near-square 131–133-meter cells. One
 `rey.packed-terrain-grid.v1` GeoJSON feature carries byte-exact validity,
 little-endian centimeter elevation, and palette-indexed material channels
-beside its exact Polygon grid envelope. The 2.9 MiB artifact replaces 251,001
+beside its exact Polygon grid envelope. The 5.1 MiB artifact replaces 441,330
 counterfeit Point features and remains under the one-million-cell packed-grid
 admission limit. This is a source-native density improvement, not the final
 resolution target; a tiled raster adapter is still required beyond the bounded
 in-memory regional grid.
 
-The embedded `rey.agent-geography.rey-county@7` compiler record states the
+The embedded `rey.agent-geography.rey-county@8` compiler record states the
 topology, elevation, hydrology, land-cover, and stitching contracts. This
 revision owns one County-wide authoring domain and therefore reports zero
 seams and conflicts while explicitly omitting cross-package seam resolution.
 It does not imply that multiple editor packages have already been stitched.
 Its elevation compiler now resolves each rough named landform into a bounded
-orographic backbone, branching ridge network, and incised ravines before exact
-authored waterways carve the preliminary source height. A second bounded pass
-priority-floods only from exact validity boundaries, derives source drainage,
-selects steepest descent over the depression-safe surface, and incises at most
-31.04 meters without crossing no-data. The retained derivation reports 6,088
-channel cells and a maximum contributing area of 121,105 valid cells. The
-shallower incision is deliberately spread across adjacent valid cells so the
-source reads as valley relief rather than a visible D8 drainage tree. The main
-river and wetland are exact admitted areas;
+orographic backbone, branching ridge network, sharp structural crests, and
+incised ravines before exact authored waterways carve the preliminary source
+height. A second bounded pass priority-floods only from exact validity
+boundaries, derives source drainage, selects steepest descent over the
+depression-safe surface, and applies slope-aware stream-power incision across
+bounded inner and outer valley widths without crossing no-data. The retained
+derivation reports 10,414 channel cells, maximum stream power `0.862713`, a
+32.82-meter maximum incision, and a maximum contributing area of 194,761 valid
+cells. The main river and wetland are exact admitted areas;
 tributaries remain exact paths. This is source geography rather than renderer
 noise, and every no-data vertex remains absent.
 Its cartographic hierarchy currently retains four highways, twelve local

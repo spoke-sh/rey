@@ -947,6 +947,20 @@ The captured wetland is now a subordinate green tint rather than counterfeit
 open water. This closes the 1920×1080 coastline/water backend triad, not its
 3840×2160 row, direct-transport proof, or the complete fidelity matrix.
 
+The next source-fidelity slice is implemented as the deterministic
+`rey.agent-geography.rey-county@8` candidate. It replaces the 501×501 lattice
+with a bounded rectangular 705×626 lattice whose 131–133-meter metric spacing
+remains exact in integer microdegrees and below the one-million-cell admission
+limit. The source compiler narrows the oversized authored channel cuts, adds
+sharp directional crest support, and replaces fixed drainage broadening with
+validity-contained slope-aware stream-power incision and bounded inner/outer
+valley widths. This is authored source geometry, not renderer noise. The
+5.1 MiB candidate retains 317,297 valid and 124,033 no-data cells and records
+its drainage metrics under `rey.county-source-drainage.v2`. This remains
+incomplete enabling work until a new editor scene, workload result, browser
+capture, and explicit perceptual assessment bind the exact candidate bytes;
+the existing major geomorphic judgment therefore stays open.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

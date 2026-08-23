@@ -21,16 +21,16 @@ describe("Rey County terrain source", () => {
 
   it("retains one exact row-major grid over the County bounds", () => {
     expect(terrain.terrain_derivation.grid).toMatchObject({
-      columns: 501,
-      rows: 501,
-      longitude_step_degrees: 0.00176,
-      latitude_step_degrees: 0.0015,
-      nominal_longitude_spacing_meters: 184.54,
-      nominal_latitude_spacing_meters: 166.7,
+      columns: 705,
+      rows: 626,
+      longitude_step_degrees: 0.00125,
+      latitude_step_degrees: 0.0012,
+      nominal_longitude_spacing_meters: 131.07,
+      nominal_latitude_spacing_meters: 133.36,
     });
-    expect(cells).toHaveLength(251_001);
+    expect(cells).toHaveLength(441_330);
     expect([at(0, 0).longitude, at(0, 0).latitude]).toEqual([-160, -19.25]);
-    expect([at(500, 500).longitude, at(500, 500).latitude]).toEqual([
+    expect([at(704, 625).longitude, at(704, 625).latitude]).toEqual([
       -159.12, -20,
     ]);
     expect(cells.map(({ column, row }) => [column, row])).toEqual(
@@ -42,9 +42,9 @@ describe("Rey County terrain source", () => {
 
   it("keeps the footprint exterior and Unexplored Scrub as explicit no-data", () => {
     expect(at(0, 0).valid).toBe(false);
-    expect(at(500, 500).valid).toBe(false);
-    expect(at(100, 438).valid).toBe(false);
-    expect(at(100, 438).sample).toBeNull();
+    expect(at(704, 625).valid).toBe(false);
+    expect(at(141, 548).valid).toBe(false);
+    expect(at(141, 548).sample).toBeNull();
     expect(terrain.terrain_derivation.summary).toMatchObject({
       valid_vertices: expect.any(Number),
       no_data_vertices: expect.any(Number),
@@ -52,19 +52,19 @@ describe("Rey County terrain source", () => {
       unexplored_vertices: expect.any(Number),
     });
     expect(terrain.terrain_derivation.summary.valid_vertices).toBeGreaterThan(
-      179_000,
+      316_000,
     );
     expect(
       terrain.terrain_derivation.summary.outside_footprint_vertices,
-    ).toBeGreaterThan(66_000);
+    ).toBeGreaterThan(116_000);
     expect(
       terrain.terrain_derivation.summary.unexplored_vertices,
-    ).toBeGreaterThan(5_000);
+    ).toBeGreaterThan(9_000);
   });
 
   it("expresses distinct project landforms, relief, and bounded materials", () => {
-    const anchorSummit = at(125, 100);
-    const runtimeBasin = at(275, 313);
+    const anchorSummit = at(176, 125);
+    const runtimeBasin = at(387, 391);
     expect(anchorSummit.sample.landform).toBe("anchor-summit");
     expect(anchorSummit.sample.elevation).toBeGreaterThan(
       runtimeBasin.sample.elevation + 350,
@@ -80,9 +80,9 @@ describe("Rey County terrain source", () => {
 
   it("binds explicit multi-scale synthesis without claiming package seams", () => {
     expect(terrain.terrain_derivation).toMatchObject({
-      schema: "rey.county-terrain-source.v7",
-      dataset_id: "rey-county-semantic-terrain-v7",
-      compiler_revision: "rey.agent-geography.rey-county@7",
+      schema: "rey.county-terrain-source.v8",
+      dataset_id: "rey-county-semantic-terrain-v8",
+      compiler_revision: "rey.agent-geography.rey-county@8",
       synthesis: {
         elevation: expect.stringContaining("orographic backbones"),
         hydrology: expect.stringContaining("river and wetland areas"),
@@ -96,12 +96,14 @@ describe("Rey County terrain source", () => {
         },
       },
       drainage: {
-        schema: "rey.county-source-drainage.v1",
+        schema: "rey.county-source-drainage.v2",
         authority: expect.stringContaining("not observed hydrology"),
-        depression_handling: expect.stringContaining("never cross no-data"),
+        depression_handling: expect.stringContaining("stream-power"),
         maximum_accumulation_vertices: expect.any(Number),
         derived_channel_vertices: expect.any(Number),
         maximum_incision_meters: expect.any(Number),
+        maximum_stream_power: expect.any(Number),
+        maximum_valley_half_width_cells: 6,
       },
     });
     expect(
@@ -115,7 +117,10 @@ describe("Rey County terrain source", () => {
     ).toBeGreaterThan(25);
     expect(
       terrain.terrain_derivation.drainage.maximum_incision_meters,
-    ).toBeLessThan(45);
+    ).toBeLessThan(65);
+    expect(
+      terrain.terrain_derivation.drainage.maximum_stream_power,
+    ).toBeGreaterThan(0.15);
 
     let supportedCenters = 0;
     let detailedCenters = 0;
@@ -181,27 +186,27 @@ describe("Rey County terrain source", () => {
   it("packs the complete source grid into one bounded GeoJSON feature", () => {
     expect(terrain.features).toHaveLength(1);
     expect(terrain.features[0]).toMatchObject({
-      id: "rey-county-packed-terrain-v7",
+      id: "rey-county-packed-terrain-v8",
       geometry: { type: "Polygon" },
       terrain_grid: {
         schema: "rey.packed-terrain-grid.v1",
-        dataset_id: "rey-county-semantic-terrain-v7",
-        compiler_revision: "rey.agent-geography.rey-county@7",
-        columns: 501,
-        rows: 501,
+        dataset_id: "rey-county-semantic-terrain-v8",
+        compiler_revision: "rey.agent-geography.rey-county@8",
+        columns: 705,
+        rows: 626,
         native_bounds_microdegrees: [
           -160000000, -20000000, -159120000, -19250000,
         ],
       },
     });
     expect(terrain.features[0].terrain_grid.validity_hex).toHaveLength(
-      251_001 * 2,
+      441_330 * 2,
     );
     expect(
       terrain.features[0].terrain_grid.elevation_centimeters_le_hex,
-    ).toHaveLength(251_001 * 8);
+    ).toHaveLength(441_330 * 8);
     expect(terrain.features[0].terrain_grid.material_indices_hex).toHaveLength(
-      251_001 * 2,
+      441_330 * 2,
     );
   });
 });

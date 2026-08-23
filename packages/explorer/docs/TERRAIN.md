@@ -77,11 +77,13 @@ is retained through mosaic composition, validity-safe refinement, conservative
 tile projection, and tile materialization. A BLAKE3 validity identity binds
 the exact classification bytes and implementation revision for pyramid use.
 
-This metric relief operator is still an enabling prototype inside the
-materialized hierarchy. The hierarchy now supplies haloed levels and border
-proof, but the operator does not yet provide slope-adaptive MDOW,
-SVF/openness, high-pass curvature, or the qualified linear tone and chromatic
-composition required by Plan 0005.
+The metric relief operator derives slope-adaptive MDOW, directional
+SVF/openness, profile/plan curvature, ridge salience, and bounded local contrast
+inside the haloed hierarchy. `rey.landscape.chromatic-relief@2` then composes
+those renderer-neutral arrays with warm direct and cool ambient light in
+linear color. The remaining fidelity limit is the admitted source's spatial
+resolution and geomorphic form, not a license for a backend shader to invent
+surface detail.
 
 ## Height And Relief Pyramid Contracts
 
@@ -176,10 +178,12 @@ WebGL2, and WebGPU compilation use one contract.
 `@rey/explorer` sees the same structural field contract in both cases and
 cannot upgrade either source's authority.
 
-The current Rey County working field uses the qualified 501×501 source without
-renderer refinement. The density policy targets at least 320 intervals per
-axis, so lower-density admitted fields may refine by a bounded integer factor
-while this source stays exact. In a refined field, fully supported cell
+The source-controlled Rey County candidate is now 705×626 and uses no renderer
+refinement. It becomes the qualified working field only after editor retention
+and the scene-admission workload accept its exact native bytes. The density
+policy targets at least 320 intervals per axis, so lower-density admitted
+fields may refine by a bounded integer factor while this source stays exact.
+In a refined field, fully supported cell
 interiors use bilinear sampling; a cell touching no-data uses only fully
 supported source triangles. Every refined point carries an independent
 validity value and its retained no-data or unsupported class. Band-limited
