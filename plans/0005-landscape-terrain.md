@@ -924,6 +924,29 @@ widening terrain validity. V2 admissions and their atlas bindings are excluded
 rather than adapted. This closes the missing semantic mechanism; the named
 coastline/water capture and explicit perceptual assessment remain open.
 
+The hard cut was exercised through the human CLI boundary before browser
+capture. Workload revision 3 passed all 11 frozen scenarios, then editor
+`SCENE@13` retained the exact `SCENE@12` source snapshot with an equal content
+delta while advancing package and request lineage to
+`rey.scene-admission.validate@3`. Production result
+`blake3:90948654c829f57edfa441e5bf690910bf124985af641304f5231d3ac26785d9`
+accepted 12 geometry-compatible typed hydrology objects. The 1920×1080 named
+`coastline-water` voyages passed for reference
+(`sha256:dd6a57a6dd0059666240d9be86ed96373c25ebd8d7ad7ce1bf548bdbf22c0964`),
+WebGL2
+(`sha256:09c3f3f78c7ed9b3929ec2c39a3a457d0d431117b239cf35403e5b7cfa4e8762`),
+and WebGPU
+(`sha256:ae6992a9b1674e2696ebb6d6ebf7dc8873928a8553c4e973820f8fef497870aa`).
+Each retained two distinct terrain-bound areas, the required admitted
+boundary, river, stream, seasonal-runoff, water, and wetland kinds, zero
+no-data triangle leaks, and zero tile or relief seams. Rendered parity manifest
+`sha256:a3b3d2209e7c5383cb7df700406c898f7a2d908be7bd8326d4743c58619bf92c`
+passed semantic equality and bounded accelerated WebGL2/WebGPU image
+difference at maximum normalized RMSE `0.012372` against the `0.02` limit.
+The captured wetland is now a subordinate green tint rather than counterfeit
+open water. This closes the 1920×1080 coastline/water backend triad, not its
+3840×2160 row, direct-transport proof, or the complete fidelity matrix.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
