@@ -13,6 +13,7 @@ export type { GlobePole, GlobePolePattern } from "./globe-samples";
 export {
   composeCartographicTerrainColor,
   LANDSCAPE_CARTOGRAPHIC_COLOR_REVISION,
+  linearTerrainChannelToSrgbByte,
   linearTerrainColorToCss,
 } from "./cartographic-terrain";
 export {

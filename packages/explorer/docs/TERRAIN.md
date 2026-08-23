@@ -194,8 +194,8 @@ deterministic microrelief exists only on those
 presentation refinements, is constrained to zero at admitted source vertices,
 and remains explicitly presentation-only. Diagnostics always report the
 original admitted cell counts and elevation range. The reference renderer
-selects conservative root tiles instead of mounting hundreds of thousands of
-fallback polygons.
+rasterizes the verified finest complete-field relief into one bounded 2D
+canvas instead of mounting hundreds of thousands of fallback polygons.
 
 That dense working field is then treated as a causal geography graph, not a
 bag of independent visual channels. A priority-flood pass resolves local
@@ -220,8 +220,11 @@ Grid X/Y becomes mesh X/Z; admitted elevation becomes mesh Y. For each quad,
 the most fully valid triangles; equal choices alternate to avoid a directional
 bias. A triangle is emitted only when all three vertices have valid support.
 This lets a supported half-cell survive next to no-data without bridging the
-invalid vertex. The reference renderer uses the same exported index function,
-so fallback cannot fill a hole that the GPU path omits.
+invalid vertex. `rey.reference-regional-terrain@5` applies the same diagonal
+choice and barycentric interpolation per raster pixel, so fallback cannot fill
+a hole that the GPU path omits. The canvas retains one accessible image label
+and the exact hierarchy diagnostics; labels, geometry descriptions, focus
+targets, and evidence links remain in the separate DOM reference overlay.
 
 Compilation creates separate upload arrays for positions, normals, base tint,
 the final cartographic linear color, occlusion, roughness, curvature, relief,

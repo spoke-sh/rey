@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useMemo, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties } from "react";
 import {
   OBJECT_LENS_ZOOM,
   WORLD_GLOBE_ATMOSPHERE_SCALE,
@@ -29,7 +29,6 @@ import {
   type PlanarPresentationSample,
 } from "@rey/explorer/globe-samples";
 import {
-  composeCartographicTerrainColor,
   deriveLandscapeReliefField,
   GLOBE_ATLAS_REPEAT_DISSOLVE_START,
   globeAtlasRegionMarkerSceneRadius,
@@ -43,10 +42,8 @@ import {
   LANDSCAPE_RELIEF_ENGINE_REVISION,
   LANDSCAPE_TERRAIN_FABRIC_REVISION,
   landscapeTerrainFabricSamples,
-  linearTerrainColorToCss,
   type LandscapeTerrainFabricSample,
 } from "@rey/explorer";
-import { terrainTriangleIndices } from "@rey/explorer";
 import {
   projectSemanticGlobe,
   projectWorldAtlasBoundsMorph,
@@ -66,14 +63,14 @@ import {
 } from "../engine/picking";
 import type { AtlasLandscapePresentation } from "../projection/atlas-landscape";
 import { featureVisibleAtLens } from "../engine/cartography";
-import {
-  materializeTerrainTile,
-  materializeTerrainTileRelief,
-  projectMaterializedLandscapeTilePyramid,
-} from "../terrain/tiles";
 import { refineRegionalTerrainField } from "../terrain/refinement";
 import { deriveRegionalTerrainGeography } from "../terrain/regional-geography";
 import { compileMaterializedLandscapePyramid } from "../terrain/relief-pyramid";
+import { cachedMaterializedLandscapePyramid } from "../terrain/worker";
+import {
+  rasterizeReferenceTerrain,
+  REFERENCE_TERRAIN_RASTER_REVISION,
+} from "./reference-terrain-raster";
 
 export interface FocusableTopologyObject {
   focus_id: string;
@@ -461,41 +458,67 @@ function stipplePathFromSamples(
 }
 
 function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const renderedFields = useMemo(
     () =>
       scene.terrain_fields
         .filter((field) => field.active_band_ids.includes("admitted_dem"))
-        .map((field) => refineRegionalTerrainField(field))
-        .map((field) => deriveRegionalTerrainGeography(field))
-        .flatMap((field) => {
-          const materializedPyramid =
-            compileMaterializedLandscapePyramid(field);
+        .map((source) => cachedMaterializedLandscapePyramid(source))
+        .map(({ field, pyramid: materializedPyramid }) => {
           const envelope = materializedPyramid.envelope;
           const heightHierarchy = materializedPyramid.height_hierarchy;
-          const pyramid =
-            projectMaterializedLandscapeTilePyramid(materializedPyramid);
-          return pyramid.tiles
-            .filter(({ level }) => level === pyramid.maximum_level)
-            .map((tile) => {
-              const level = materializedPyramid.relief_levels[tile.level]!;
-              return {
-                field: materializeTerrainTile(level.field, tile),
-                relief: materializeTerrainTileRelief(
-                  level.field,
-                  level.relief,
-                  tile,
-                ),
-                envelope,
-                heightHierarchy,
-                materializedPyramid,
-              };
-            });
+          const finest = materializedPyramid.relief_levels.at(-1)!;
+          return {
+            field: finest.field,
+            relief: finest.relief,
+            envelope,
+            heightHierarchy,
+            materializedPyramid,
+          };
         }),
     [scene.terrain_fields],
   );
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || renderedFields.length === 0) return;
+    const paint = () => {
+      const bounds = canvas.getBoundingClientRect();
+      const pixelRatio = Math.max(
+        1,
+        Math.min(2, globalThis.devicePixelRatio || 1),
+      );
+      const width = Math.max(
+        1,
+        Math.round((bounds.width || scene.world.width) * pixelRatio),
+      );
+      const height = Math.max(
+        1,
+        Math.round((bounds.height || scene.world.height) * pixelRatio),
+      );
+      if (canvas.width !== width) canvas.width = width;
+      if (canvas.height !== height) canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      const pixels = rasterizeReferenceTerrain(
+        renderedFields,
+        width,
+        height,
+        scene.world,
+      );
+      context.clearRect(0, 0, width, height);
+      const image = new ImageData(width, height);
+      image.data.set(pixels);
+      context.putImageData(image, 0, 0);
+      canvas.dataset.referenceTerrainReady = "true";
+    };
+    paint();
+    const observer = new ResizeObserver(paint);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [renderedFields, scene.world]);
   if (renderedFields.length === 0) return null;
   return (
-    <svg
+    <canvas
       aria-label={`${renderedFields.length} admitted regional terrain field${renderedFields.length === 1 ? "" : "s"}`}
       className={sx(styles.worldGeometryLayer)}
       data-landscape-relief-engine={LANDSCAPE_RELIEF_ENGINE_REVISION}
@@ -539,63 +562,12 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
           total + materializedPyramid.border_mismatches,
         0,
       )}
-      data-regional-terrain-reference="rey.reference-regional-terrain@4"
+      data-regional-terrain-reference={REFERENCE_TERRAIN_RASTER_REVISION}
+      height={scene.world.height}
+      ref={canvasRef}
       role="img"
-      viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
-    >
-      <desc>
-        Triangles exist only where three admitted source vertices are valid.
-        Explicit no-data vertices remain holes. Unsupported vertices remain
-        holes. Every tile samples one verified complete-field height and relief
-        pyramid envelope.
-      </desc>
-      {renderedFields.flatMap(({ field, relief }) => {
-        const indices = terrainTriangleIndices(field);
-        const cartographicColor = composeCartographicTerrainColor(
-          field,
-          relief,
-        );
-        const point = (index: number) => {
-          const column = index % field.grid.columns;
-          const row = Math.floor(index / field.grid.columns);
-          return {
-            x:
-              field.grid.bounds.x +
-              (column / (field.grid.columns - 1)) * field.grid.bounds.width,
-            y:
-              field.grid.bounds.y +
-              (row / (field.grid.rows - 1)) * field.grid.bounds.height,
-          };
-        };
-        return Array.from({ length: indices.length / 3 }, (_, triangle) => {
-          const vertexIndexes = [
-            indices[triangle * 3]!,
-            indices[triangle * 3 + 1]!,
-            indices[triangle * 3 + 2]!,
-          ] as const;
-          const vertices = vertexIndexes.map(point);
-          const color = [0, 1, 2].map(
-            (component) =>
-              vertexIndexes.reduce(
-                (total, index) =>
-                  total + cartographicColor[index * 3 + component]!,
-                0,
-              ) / 3,
-          );
-          const fill = linearTerrainColorToCss(color);
-          return (
-            <polygon
-              data-field-set-id={field.field_set_id}
-              data-terrain-triangle={triangle}
-              fill={fill}
-              key={`${field.field_set_id}:${triangle}`}
-              points={vertices.map(({ x, y }) => `${x},${y}`).join(" ")}
-              stroke="none"
-            />
-          );
-        });
-      })}
-    </svg>
+      width={scene.world.width}
+    />
   );
 }
 

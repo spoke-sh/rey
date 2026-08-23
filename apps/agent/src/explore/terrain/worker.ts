@@ -398,7 +398,9 @@ const materializedLandscapeSourceKeyCache = new WeakMap<
 let materializedLandscapeCacheGeneration = 0;
 let materializedLandscapeCacheBytes = 0;
 
-function cachedMaterializedLandscapePyramid(sourceField: TerrainFieldSet): {
+export function cachedMaterializedLandscapePyramid(
+  sourceField: TerrainFieldSet,
+): {
   field: TerrainFieldSet;
   pyramid: MaterializedLandscapePyramid;
   cache_hit: boolean;

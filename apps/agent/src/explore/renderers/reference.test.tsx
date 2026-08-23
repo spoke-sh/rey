@@ -652,8 +652,10 @@ describe("reference renderer", () => {
       'data-landscape-relief-border-digest-mismatches="0"',
     );
     expect(markup).toContain(
-      'data-regional-terrain-reference="rey.reference-regional-terrain@4"',
+      'data-regional-terrain-reference="rey.reference-regional-terrain@5"',
     );
+    expect(markup).toContain("<canvas");
+    expect(markup).not.toContain("data-terrain-triangle=");
     expect(markup).toContain("data-height-relief-hierarchy-id=");
     expect(markup).toContain("data-relief-field-id=");
     expect(markup).toContain('data-semantic-identity="atlas-sector:1"');

@@ -83,9 +83,11 @@ export function composeCartographicTerrainColor(
 }
 
 export function linearTerrainColorToCss(color: readonly number[]): string {
-  return `rgb(${color
-    .map((component) => Math.round(linearToSrgb(clamp(component, 0, 1)) * 255))
-    .join(" ")})`;
+  return `rgb(${color.map(linearTerrainChannelToSrgbByte).join(" ")})`;
+}
+
+export function linearTerrainChannelToSrgbByte(component: number): number {
+  return Math.round(linearToSrgb(clamp(component, 0, 1)) * 255);
 }
 
 function terrainBaseLuminance(

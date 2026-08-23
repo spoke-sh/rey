@@ -4,6 +4,7 @@ import { terrainFieldFixture } from "./test-fixtures";
 import {
   composeCartographicTerrainColor,
   LANDSCAPE_CARTOGRAPHIC_COLOR_REVISION,
+  linearTerrainChannelToSrgbByte,
   linearTerrainColorToCss,
 } from "./cartographic-terrain";
 
@@ -27,6 +28,9 @@ describe("cartographic terrain color", () => {
       [...color].every((component) => component >= 0 && component <= 1),
     ).toBe(true);
     expect(linearTerrainColorToCss([0, 0.5, 1])).toBe("rgb(0 188 255)");
+    expect([0, 0.5, 1].map(linearTerrainChannelToSrgbByte)).toEqual([
+      0, 188, 255,
+    ]);
   });
 
   it("retains SVF valley depth and local ridge separation in luminance", () => {

@@ -1080,6 +1080,20 @@ milliseconds, down from 2.61 seconds in the revision-12 voyage. This closes the
 repeated content-key and identical-linework defect, but not the cold hierarchy,
 first-profile, total-voyage, or full performance-matrix gates.
 
+The first matching reference voyage retained incomplete manifest
+`sha256:3cf485f3f2beba98cec47419a90bbcc1e2450603e71c99a3261dd2978cff82a2`.
+Its exact Landscape field was ready with zero seams and leaks, but mounting
+589,999 fallback terrain polygons plus 59,595 line segments made Chrome's main
+thread miss the subsequent continuity evaluation deadline. This is a real
+reference-renderer scale defect, not permission to omit reference parity.
+`rey.reference-regional-terrain@5` therefore rasterizes the same deterministic
+triangle choice, validity test, barycentric linear color, and finest verified
+relief field into one bounded 2D canvas. It retains accessible image and
+hierarchy metadata while exact vector descriptions, focus targets, labels, and
+evidence links remain independent DOM overlays. The change remains enabling
+work until the reference voyage completes and its pixels enter rendered
+parity.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
