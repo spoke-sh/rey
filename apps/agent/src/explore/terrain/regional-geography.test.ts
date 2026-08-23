@@ -85,6 +85,16 @@ describe("regional terrain geography", () => {
       ).filter((_, index) => geography.validity.values[index] !== 0),
     );
     expect(distinctTints.size).toBeGreaterThan(32);
+    const chroma = Array.from({ length: geography.field_cells }, (_, index) => {
+      const sample = [
+        ...geography.material.tint.slice(index * 3, index * 3 + 3),
+      ];
+      return Math.max(...sample) - Math.min(...sample);
+    }).filter((_, index) => geography.validity.values[index] !== 0);
+    expect(Math.max(...chroma)).toBeGreaterThan(0.16);
+    expect(
+      chroma.reduce((total, value) => total + value, 0) / chroma.length,
+    ).toBeGreaterThan(0.045);
 
     for (let row = 0; row < source.grid.rows; row += 1) {
       for (let column = 0; column < source.grid.columns; column += 1) {

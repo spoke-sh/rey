@@ -895,6 +895,17 @@ the pale compression changed; they are not a perceptual acceptance result.
 The remaining broad source-scale bands and insufficient geomorphic detail keep
 the explicit major judgments open.
 
+`rey.terrain.regional-geography@7` next rebalanced the derived land-cover ramp
+in linear color and narrowed full rock exposure to genuinely steep or alpine
+support. The admitted DEM, source material classes, validity, and hydrology
+did not change. Its 1920×1080 WebGPU steep-relief voyage passed in manifest
+`sha256:a87c9564ee37ea5cba5b1de63979b6c3616a58aeeec142c02752e871659d8f7a`.
+Across the same fixed canvas crop, mean display saturation increased from
+`0.1293` to `0.1561` and luminance deviation increased from `0.0635` to
+`0.0794`. The capture now separates vegetation, warm midslopes, and neutral
+rock materially better, but the perceptual matrix remains open pending a
+fresh explicit judgment and the unresolved source-scale form gap.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

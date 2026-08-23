@@ -247,7 +247,10 @@ the terrain into a pale wash. Its separately revisioned pass inputs gate:
 adding another lighting owner. Regional geography continuously blends the
 admitted material class with deterministic moisture, elevation, slope,
 exposure, and validity-bounded drainage fields without changing elevation or
-source support. Its
+source support. `rey.terrain.regional-geography@7` uses a bounded linear-color
+hypsometric ramp with separated valley, montane, subalpine, alpine, forest,
+and rock anchors. Only sufficiently steep or alpine samples receive full rock
+exposure, preventing the slope channel from neutralizing the complete map. Its
 orthographic camera is a bounded target/orbit view: the application supplies a
 near-north-up,
 mostly-overhead cartographic entry, pitch and yaw are clamped, screen-axis pan

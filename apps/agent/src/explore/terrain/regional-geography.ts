@@ -13,7 +13,7 @@ import { regionalTerrainContourThresholds } from "./contours";
 import { deriveTerrainNormals } from "./normals";
 
 export const REGIONAL_TERRAIN_GEOGRAPHY_REVISION =
-  "rey.terrain.regional-geography@6" as const;
+  "rey.terrain.regional-geography@7" as const;
 export const REGIONAL_TERRAIN_LINEWORK_REVISION =
   "rey.terrain.regional-linework@3" as const;
 
@@ -370,12 +370,12 @@ function deriveRegionalLandCover(
   const occlusion = new Float32Array(cells);
   const roughness = new Float32Array(cells);
   const palette = {
-    valley: [0.31, 0.48, 0.28] as const,
-    montane: [0.63, 0.58, 0.36] as const,
-    subalpine: [0.48, 0.56, 0.39] as const,
-    alpine: [0.47, 0.5, 0.53] as const,
-    forest: [0.24, 0.43, 0.25] as const,
-    rock: [0.48, 0.47, 0.46] as const,
+    valley: [0.24, 0.44, 0.2] as const,
+    montane: [0.52, 0.47, 0.24] as const,
+    subalpine: [0.38, 0.46, 0.28] as const,
+    alpine: [0.38, 0.41, 0.46] as const,
+    forest: [0.16, 0.35, 0.14] as const,
+    rock: [0.38, 0.36, 0.34] as const,
   };
   for (let row = 0; row < source.grid.rows; row += 1) {
     for (let column = 0; column < source.grid.columns; column += 1) {
@@ -405,7 +405,7 @@ function deriveRegionalLandCover(
       );
       const alpine = smootherstep((height - 0.66) / 0.22);
       const exposedRock = clamp(
-        smootherstep((slope - 0.28) / 0.34) + alpine * 0.38,
+        smootherstep((slope - 0.38) / 0.32) + alpine * 0.28,
         0,
         1,
       );
@@ -420,13 +420,13 @@ function deriveRegionalLandCover(
       const lower = mixColor(valley, palette.montane, valleyToMontane);
       const middle = mixColor(lower, palette.subalpine, montaneToSubalpine);
       const hypsometric = mixColor(middle, palette.alpine, subalpineToAlpine);
-      const vegetated = mixColor(hypsometric, palette.forest, forest * 0.72);
+      const vegetated = mixColor(hypsometric, palette.forest, forest * 0.8);
       const upland = mixColor(vegetated, palette.alpine, alpine * 0.54);
       const color = mixColor(upland, palette.rock, exposedRock);
       for (let component = 0; component < 3; component += 1) {
         const sourceColor = source.material.tint[index * 3 + component]!;
         tint[index * 3 + component] =
-          color[component]! * 0.88 + sourceColor * 0.12;
+          color[component]! * 0.94 + sourceColor * 0.06;
       }
       occlusion[index] = clamp(
         0.9 + forest * 0.06 - wetness * 0.05 - exposedRock * 0.02,
