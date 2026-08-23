@@ -1472,6 +1472,18 @@ coordinate-gap, and no-data conflicts at seam
 `blake3:c9cbc46bcf9e656351832aef24304768a1f724e1a227cdf3b6628f671dc3a5dc`.
 Accelerated pixel checks remain required before acceptance.
 
+The exact v6 WebGL2 voyage passed structurally as
+`sha256:18ad395feaaeeca4820e75d312e49f60ecd2641bdb42caabe0d303cec5d84e0a`.
+Landscape capture
+`sha256:a9b56292c22a9a72bb944132b03533ae57971664496cd99d4aa20d21f32c8343`
+removes v5's literal crossing strokes and retains zero partition,
+relief-seam, tile-seam, and no-data-leak mismatches across all 12 level-9
+tiles. It does not accept v6: the separate 36-column independent-relief ramp
+ends as a visible vertical detail front inside Uplands. The source needs one
+continuous full-width zero-slope envelope rather than a second transition
+boundary. The 208,655 ms voyage and 566.6/1,500 ms Landscape median/p95
+presentation cadence remain failures.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence
