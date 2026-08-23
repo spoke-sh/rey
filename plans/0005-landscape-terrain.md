@@ -1272,6 +1272,22 @@ A deterministic flat-field fixture proves every flow vector remains zero and
 the derived authority discloses retained sinks. This is enabling engine work
 until a new exact v14 capture demonstrates removal of the presentation scars.
 
+The freshly rebuilt browser bundle passed the matching 1920×1080 WebGPU
+steep-relief voyage in manifest
+`sha256:d4201b52a27f50391a0875512cb5bb55015279af0977a4a8b2c2c53cae08da96`.
+It retained 88 tiles, 161,762 line segments, a 553.3-millisecond hierarchy-cache
+hit, and zero validity leaks or relief seams. The accumulation-dependent color
+read changed, proving that revision 8 executed, but the grid-aligned vertical
+cliff silhouettes remain. The source-side flat-escape displacement and the
+browser-side escape-flow presentation hypotheses are therefore both
+falsified. The remaining attribution to the admitted v14 field's aggressive
+D8-conditioned incision and post-fluvial shaping is an inference from those
+eliminations, not a new observation. This remains a major fidelity result; do
+not resume scalar tuning against this synthetic source. The next accepted
+terrain-source slice must provide materially stronger admitted geomorphic
+resolution, while the next engine slice must exercise the already-frozen
+multi-region contracts with an actual connected, conflict-free source set.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
