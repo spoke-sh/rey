@@ -1502,6 +1502,20 @@ coordinate-gap, and no-data conflicts at seam
 `blake3:bc0453a3d7ecd21c91b0e9e0cfabeb9510821b6e683303f315519680339c375c`.
 Accelerated pixels remain required.
 
+The exact v7 WebGL2 voyage passed structurally as
+`sha256:22fef15c205bf28314b9704d8c30a8b53cf137cf803c008d90ed5453f47e981a`.
+Landscape capture
+`sha256:a6788d52971a95e7437b21c88b3b168ece4ee61ca42a549e418ac9d5e0683eae`
+retains all 12 level-9 tiles and zero partition, relief-seam, tile-seam, and
+no-data-leak mismatches. Side-by-side with v6, independent detail now grows
+progressively instead of appearing after a binary zero-to-full switch-on; this
+accepts the internal detail-front correction. It does not accept Uplands or
+overall fidelity. Relief remains concentrated toward the eastern validity
+edge and reads as procedurally mottled rather than as coherent source-scale
+drainage; County remains low-contrast and broadly banded. The 208,449 ms
+voyage and 783.2/1,516.6 ms Landscape median/p95 presentation cadence remain
+failures.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence
