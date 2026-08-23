@@ -961,6 +961,19 @@ incomplete enabling work until a new editor scene, workload result, browser
 capture, and explicit perceptual assessment bind the exact candidate bytes;
 the existing major geomorphic judgment therefore stays open.
 
+`SCENE@14` and production admission result
+`blake3:0796c5c7826eaf6e1b3ebd1463202b0617d91cd71da43f664f9a2e6e0955995b`
+now bind those exact candidate bytes through the v3 human CLI path. The first
+WebGPU prewarm retained failure manifest
+`sha256:202e0ec2a94d59b811521aae2b708d0df1aea499854cde0b0d46ea3a778d5d8e`
+before Landscape entry: the complete denser hierarchy plus selected-tile
+output exceeded the prior 96 MiB transient compilation ceiling. This is a
+real bounded working-output increase rather than resident cache growth, so
+`rey.terrain.compilation-worker@10` raises only that ceiling to 112 MiB and
+exposes the terrain-surface failure detail to qualification diagnostics. The
+48 MiB CPU and 64 MiB GPU resident budgets remain unchanged pending the next
+voyage.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

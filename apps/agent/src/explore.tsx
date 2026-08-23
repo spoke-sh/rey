@@ -1298,6 +1298,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-terrain-surface-lifecycle={
             terrainSurfaceRenderer.status.lifecycle
           }
+          data-renderer-terrain-surface-status-detail={
+            terrainSurfaceRenderer.status.detail
+          }
           data-renderer-terrain-surface-mosaic-id={
             terrainSurfaceRenderer.landscape_mosaic_id
           }

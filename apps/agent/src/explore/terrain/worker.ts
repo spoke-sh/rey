@@ -42,8 +42,8 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@9" as const;
-export const MAX_TERRAIN_COMPILATION_OUTPUT_BYTES = 96 * 1024 * 1024;
+  "rey.terrain.compilation-worker@10" as const;
+export const MAX_TERRAIN_COMPILATION_OUTPUT_BYTES = 112 * 1024 * 1024;
 export const MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES = 48 * 1024 * 1024;
 
 export interface TerrainProgramWorkerRequest {

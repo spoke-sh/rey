@@ -9,10 +9,21 @@ import {
 } from "./regional-geography";
 import { refineRegionalTerrainField } from "./refinement";
 import { TerrainCompilationWorkerClient } from "./worker-client";
-import { executeTerrainCompilationJob } from "./worker";
+import {
+  executeTerrainCompilationJob,
+  MAX_TERRAIN_COMPILATION_OUTPUT_BYTES,
+  TERRAIN_COMPILATION_WORKER_REVISION,
+} from "./worker";
 import { admittedField, terrainTileView } from "./tiles.fixture";
 
 describe("bounded terrain compilation worker", () => {
+  it("retains the bounded high-density hierarchy output budget", () => {
+    expect(TERRAIN_COMPILATION_WORKER_REVISION).toBe(
+      "rey.terrain.compilation-worker@10",
+    );
+    expect(MAX_TERRAIN_COMPILATION_OUTPUT_BYTES).toBe(112 * 1024 * 1024);
+  });
+
   it("projects, resamples, and prepares a named tile workload", () => {
     const source = admittedField();
     const noDataIndex = 16 * source.grid.columns + 32;
