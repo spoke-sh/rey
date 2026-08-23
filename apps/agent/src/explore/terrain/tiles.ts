@@ -82,8 +82,16 @@ export interface TerrainTileSelection {
   pyramid_id: string;
   level: number;
   screen_error_pixels: number;
+  cpu_bytes: number;
+  gpu_bytes: number;
+  budget_limited: boolean;
   tile_ids: readonly string[];
   tiles: readonly TerrainTileDescriptor[];
+}
+
+export interface TerrainTileSelectionBudget {
+  maximum_cpu_bytes: number;
+  maximum_gpu_bytes: number;
 }
 
 export function projectTerrainTilePyramid(
@@ -444,13 +452,24 @@ export function selectTerrainTilesForView(
   pyramid: TerrainTilePyramid,
   view: TerrainCameraView,
   maximumScreenError = DEFAULT_TERRAIN_SCREEN_ERROR_PIXELS,
+  budget?: TerrainTileSelectionBudget,
 ): TerrainTileSelection {
   if (!Number.isFinite(maximumScreenError) || maximumScreenError <= 0)
     throw new Error("terrain screen-space error bound is invalid");
+  if (
+    budget &&
+    (!Number.isSafeInteger(budget.maximum_cpu_bytes) ||
+      !Number.isSafeInteger(budget.maximum_gpu_bytes) ||
+      budget.maximum_cpu_bytes < 1 ||
+      budget.maximum_gpu_bytes < 1)
+  )
+    throw new Error("terrain tile selection budgets are invalid");
   const visible = visibleTerrainBounds(view);
   let selected: TerrainTileDescriptor[] = [];
   let selectedLevel = pyramid.maximum_level;
   let selectedError = 0;
+  let selectedCpuBytes = 0;
+  let selectedGpuBytes = 0;
   for (let level = 0; level <= pyramid.maximum_level; level += 1) {
     const candidates = pyramid.tiles.filter(
       (tile) => tile.level === level && boundsIntersect(tile.bounds, visible),
@@ -461,11 +480,29 @@ export function selectTerrainTilesForView(
         Math.max(maximum, tile.geometric_error * view.rendered_scale),
       0,
     );
+    const cpuBytes = candidates.reduce(
+      (total, tile) => total + tile.cpu_bytes,
+      0,
+    );
+    const gpuBytes = candidates.reduce(
+      (total, tile) => total + tile.gpu_bytes,
+      0,
+    );
+    if (
+      budget &&
+      (cpuBytes > budget.maximum_cpu_bytes ||
+        gpuBytes > budget.maximum_gpu_bytes)
+    )
+      continue;
     selected = candidates;
     selectedLevel = level;
     selectedError = screenError;
+    selectedCpuBytes = cpuBytes;
+    selectedGpuBytes = gpuBytes;
     if (screenError <= maximumScreenError) break;
   }
+  if (selected.length === 0)
+    throw new Error("no visible terrain hierarchy level fits the tile budgets");
   selected.sort(
     (left, right) =>
       left.row - right.row ||
@@ -476,6 +513,9 @@ export function selectTerrainTilesForView(
     pyramid_id: pyramid.pyramid_id,
     level: selectedLevel,
     screen_error_pixels: selectedError,
+    cpu_bytes: selectedCpuBytes,
+    gpu_bytes: selectedGpuBytes,
+    budget_limited: selectedError > maximumScreenError,
     tile_ids: Object.freeze(selected.map((tile) => tile.tile_id)),
     tiles: Object.freeze(selected),
   });

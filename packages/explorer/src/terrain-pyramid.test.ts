@@ -32,7 +32,7 @@ describe("landscape pyramid contracts", () => {
     const height = finalizeLandscapeHeightPyramid(heightInput());
     const relief = finalizeLandscapeReliefPyramid(reliefInput(height), height);
 
-    expect(relief.schema).toBe("rey.landscape-relief-pyramid.v1");
+    expect(relief.schema).toBe("rey.landscape-relief-pyramid.v2");
     expect(relief.source_height_pyramid_id).toBe(height.pyramid_id);
     expect(relief.levels[1]!.source_height_level_id).toBe(
       height.levels[1]!.level_id,
@@ -155,6 +155,7 @@ function reliefInput(
     omissions: [],
     levels: height.levels.map((level, index) => ({
       level: level.level,
+      relief_field_id: `fixture:relief-field:${index}`,
       implementation_revision: "relief-level@1",
       source_height_level_id: level.level_id,
       sample_spacing_x_meters: level.sample_spacing_x_meters,

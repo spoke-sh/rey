@@ -18,11 +18,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
-pub const SCENE_ADMISSION_RESULT_SCHEMA: &str = "rey.scene-admission-result.v3";
+pub const SCENE_ADMISSION_RESULT_SCHEMA: &str = "rey.scene-admission-result.v4";
 pub const SCENE_ADMISSION_CANDIDATE_SCHEMA: &str = "rey.scene-admission-candidate.v1";
 pub const SCENE_ADMISSION_WORKLOAD_ID: &str = "scene-admission";
 pub const SCENE_ADMISSION_OPERATION_ID: &str = "rey.scene-admission.validate";
-pub const SCENE_ADMISSION_REQUESTED_OPERATION: &str = "rey.scene-admission.validate@3";
+pub const SCENE_ADMISSION_REQUESTED_OPERATION: &str = "rey.scene-admission.validate@4";
 pub const RENDER_ADMITTED_REGIONAL_SCENE_OPERATION_ID: &str =
     "rey.admitted-regional-scene.render-lines";
 pub const SCENE_ADMISSION_LANDSCAPE_SUMMARY_SCHEMA: &str =
@@ -480,7 +480,7 @@ impl SceneAdmissionResult {
 pub fn scene_admission_operation_contract() -> ContractIdentity {
     ContractIdentity::new(
         SCENE_ADMISSION_OPERATION_ID,
-        3,
+        4,
         "validate one exact current editor candidate transfer envelope and emit an accepted regional scene or typed rejection without mutating editor or Explorer state",
     )
 }
@@ -703,7 +703,7 @@ fn scene_admission_landscape_summary(
             "height pyramid contract is defined but no levels are materialized by scene admission",
         ),
         relief_pyramid: unavailable_pyramid_summary(
-            "rey.landscape-relief-pyramid.v1",
+            "rey.landscape-relief-pyramid.v2",
             "relief pyramid contract is defined but no levels or operator support are materialized by scene admission",
         ),
         renderer_budget: SceneAdmissionLandscapeRendererBudgetSummary {

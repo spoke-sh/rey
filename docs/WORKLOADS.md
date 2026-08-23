@@ -121,7 +121,7 @@ renderer fallback, residency, and CPU/GPU budgets unevaluated. The human run
 view and structured JSON carry the same typed summary.
 
 Typed-hydrology admission is a hard cut at
-`rey.scene-admission.validate@3` and `rey.scene-admission-result.v3`. V2
+`rey.scene-admission.validate@4` and `rey.scene-admission-result.v4`. Pre-v4
 results are not adapted or projected; a current editor scene must be qualified
 and admitted to replace them.
 

@@ -9148,7 +9148,7 @@ fn write_workload_test_start(
         )?;
         writeln!(
             output,
-            "  Operation   rey.scene-admission.validate@3 → rey.admitted-regional-scene.v1 → coordinate-explicit UTF-8 evidence"
+            "  Operation   rey.scene-admission.validate@4 → rey.admitted-regional-scene.v1 → coordinate-explicit UTF-8 evidence"
         )?;
     }
     if verbosity >= 2

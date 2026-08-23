@@ -367,7 +367,7 @@ export interface AdmittedRegionalScene {
 }
 
 export interface SceneAdmissionResult {
-  schema: "rey.scene-admission-result.v3";
+  schema: "rey.scene-admission-result.v4";
   result_id: string;
   candidate_id: string;
   workload: ContractIdentity;
@@ -440,7 +440,7 @@ export interface SceneAdmissionLandscapeSummary {
 
 export interface SceneAdmissionLandscapePyramidSummary {
   contract_schema:
-    "rey.landscape-height-pyramid.v1" | "rey.landscape-relief-pyramid.v1";
+    "rey.landscape-height-pyramid.v1" | "rey.landscape-relief-pyramid.v2";
   status: "contract_defined_not_materialized";
   pyramid_id: string | null;
   implementation_revision: string | null;

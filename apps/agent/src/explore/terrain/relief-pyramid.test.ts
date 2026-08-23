@@ -6,9 +6,20 @@ import {
 } from "@rey/explorer";
 import { describe, expect, it } from "vitest";
 import { admittedField } from "./tiles.fixture";
-import { compileMaterializedLandscapePyramid } from "./relief-pyramid";
+import {
+  compileMaterializedLandscapePyramid,
+  LANDSCAPE_RELIEF_DERIVATION_TILE_INTERVALS,
+} from "./relief-pyramid";
 
 describe("materialized landscape relief pyramid", () => {
+  it("uses a bounded production partition without excessive halo overlap", () => {
+    expect(LANDSCAPE_RELIEF_DERIVATION_TILE_INTERVALS).toBe(256);
+    const pyramid = compileMaterializedLandscapePyramid(admittedField(126, 94));
+    expect(pyramid.relief_levels.at(-1)!.tiles).toHaveLength(1);
+    expect(pyramid.border_mismatches).toBe(0);
+    expect(pyramid.partition_mismatches).toBe(0);
+  });
+
   it("derives every level from haloed tiles with exact borders and partitions", () => {
     const field = admittedField(126, 94);
     const noData = 37 * field.grid.columns + 51;

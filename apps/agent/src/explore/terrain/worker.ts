@@ -16,7 +16,11 @@ import {
   type TerrainProgram,
   type TerrainWorkingSetRequest,
 } from "./compile";
-import type { CompiledTerrainTile } from "./residency";
+import {
+  MAX_TERRAIN_TILE_CPU_BYTES,
+  MAX_TERRAIN_TILE_GPU_BYTES,
+  type CompiledTerrainTile,
+} from "./residency";
 import type { MaterializedLandscapeHeightHierarchy } from "./height-pyramid";
 import { LANDSCAPE_HEIGHT_HIERARCHY_REVISION } from "./height-pyramid";
 import {
@@ -46,8 +50,8 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@14" as const;
-export const MAX_TERRAIN_COMPILATION_OUTPUT_BYTES = 112 * 1024 * 1024;
+  "rey.terrain.compilation-worker@17" as const;
+export const MAX_TERRAIN_COMPILATION_OUTPUT_BYTES = 160 * 1024 * 1024;
 export const MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES = 112 * 1024 * 1024;
 
 export interface TerrainProgramWorkerRequest {
@@ -146,7 +150,14 @@ export function executeTerrainCompilationJob(
     projectMaterializedLandscapeTilePyramid(pyramid),
   );
   const selections = pyramids.map((pyramid) =>
-    selectTerrainTilesForView(pyramid, job.view),
+    selectTerrainTilesForView(pyramid, job.view, undefined, {
+      maximum_cpu_bytes: Math.floor(
+        MAX_TERRAIN_TILE_CPU_BYTES / Math.max(1, pyramids.length),
+      ),
+      maximum_gpu_bytes: Math.floor(
+        MAX_TERRAIN_TILE_GPU_BYTES / Math.max(1, pyramids.length),
+      ),
+    }),
   );
   const derivedLines = admittedFields.flatMap((field) =>
     deriveRegionalTerrainPresentationLines(field, job.regime),

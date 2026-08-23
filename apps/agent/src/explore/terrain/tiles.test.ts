@@ -164,6 +164,32 @@ describe("admitted terrain tile projection", () => {
     );
     expect(terrainTileSeamMismatchCount(close.tiles)).toBe(0);
   });
+
+  it("falls back to the finest visible hierarchy level inside residency budgets", () => {
+    const materialized = compileMaterializedLandscapePyramid(admittedField());
+    const pyramid = projectMaterializedLandscapeTilePyramid(materialized);
+    const view = terrainTileView(4);
+    const unrestricted = selectTerrainTilesForView(pyramid, view);
+    const root = pyramid.tiles.filter(({ level }) => level === 0);
+    const maximumCpuBytes = root.reduce(
+      (total, tile) => total + tile.cpu_bytes,
+      0,
+    );
+    const maximumGpuBytes = root.reduce(
+      (total, tile) => total + tile.gpu_bytes,
+      0,
+    );
+    const bounded = selectTerrainTilesForView(pyramid, view, 1e-9, {
+      maximum_cpu_bytes: maximumCpuBytes,
+      maximum_gpu_bytes: maximumGpuBytes,
+    });
+
+    expect(bounded.level).toBe(0);
+    expect(bounded.level).toBeLessThan(unrestricted.level);
+    expect(bounded.cpu_bytes).toBeLessThanOrEqual(maximumCpuBytes);
+    expect(bounded.gpu_bytes).toBeLessThanOrEqual(maximumGpuBytes);
+    expect(bounded.budget_limited).toBe(true);
+  });
 });
 
 function tileAt(

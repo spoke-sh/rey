@@ -104,7 +104,7 @@ export function admittedRegionalScenes(
       const terrainValid = scene ? validRegionalTerrain(scene) : false;
       if (
         !result ||
-        result.schema !== "rey.scene-admission-result.v3" ||
+        result.schema !== "rey.scene-admission-result.v4" ||
         result.status !== "accepted" ||
         result.scenario !== null ||
         !scene ||

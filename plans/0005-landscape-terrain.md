@@ -1310,6 +1310,38 @@ cache and was re-derived during Landscape entry. Candidate
 the existing 112 MiB compilation-output bound; the 48 MiB CPU and 64 MiB GPU
 tile-residency budgets do not change. A completed capture is still required.
 
+The cold two-region proof then exposed three independent contracts rather than
+one cache defect. `rey.terrain.relief-hierarchy@3` uses bounded 256-interval
+halo partitions to reduce redundant derivation work while retaining exact
+whole-field/partition and border equality. The resulting hierarchy plus
+selected Landscape tiles is 153,877,859 bytes, so
+`rey.terrain.compilation-worker@17` gives transient compilation output a
+separate 160 MiB ceiling while leaving the exact hierarchy cache at 112 MiB
+and resident tiles at 48 MiB CPU / 64 MiB GPU. Budget-aware selection now
+chooses the finest uniform materialized level inside those residency bounds
+and discloses any excess screen error. `rey.landscape-relief-pyramid.v2` and
+`rey.landscape-pyramid-envelope.v2` retain every level's complete relief-field
+identity, allowing that exact coarser level to be verified as a legitimate
+sampled consumer instead of recognizing only the finest field.
+
+This schema change is a hard cut through
+`rey.scene-admission.validate@4` / `rey.scene-admission-result.v4`; pre-v4
+workload, atlas, and regional admission state is removed before verification.
+Fresh `SCENE@22` Rey County result
+`blake3:4f75c206aaa09a4cec31618178dcb7f87c0ab68b5c8cb165461ce5745dd7d832`
+and fresh `SCENE@2` Eastern Uplands result
+`blake3:8dcedded17c429633ed6ac568f96fd612fe4411e5863914ef3e71f2203967c03`
+produce READY composition
+`blake3:1500034418656c2857c539b0fbb9e3b87753f09360873f2d8e9cc4e5d0381dc4`:
+two members, one connected component, one 168/168 valid terrain-qualified
+seam, and zero elevation, material, or composition conflicts. Fulfilled WebGPU
+voyages `sha256:112a3fceb5fd3eeb10321d389776189c5ebac9e0c29748ef4fa29f947c6106d4`
+and `sha256:920a139fd464b0382e9ff363ada8ad72df6589aee619be9f686f95303573d10b`
+did not reach Landscape: the pre-terrain World↔Atlas sampler observed only one
+reverse dissolve frame amid roughly 690 ms presentation gaps. That transition
+stall remains open, and no multi-region browser-capture or fidelity checkbox
+advances from these attempts.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

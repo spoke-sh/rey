@@ -88,10 +88,11 @@ surface detail.
 ## Height And Relief Pyramid Contracts
 
 `rey.landscape-height-pyramid.v1` and
-`rey.landscape-relief-pyramid.v1` are executable, content-identified contract
-schemas. Contract revision 2 requires every relief level to retain its
-derivation-tile count, maximum source gutter, and exact border-digest identity
-in addition to its derived channels. Their finalizers canonicalize lineage,
+`rey.landscape-relief-pyramid.v2` are executable, content-identified contract
+schemas. Contract revision 3 requires every relief level to retain the exact
+complete relief-field identity accepted by downstream sampled consumers in
+addition to its derivation-tile count, maximum source gutter, border digest,
+and derived channels. Their finalizers canonicalize lineage,
 channels, operators, and omissions before assigning BLAKE3 identities. Their verifiers require
 every level to retain metric x/y spacing, dimensions, common bounds,
 conservative valid/no-data/unsupported counts, byte cost, exact source
@@ -105,7 +106,7 @@ validity policy, and derived channel set. A supported operator is invalid when
 its gutter is narrower than its kernel support. Relief geometry and validity
 must match the bound height level exactly.
 
-`rey.landscape-pyramid-envelope.v1` binds the complete admitted mosaic and its
+`rey.landscape-pyramid-envelope.v2` binds the complete admitted mosaic and its
 materialized height/relief hierarchy to those schemas. The envelope
 content-identifies exact height, validity-class, hillshade, salience, tangent,
 derivation-tile, maximum-gutter, and border-digest content at every level. Both
@@ -114,12 +115,14 @@ envelope before sampling camera tiles; diagnostics retain its identities,
 completion, level/byte counts, gutters, border digests, and zero-mismatch
 results.
 
-`rey.terrain.relief-hierarchy@2` partitions every level into bounded
-32-interval interiors, expands each source window by the largest supported
+`rey.terrain.relief-hierarchy@3` partitions every level into bounded
+256-interval interiors, expands each source window by the largest supported
 metric operator, derives from that halo, and then crops the interior. The
 assembled result must equal whole-level derivation within the named `1e-6`
 numeric tolerance; overlapping interiors and tolerance-canonicalized adjacent
-border digests must agree. The earlier one-level, zero-gutter fallback has
+border digests must agree. The larger bounded derivation partition reduces
+redundant halo overlap without changing validity, operator support, or the
+whole-field equivalence proof. The earlier one-level, zero-gutter fallback has
 been removed. `rey.terrain.dataset-tiles@2` now projects camera tiles directly
 from those materialized levels instead of striding over the finest field.
 Selection uses conservative cumulative screen-space error and one uniform
@@ -373,22 +376,25 @@ an imagery layer from elevation or styling.
 ## Tiling, Workers, And Residency
 
 `@rey/agent` projects the admitted `rey.landscape-height-pyramid.v1` and
-`rey.landscape-relief-pyramid.v1` into `rey.terrain-tile-pyramid.v1`. Tile
+`rey.landscape-relief-pyramid.v2` into `rey.terrain-tile-pyramid.v1`. Tile
 identities bind the mosaic, exact height and relief levels, operator revision,
 validity support, and border digest. Every level shares exact edge samples and
 validity borders. Coarse validity is conservative: a no-data source sample may
 remove coarse support but cannot become a valid coarse vertex. Camera
 selection chooses a uniform level from cumulative hierarchy error, preventing
-mixed-level edge cracks while retaining screen-space control.
+mixed-level edge cracks while retaining screen-space control. If the target
+screen error would exceed the retained tile budgets, selection falls back to
+the finest visible uniform level that fits and discloses the resulting error
+instead of failing residency or silently raising a budget.
 
-`rey.terrain.compilation-worker@13` runs hierarchy projection, haloed relief
+`rey.terrain.compilation-worker@17` runs hierarchy projection, haloed relief
 derivation, exact relief sampling, procedural field evaluation, partition and
 border parity checking, and mesh preparation in a cancellable dedicated
 worker. `rey.terrain.regional-mosaic@8` hashes every composed typed channel,
 grid/frame parameter, source owner, and compiler revision into an exact field
 content identity before the field reaches that worker. Its complete hierarchy
 plus selected-tile output has a separate
-112 MiB bound; that transient compilation-output bound is not the 48 MiB
+160 MiB bound; that transient compilation-output bound is not the 48 MiB
 resident-tile budget. The deterministic reference field remains visible while work is
 pending or after failure. A disclosed main-thread fallback exists where
 `Worker` is unavailable. `rey.terrain.tile-residency@2` retains compiled tiles

@@ -9,15 +9,15 @@ import type { TerrainFieldSetInput } from "./types";
 export const LANDSCAPE_HEIGHT_PYRAMID_SCHEMA =
   "rey.landscape-height-pyramid.v1" as const;
 export const LANDSCAPE_RELIEF_PYRAMID_SCHEMA =
-  "rey.landscape-relief-pyramid.v1" as const;
+  "rey.landscape-relief-pyramid.v2" as const;
 export const LANDSCAPE_PYRAMID_ENVELOPE_SCHEMA =
-  "rey.landscape-pyramid-envelope.v1" as const;
+  "rey.landscape-pyramid-envelope.v2" as const;
 export const LANDSCAPE_HEIGHT_PYRAMID_CONTRACT_REVISION =
   "rey.landscape-height-pyramid-contract@2" as const;
 export const LANDSCAPE_RELIEF_PYRAMID_CONTRACT_REVISION =
-  "rey.landscape-relief-pyramid-contract@2" as const;
+  "rey.landscape-relief-pyramid-contract@3" as const;
 export const LANDSCAPE_PYRAMID_ENVELOPE_REVISION =
-  "rey.landscape-pyramid-envelope@2" as const;
+  "rey.landscape-pyramid-envelope@3" as const;
 
 export interface LandscapePyramidBounds {
   x: number;
@@ -87,6 +87,7 @@ export interface LandscapeReliefOperatorSupport {
 
 export interface LandscapeReliefPyramidLevel {
   level_id: string;
+  relief_field_id: string;
   level: number;
   implementation_revision: string;
   parent_level_id: string | null;
@@ -396,6 +397,7 @@ export function verifyLandscapeReliefPyramid(
     verifyLineage(level.source_lineage);
     if (
       !level.implementation_revision ||
+      !level.relief_field_id ||
       level.source_height_level_id !== heightLevel.level_id ||
       level.sample_spacing_x_meters !== heightLevel.sample_spacing_x_meters ||
       level.sample_spacing_y_meters !== heightLevel.sample_spacing_y_meters ||
@@ -472,6 +474,7 @@ function verifyLandscapePyramidFieldBinding(
     heightLevel.validity_bytes !==
       field.validity_classification?.values.byteLength ||
     reliefLevel.relief_bytes !== landscapeReliefFieldByteLength(relief) ||
+    reliefLevel.relief_field_id !== relief.relief_field_id ||
     JSON.stringify(reliefLevel.channel_ids) !==
       JSON.stringify(expectedReliefChannels)
   )

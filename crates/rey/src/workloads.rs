@@ -21,7 +21,8 @@ use rey_runtime::{
     PortfolioSnapshot, PortfolioSurfaceObservation, PortfolioWorkloadObservation,
     QualificationRecord, RENDER_ADMITTED_REGIONAL_SCENE_OPERATION_ID,
     RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, RunStatus, SCENE_ADMISSION_OPERATION_ID,
-    SCENE_ADMISSION_WORKLOAD_ID, Scenario, ScenarioSuite, SceneAdmissionResult,
+    SCENE_ADMISSION_RESULT_SCHEMA, SCENE_ADMISSION_WORKLOAD_ID, Scenario, ScenarioSuite,
+    SceneAdmissionResult,
     SceneAdmissionScenario, TestStatus,
     TopographySurveyScenario, ValueSource, ValueType, WorkloadAttention, WorkloadDefinition,
     WorkloadDefinitionParts, WorkloadGitDependency, WorkloadGitDependencyKind, WorkloadLimits,
@@ -2409,13 +2410,13 @@ impl LocalWorkloadState {
                 record
                     .last_test
                     .as_ref()
-                    .is_some_and(|result| result.workload.revision < 3)
+                    .is_some_and(|result| result.workload.revision < 4)
                     || record
                         .last_run
                         .as_ref()
-                        .is_some_and(|result| result.workload.revision < 3)
+                        .is_some_and(|result| result.workload.revision < 4)
                     || record.prior_scene_admissions.iter().any(|admission| {
-                        admission.schema == "rey.scene-admission-result.v2"
+                        admission.schema != SCENE_ADMISSION_RESULT_SCHEMA
                     })
             });
         if !obsolete {
@@ -2431,7 +2432,7 @@ impl LocalWorkloadState {
             .iter()
             .filter(|admission| {
                 admission.workload.id == SCENE_ADMISSION_WORKLOAD_ID
-                    && admission.workload.revision < 3
+                    && admission.workload.revision < 4
             })
             .map(|admission| admission.admission_id.clone())
             .collect::<BTreeSet<_>>();
@@ -5152,7 +5153,7 @@ mod tests {
     }
 
     #[test]
-    fn state_load_hard_cuts_v2_scene_admission_without_masking_v3_tampering() {
+    fn state_load_hard_cuts_pre_v4_scene_admission_without_masking_v4_tampering() {
         let directory = TempDir::new().unwrap();
         let package = directory.path().join("sys/scene-admission");
         fs::create_dir_all(&package).unwrap();
@@ -5171,7 +5172,7 @@ mod tests {
         let mut document: serde_json::Value =
             serde_json::from_slice(&fs::read(store.path()).unwrap()).unwrap();
         document["records"][SCENE_ADMISSION_WORKLOAD_ID]["last_test"]["workload"]
-            ["revision"] = 2.into();
+            ["revision"] = 3.into();
         fs::write(store.path(), serde_json::to_vec(&document).unwrap()).unwrap();
         assert!(
             store

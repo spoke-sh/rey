@@ -20,9 +20,9 @@ import { admittedField, terrainTileView } from "./tiles.fixture";
 describe("bounded terrain compilation worker", () => {
   it("retains the bounded high-density hierarchy output budget", () => {
     expect(TERRAIN_COMPILATION_WORKER_REVISION).toBe(
-      "rey.terrain.compilation-worker@14",
+      "rey.terrain.compilation-worker@17",
     );
-    expect(MAX_TERRAIN_COMPILATION_OUTPUT_BYTES).toBe(112 * 1024 * 1024);
+    expect(MAX_TERRAIN_COMPILATION_OUTPUT_BYTES).toBe(160 * 1024 * 1024);
     expect(MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES).toBe(112 * 1024 * 1024);
   });
 

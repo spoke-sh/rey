@@ -34,8 +34,8 @@ import {
 import { deriveTerrainNormals } from "./normals";
 
 export const LANDSCAPE_RELIEF_HIERARCHY_REVISION =
-  "rey.terrain.relief-hierarchy@2" as const;
-export const LANDSCAPE_RELIEF_DERIVATION_TILE_INTERVALS = 64;
+  "rey.terrain.relief-hierarchy@3" as const;
+export const LANDSCAPE_RELIEF_DERIVATION_TILE_INTERVALS = 256;
 export const LANDSCAPE_RELIEF_PARTITION_TOLERANCE = 1e-6;
 
 type ReliefBorder = "north" | "east" | "south" | "west";
@@ -243,6 +243,7 @@ function sharedReliefPyramid(
         const relief = level.relief;
         return {
           level: level.level,
+          relief_field_id: relief.relief_field_id,
           implementation_revision: LANDSCAPE_RELIEF_HIERARCHY_REVISION,
           source_height_level_id: heightLevel.level_id,
           sample_spacing_x_meters: heightLevel.sample_spacing_x_meters,

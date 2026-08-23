@@ -7408,7 +7408,7 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
         "SOURCE RESOLUTION {\"schema\":\"rey.landscape-source-resolution.v1\"",
         "LANDSCAPE MOSAIC {\"schema\":\"rey.landscape-mosaic-summary.v1\",\"status\":\"not_composed_in_scene_admission\"",
         "HEIGHT PYRAMID {\"contract_schema\":\"rey.landscape-height-pyramid.v1\",\"status\":\"contract_defined_not_materialized\"",
-        "RELIEF PYRAMID {\"contract_schema\":\"rey.landscape-relief-pyramid.v1\",\"status\":\"contract_defined_not_materialized\"",
+        "RELIEF PYRAMID {\"contract_schema\":\"rey.landscape-relief-pyramid.v2\",\"status\":\"contract_defined_not_materialized\"",
         "RENDERER BUDGET {\"schema\":\"rey.landscape-renderer-budget-summary.v1\",\"status\":\"not_evaluated_in_scene_admission\"",
     ] {
         assert!(human.contains(evidence), "missing run evidence: {evidence}");

@@ -354,8 +354,11 @@ function verifyPyramidEnvelopeSet(
   reliefFields: readonly LandscapeReliefField[],
   envelopes: readonly LandscapePyramidEnvelope[],
 ): void {
-  const reliefSourceIds = new Set(
-    reliefFields.map(({ source_field_set_id }) => source_field_set_id),
+  const consumedReliefIds = new Set(
+    reliefFields.flatMap(({ relief_field_id, source_relief_field_id }) => [
+      relief_field_id,
+      ...(source_relief_field_id ? [source_relief_field_id] : []),
+    ]),
   );
   if (
     new Set(envelopes.map(({ field_set_id }) => field_set_id)).size !==
@@ -364,7 +367,11 @@ function verifyPyramidEnvelopeSet(
     throw new Error("accelerated terrain pyramid envelope set is ambiguous");
   for (const envelope of envelopes) {
     verifyLandscapePyramidEnvelope(envelope);
-    if (!reliefSourceIds.has(envelope.field_set_id))
+    if (
+      !envelope.relief_pyramid.levels.some(({ relief_field_id }) =>
+        consumedReliefIds.has(relief_field_id),
+      )
+    )
       throw new Error(
         "accelerated terrain pyramid envelope has no sampled relief consumer",
       );
