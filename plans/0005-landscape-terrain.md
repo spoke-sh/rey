@@ -1417,9 +1417,21 @@ first interior column, then transitions over 24 columns into an eight-row
 low-pass boundary height/slope trend before independent landforms take over.
 The mean row second difference at corridor column 8 falls from 4.845 m to
 1.251 m and reaches 0.170 m at column 24 while all 168 seam derivative and
-material differences remain zero. This replacement is again candidate-only
-until fresh admission and capture; the failed visual iteration advances no
-fidelity judgment.
+material differences remain zero. Fresh Eastern Uplands `SCENE@4` admission
+result
+`blake3:64aad48572f5d6254b3f6bddcee0fe9366a0fcb4d7f441eba1975b845ac68362`
+produced READY regional composition
+`blake3:7d7a5b0f9e21f3da21c4f1513b263bfb5d435cee184d3ef949b16210a6964d73`.
+Its fulfilled-transport WebGL2 voyage passed structurally as
+`sha256:3ffe1440e582d4b9e5c784bcc467dae3dfd86e22618cea3295bd09c3270927f4`;
+Landscape capture
+`sha256:a6f578ecc43115f469cc493f5ed70c0cceebaa08a64be3928aa63c361b25bf08`
+removes the rejected v2 horizontal bands while retaining zero screen error,
+zero relief-partition, relief-seam, tile-seam, and no-data-leak mismatches.
+The thin shared edge remains an explicit admitted regional boundary vector,
+not a height seam. The neighbor's broad low-detail forms and the County's
+source-scale bands remain major fidelity gaps, so this accepts only the C1
+source-continuity correction and does not advance the overall perceptual gate.
 
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
