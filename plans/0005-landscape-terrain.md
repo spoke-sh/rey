@@ -1538,6 +1538,21 @@ coordinate-gap, and no-data conflicts at seam
 This remains source-controlled enabling work until an accelerated capture
 binds and perceptually assesses the exact admitted bytes.
 
+The exact v8 WebGL2 voyage passed structurally as
+`sha256:492d9919ab08f1d3e4170a12cd00f8921277f4637420d54221372407cc1a6c85`.
+Landscape capture
+`sha256:76830b0110de6f559ea6006e22d5fa4d8a300f5237a5c3cc546a5d32390685ad`
+retains all 12 level-9 tiles, zero screen error, and zero partition,
+relief-seam, tile-seam, and no-data-leak mismatches. Side-by-side with v7, the
+admitted drainage slightly deepens branching form without introducing linear
+D8 scars or changing the qualified seam. This accepts the bounded source
+drainage mechanism only. It does not accept Uplands or overall fidelity: the
+relief is still concentrated toward the eastern validity edge and its broad
+independent-relief entry still reads as a tonal zone rather than one regional
+landform; County remains low-contrast and broadly banded. The 203,964 ms voyage
+and 1,133.2/2,233.2 ms Landscape median/p95 presentation cadence remain
+explicit failures.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence
