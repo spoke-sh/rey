@@ -1278,9 +1278,7 @@ async function verifyAtlasLandscapeContinuity(
 }
 
 async function waitForSettledExplorerCommunicationLayout(connection) {
-  await waitFor(
-    connection,
-    `(() => {
+  const layoutExpression = `(() => {
       const footer = document.querySelector('[data-explorer-footer]');
       const diagnostics = document.querySelector('[data-renderer-diagnostics]');
       if (!footer || !diagnostics) return false;
@@ -1290,10 +1288,36 @@ async function waitForSettledExplorerCommunicationLayout(connection) {
       return visible
         ? footerBounds.height > 24 && diagnosticsBounds.bottom <= footerBounds.top + 1
         : footerBounds.height <= 1.5;
-    })()`,
-    "settled Explorer communication layout",
-    5_000,
-  );
+    })()`;
+  try {
+    // MAP READY can publish immediately before capture. Its contractual five
+    // second minimum plus the 260 ms exit transition must fit inside this
+    // bounded wait; the former 5 s deadline raced that valid lifecycle.
+    await waitFor(
+      connection,
+      layoutExpression,
+      "settled Explorer communication layout",
+      10_000,
+    );
+  } catch (error) {
+    const observed = await connection.evaluate(`(() => {
+      const footer = document.querySelector('[data-explorer-footer]');
+      const diagnostics = document.querySelector('[data-renderer-diagnostics]');
+      const bounds = (element) => {
+        const value = element?.getBoundingClientRect();
+        return value ? { bottom: value.bottom, height: value.height, top: value.top } : null;
+      };
+      return {
+        diagnostics: bounds(diagnostics),
+        footer: bounds(footer),
+        footer_phase: footer?.getAttribute('data-notice-phase') ?? null,
+        footer_visible: footer?.getAttribute('data-visible') ?? null,
+      };
+    })()`);
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}; observed ${JSON.stringify(observed)}`,
+    );
+  }
 }
 
 async function captureStage(connection, voyageDirectory, stage, startedAt) {
