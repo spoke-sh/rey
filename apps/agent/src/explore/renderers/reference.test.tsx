@@ -708,6 +708,49 @@ describe("reference renderer", () => {
       "data-height-relief-hierarchy-id=",
     );
     expect(acceleratedAtlasMarkup).toContain(presentation.css_transform);
+
+    const workerFabricMarkup = renderToStaticMarkup(
+      <ReferenceRenderer
+        atlasLandscapeMorphProgress={presentation.progress}
+        atlasLandscapePresentation={presentation}
+        deferTerrainFabricToAcceleratedSurface
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        scene={{ ...landscapeScene, regime: "atlas", terrain: false }}
+        terrainFabrics={[
+          {
+            source_field_set_id: landscapeScene.terrain_fields[0]!.field_set_id,
+            hierarchy_id: "height-hierarchy:worker",
+            relief_field_id: "relief:worker",
+            samples: [
+              {
+                sample_id: "fabric:one",
+                source_sample_id: "sample:one",
+                source_field_set_id:
+                  landscapeScene.terrain_fields[0]!.field_set_id,
+                source_relief_field_id: "relief:worker",
+                source_column: 0,
+                source_row: 0,
+                u: 0.5,
+                v: 0.5,
+                brightness: 0.8,
+                relief: 0.7,
+                tangent_u: 1,
+                tangent_v: 0,
+                length: 1,
+                reveal_priority: 0.9,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+    expect(workerFabricMarkup).toContain(
+      'data-height-relief-hierarchy-id="height-hierarchy:worker"',
+    );
+    expect(workerFabricMarkup).toContain(
+      'data-relief-field-id="relief:worker"',
+    );
   });
 
   it("eases an Atlas node label's white halo in as the morph reaches the flat map", () => {

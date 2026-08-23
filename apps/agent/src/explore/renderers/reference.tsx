@@ -22,6 +22,7 @@ import type {
   TopologyScene,
   TopologyTone,
 } from "../../topology";
+import type { TerrainCompilationFabric } from "../terrain/worker";
 import {
   contextGlobePolePatterns,
   contextGlobeSamples,
@@ -101,6 +102,7 @@ export function ReferenceRenderer({
   accelerated = false,
   terrainAccelerated = accelerated,
   deferTerrainFabricToAcceleratedSurface = false,
+  terrainFabrics = [],
   layers,
   onFocus,
   scene,
@@ -114,6 +116,7 @@ export function ReferenceRenderer({
   accelerated?: boolean;
   terrainAccelerated?: boolean;
   deferTerrainFabricToAcceleratedSurface?: boolean;
+  terrainFabrics?: readonly TerrainCompilationFabric[];
   layers: ReferenceLayerVisibility;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
@@ -302,8 +305,11 @@ export function ReferenceRenderer({
           <AdmittedTerrainFieldLayer scene={scene} />
         ) : null}
         {scene.atlas_landscape_transition &&
-        !deferTerrainFabricToAcceleratedSurface ? (
+        (!deferTerrainFabricToAcceleratedSurface ||
+          terrainFabrics.length > 0) ? (
           <TerrainMorphFabricLayer
+            accelerated={deferTerrainFabricToAcceleratedSurface}
+            preparedFabrics={terrainFabrics}
             progress={atlasLandscapeMorphProgress}
             scene={scene}
           />
@@ -320,6 +326,7 @@ export function ReferenceRenderer({
           deferTerrainFabricToAcceleratedSurface={
             deferTerrainFabricToAcceleratedSurface
           }
+          terrainFabrics={terrainFabrics}
           globeView={globeView}
           labelPlacements={atlasLabelPlacements}
           landscapeMorphProgress={atlasLandscapeMorphProgress}
@@ -578,21 +585,57 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
 }
 
 function TerrainMorphFabricLayer({
+  accelerated,
+  preparedFabrics,
   progress,
   scene,
 }: {
+  accelerated: boolean;
+  preparedFabrics: readonly TerrainCompilationFabric[];
   progress: number;
   scene: TopologyScene;
 }) {
-  const fabrics = useMemo(
-    () =>
-      scene.terrain_fields
-        .filter((candidate) =>
-          candidate.active_band_ids.includes("admitted_dem"),
-        )
-        .map((field) => materializedTerrainFabric(field)),
-    [scene.terrain_fields],
+  const fabrics = useMemo(() => {
+    if (preparedFabrics.length > 0)
+      return preparedFabrics.flatMap((fabric) => {
+        const field = scene.terrain_fields.find(
+          ({ field_set_id: fieldSetId }) =>
+            fieldSetId === fabric.source_field_set_id,
+        );
+        return field ? [{ field, ...fabric }] : [];
+      });
+    return scene.terrain_fields
+      .filter((candidate) => candidate.active_band_ids.includes("admitted_dem"))
+      .map((field) => materializedTerrainFabric(field));
+  }, [preparedFabrics, scene.terrain_fields]);
+  if (accelerated)
+    return (
+      <TerrainMorphFabricCanvasLayer
+        fabrics={fabrics}
+        progress={progress}
+        scene={scene}
+      />
+    );
+  return (
+    <TerrainMorphFabricSvgLayer
+      fabrics={fabrics}
+      progress={progress}
+      scene={scene}
+    />
   );
+}
+
+function TerrainMorphFabricSvgLayer({
+  fabrics,
+  progress,
+  scene,
+}: {
+  fabrics: readonly (TerrainCompilationFabric & {
+    field: TopologyScene["terrain_fields"][number];
+  })[];
+  progress: number;
+  scene: TopologyScene;
+}) {
   const roundedProgress =
     Math.round(Math.max(0, Math.min(1, progress)) * 50) / 50;
   const paths = useMemo(() => {
@@ -649,6 +692,110 @@ function TerrainMorphFabricLayer({
   );
 }
 
+const ACCELERATED_TERRAIN_FABRIC_REVEAL_STEPS = 16;
+
+/**
+ * The accelerated morph keeps the exact worker-derived relief samples, but
+ * paints their progressive prefix into one retained bitmap instead of
+ * replacing a multi-thousand-segment SVG path on every camera frame. The
+ * canvas is repainted only when a reveal step changes; the per-frame fade is
+ * then a compositor opacity update.
+ */
+function TerrainMorphFabricCanvasLayer({
+  fabrics,
+  progress,
+  scene,
+}: {
+  fabrics: readonly (TerrainCompilationFabric & {
+    field: TopologyScene["terrain_fields"][number];
+  })[];
+  progress: number;
+  scene: TopologyScene;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const boundedProgress = Math.max(0, Math.min(1, progress));
+  const revealStep = Math.round(
+    boundedProgress * ACCELERATED_TERRAIN_FABRIC_REVEAL_STEPS,
+  );
+  const revealProgress = revealStep / ACCELERATED_TERRAIN_FABRIC_REVEAL_STEPS;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    if (revealProgress <= 0) return;
+    const totalSampleCount = Math.round(
+      ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT +
+        (REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT -
+          ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT) *
+          revealProgress,
+    );
+    const samplesPerField = Math.max(
+      80,
+      Math.floor(totalSampleCount / Math.max(1, fabrics.length)),
+    );
+    const counterScale = Number.parseFloat(
+      getComputedStyle(canvas).getPropertyValue("--rey-terrain-counter-scale"),
+    );
+    context.lineCap = "round";
+    context.lineWidth =
+      1.3 * (Number.isFinite(counterScale) ? counterScale : 1);
+    for (let brightnessBand = 0; brightnessBand < 4; brightnessBand += 1) {
+      context.beginPath();
+      for (const { field, samples } of fabrics) {
+        for (const sample of samples.slice(0, samplesPerField)) {
+          if (Math.min(3, Math.floor(sample.brightness * 4)) !== brightnessBand)
+            continue;
+          const centerX =
+            field.grid.bounds.x + sample.u * field.grid.bounds.width;
+          const centerY =
+            field.grid.bounds.y + sample.v * field.grid.bounds.height;
+          const length = Math.max(0.5, sample.length);
+          const x = centerX - (sample.tangent_u * length) / 2;
+          const y = centerY - (sample.tangent_v * length) / 2;
+          context.moveTo(x, y);
+          context.lineTo(
+            x + sample.tangent_u * length,
+            y + sample.tangent_v * length,
+          );
+        }
+      }
+      context.strokeStyle = `rgba(36, 59, 56, ${0.28 + brightnessBand * 0.09})`;
+      context.stroke();
+    }
+  }, [fabrics, revealProgress]);
+  if (fabrics.length === 0) return null;
+  return (
+    <canvas
+      aria-hidden="true"
+      className={sx(styles.worldGeometryLayer)}
+      data-height-relief-hierarchy-id={fabrics
+        .map(({ hierarchy_id: hierarchyId }) => hierarchyId)
+        .join(",")}
+      data-landscape-terrain-fabric={LANDSCAPE_TERRAIN_FABRIC_REVISION}
+      data-landscape-terrain-hierarchy={fabrics
+        .map(({ hierarchy_id: hierarchyId }) => hierarchyId)
+        .join(",")}
+      data-landscape-terrain-patches={fabrics.length}
+      data-landscape-terrain-relief={fabrics
+        .map(({ relief_field_id: reliefFieldId }) => reliefFieldId)
+        .join(",")}
+      data-relief-field-id={fabrics
+        .map(({ relief_field_id: reliefFieldId }) => reliefFieldId)
+        .join(",")}
+      height={scene.world.height}
+      ref={canvasRef}
+      style={{
+        opacity:
+          boundedProgress <= 0 || boundedProgress >= 1
+            ? 0
+            : 1 - boundedProgress,
+      }}
+      width={scene.world.width}
+    />
+  );
+}
+
 const ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT = 260;
 
 function AtlasFeatureLayer({
@@ -661,6 +808,7 @@ function AtlasFeatureLayer({
   onFocus,
   projectionMorphProgress,
   scene,
+  terrainFabrics,
   wrapOffset,
   wrapIndexes,
 }: {
@@ -673,6 +821,7 @@ function AtlasFeatureLayer({
   onFocus: (node: FocusableTopologyObject) => void;
   projectionMorphProgress: number;
   scene: TopologyScene;
+  terrainFabrics: readonly TerrainCompilationFabric[];
   wrapOffset: number;
   wrapIndexes: readonly number[];
 }) {
@@ -741,16 +890,21 @@ function AtlasFeatureLayer({
   // that (cheap, but not free at ~2,600 segments) work from re-running on
   // every single frame — this was expensive enough to visibly stall the
   // Atlas-to-Landscape morph before this fix.
-  const focusedFabric = useMemo(
-    () =>
-      focusedTerrain && !deferTerrainFabricToAcceleratedSurface
-        ? materializedTerrainFabric(focusedTerrain)
-        : null,
-    [deferTerrainFabricToAcceleratedSurface, focusedTerrain],
-  );
+  const focusedFabric = useMemo(() => {
+    if (!focusedTerrain) return null;
+    const prepared = terrainFabrics.find(
+      ({ source_field_set_id: fieldSetId }) =>
+        fieldSetId === focusedTerrain.field_set_id,
+    );
+    if (prepared) return { field: focusedTerrain, ...prepared };
+    return deferTerrainFabricToAcceleratedSurface
+      ? null
+      : materializedTerrainFabric(focusedTerrain);
+  }, [deferTerrainFabricToAcceleratedSurface, focusedTerrain, terrainFabrics]);
   const focusedFullSamples = focusedFabric?.samples ?? null;
-  const roundedLandscapeMorphProgress =
-    Math.round(landscapeMorphProgress * 50) / 50;
+  const roundedLandscapeMorphProgress = accelerated
+    ? 0
+    : Math.round(landscapeMorphProgress * 50) / 50;
   const focusedStipplePath = useMemo(() => {
     if (!focusedRegion || !focusedFullSamples) return "";
     const sampleCount = Math.round(
@@ -939,6 +1093,7 @@ function compileTerrainFabric(source: TopologyScene["terrain_fields"][number]) {
   const fine = pyramid.relief_levels.at(-1)!;
   return Object.freeze({
     field: fine.field,
+    source_field_set_id: source.field_set_id,
     relief_field_id: fine.relief.relief_field_id,
     hierarchy_id: pyramid.hierarchy_id,
     samples: landscapeTerrainFabricSamples(

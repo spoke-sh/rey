@@ -102,8 +102,7 @@ describe("Explorer canvas toolbar", () => {
       ),
     ).toMatchObject({
       rendered_scale:
-        first.rendered_scale *
-        ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE,
+        first.rendered_scale * ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE,
       viewport_width: 960,
       viewport_height: 540,
       pitch_degrees: first.pitch_degrees,

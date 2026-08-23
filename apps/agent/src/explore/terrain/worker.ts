@@ -1,11 +1,13 @@
 import {
   compileContinuousRelief,
   deriveLandscapeReliefField,
+  landscapeTerrainFabricSamples,
   landscapePyramidContentId,
   landscapeReliefFieldByteLength,
   terrainNoDataLeakTriangleCount,
   type CompiledContinuousRelief,
   type LandscapePyramidEnvelope,
+  type LandscapeTerrainFabricSample,
   type TerrainLineFeatureInput,
 } from "@rey/explorer";
 import type { LensRegime } from "../engine/camera";
@@ -50,9 +52,10 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@19" as const;
+  "rey.terrain.compilation-worker@20" as const;
 export const MAX_TERRAIN_COMPILATION_OUTPUT_BYTES = 160 * 1024 * 1024;
 export const MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES = 112 * 1024 * 1024;
+export const TERRAIN_COMPILATION_FABRIC_SAMPLE_LIMIT = 2_600;
 
 export interface TerrainProgramWorkerRequest {
   program: TerrainProgram;
@@ -113,7 +116,15 @@ export interface TerrainCompilationResult {
   fields: readonly TerrainFieldSet[];
   compiled: CompiledContinuousRelief;
   derived_lines: readonly TerrainLineFeatureInput[];
+  terrain_fabrics: readonly TerrainCompilationFabric[];
   metrics: TerrainCompilationMetrics;
+}
+
+export interface TerrainCompilationFabric {
+  source_field_set_id: string;
+  hierarchy_id: string;
+  relief_field_id: string;
+  samples: readonly LandscapeTerrainFabricSample[];
 }
 
 export function executeTerrainCompilationJob(
@@ -235,6 +246,22 @@ export function executeTerrainCompilationJob(
     ...passthroughFields.map(deriveLandscapeReliefField),
     ...evaluatedFields.map(deriveLandscapeReliefField),
   ];
+  const terrainFabrics =
+    job.presentation_mode === "moving"
+      ? materializedLandscapePyramids.map((pyramid, index) => {
+          const fine = pyramid.relief_levels.at(-1)!;
+          return Object.freeze({
+            source_field_set_id: admittedSourceFields[index]!.field_set_id,
+            hierarchy_id: pyramid.hierarchy_id,
+            relief_field_id: fine.relief.relief_field_id,
+            samples: landscapeTerrainFabricSamples(
+              fine.field,
+              fine.relief,
+              TERRAIN_COMPILATION_FABRIC_SAMPLE_LIMIT,
+            ),
+          });
+        })
+      : [];
   const cpuBytes =
     fields.reduce((total, field) => total + field.field_bytes, 0) +
     materializedLandscapePyramids.reduce(
@@ -243,6 +270,10 @@ export function executeTerrainCompilationJob(
     ) +
     reliefFields.reduce(
       (total, relief) => total + landscapeReliefFieldByteLength(relief),
+      0,
+    ) +
+    terrainFabrics.reduce(
+      (total, fabric) => total + fabric.samples.length * 96,
       0,
     );
   if (cpuBytes > job.maximum_cpu_bytes)
@@ -293,6 +324,7 @@ export function executeTerrainCompilationJob(
     fields: Object.freeze(fields),
     compiled,
     derived_lines: Object.freeze(derivedLines),
+    terrain_fabrics: Object.freeze(terrainFabrics),
     metrics: Object.freeze({
       workload_id: job.workload_id,
       update_ms: measurementNow() - updateStarted,

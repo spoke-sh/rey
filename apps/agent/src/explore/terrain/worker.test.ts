@@ -13,6 +13,7 @@ import {
   executeTerrainCompilationJob,
   MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES,
   MAX_TERRAIN_COMPILATION_OUTPUT_BYTES,
+  TERRAIN_COMPILATION_FABRIC_SAMPLE_LIMIT,
   TERRAIN_COMPILATION_WORKER_REVISION,
 } from "./worker";
 import { admittedField, terrainTileView } from "./tiles.fixture";
@@ -20,10 +21,11 @@ import { admittedField, terrainTileView } from "./tiles.fixture";
 describe("bounded terrain compilation worker", () => {
   it("retains the bounded high-density hierarchy output budget", () => {
     expect(TERRAIN_COMPILATION_WORKER_REVISION).toBe(
-      "rey.terrain.compilation-worker@19",
+      "rey.terrain.compilation-worker@20",
     );
     expect(MAX_TERRAIN_COMPILATION_OUTPUT_BYTES).toBe(160 * 1024 * 1024);
     expect(MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES).toBe(112 * 1024 * 1024);
+    expect(TERRAIN_COMPILATION_FABRIC_SAMPLE_LIMIT).toBe(2_600);
   });
 
   it("projects, resamples, and prepares a named tile workload", () => {
@@ -59,6 +61,7 @@ describe("bounded terrain compilation worker", () => {
     expect(result.compiled.pyramid_envelopes).toEqual(
       result.landscape_pyramids,
     );
+    expect(result.terrain_fabrics).toEqual([]);
     expect(result.landscape_pyramids[0]).toMatchObject({
       height_pyramid: { complete: true },
       relief_pyramid: { complete: true },
@@ -114,6 +117,20 @@ describe("bounded terrain compilation worker", () => {
       maximum_gpu_bytes: 8 * 1024 * 1024,
     });
     expect(moving.derived_lines).toEqual([]);
+    expect(moving.terrain_fabrics).toHaveLength(1);
+    expect(moving.terrain_fabrics[0]).toMatchObject({
+      source_field_set_id: source.field_set_id,
+      hierarchy_id: result.materialized_landscape_pyramids[0]!.hierarchy_id,
+      relief_field_id: expect.stringContaining(
+        "rey.terrain.relief-hierarchy@3",
+      ),
+      samples: expect.arrayContaining([
+        expect.objectContaining({
+          source_sample_id: expect.any(String),
+          reveal_priority: expect.any(Number),
+        }),
+      ]),
+    });
     expect(moving.selections[0]!.level).toBeLessThanOrEqual(3);
     expect(moving.selections[0]!.level).toBeLessThan(
       result.selections[0]!.level,

@@ -1086,9 +1086,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
               }
             }}
             renderVisibility={renderVisibility}
-            presentationMode={
-              terrainUsesMovingDetail ? "moving" : "settled"
-            }
+            presentationMode={terrainUsesMovingDetail ? "moving" : "settled"}
             snapshot={atlasLandscapePrewarmSnapshot ?? snapshot}
             view={terrainSurfaceView}
             prewarmOnly={terrainPrewarmWithoutSubmission}
@@ -1136,6 +1134,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             deferTerrainFabricToAcceleratedSurface={
               requestedRendererPreference !== "reference"
             }
+            terrainFabrics={terrainSurfaceRenderer.landscape_terrain_fabrics}
             atlasLandscapeMorphProgress={atlasLandscapeProgress}
             atlasLandscapePresentation={landscapePresentation}
             globeView={globeView}
@@ -1564,15 +1563,13 @@ export function atlasTerrainMovingCompilationView(
     viewport_width: Math.max(
       1,
       Math.round(
-        entry.viewport_width *
-          ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE,
+        entry.viewport_width * ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE,
       ),
     ),
     viewport_height: Math.max(
       1,
       Math.round(
-        entry.viewport_height *
-          ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE,
+        entry.viewport_height * ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE,
       ),
     ),
     rendered_scale:

@@ -29,6 +29,7 @@ import {
 import { TerrainCompilationWorkerClient } from "../terrain/worker-client";
 import {
   MAX_TERRAIN_COMPILATION_OUTPUT_BYTES,
+  type TerrainCompilationFabric,
   type TerrainCompilationResult,
 } from "../terrain/worker";
 import { LANDSCAPE_HEIGHT_HIERARCHY_REVISION } from "../terrain/height-pyramid";
@@ -45,6 +46,7 @@ export interface AcceleratedTerrainReport {
   preference: RendererPreference;
   content_kind: "globe" | "terrain" | "none";
   terrain_source_key: string;
+  landscape_terrain_fabrics: readonly TerrainCompilationFabric[];
   landscape_relief_revision: string;
   landscape_relief_scale_basis:
     "metric_source_spacing" | "presentation_grid_spacing" | "mixed" | "unbound";
@@ -157,6 +159,7 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     preference: "auto",
     content_kind: "none",
     terrain_source_key: "unbound",
+    landscape_terrain_fabrics: Object.freeze([]),
     landscape_relief_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
     landscape_relief_scale_basis: "unbound",
     landscape_relief_scale_support: Object.freeze([]),
@@ -387,6 +390,10 @@ export function AcceleratedTerrainSurface({
   );
   const prewarmOnlyRef = useRef(prewarmOnly);
   prewarmOnlyRef.current = prewarmOnly;
+  const retainedTerrainFabricsRef = useRef<{
+    source_key: string;
+    fabrics: readonly TerrainCompilationFabric[];
+  } | null>(null);
   const retainedTransitionGlobeRef = useRef<
     | {
         atlas_revision: string;
@@ -686,15 +693,19 @@ export function AcceleratedTerrainSurface({
         );
       });
     return () => abort.abort();
-  }, [
-    semanticGlobe,
-    terrainJobId,
-    workerClient,
-    workingSetRevision,
-  ]);
+  }, [semanticGlobe, terrainJobId, workerClient, workingSetRevision]);
   const activeTerrain = semanticGlobe
     ? null
     : retainCompatibleTerrainSubmission(resolvedTerrain, terrainSourceKey);
+  if ((activeTerrain?.result.terrain_fabrics.length ?? 0) > 0)
+    retainedTerrainFabricsRef.current = {
+      source_key: terrainSourceKey,
+      fabrics: activeTerrain!.result.terrain_fabrics,
+    };
+  const retainedTerrainFabrics =
+    retainedTerrainFabricsRef.current?.source_key === terrainSourceKey
+      ? retainedTerrainFabricsRef.current.fabrics
+      : Object.freeze([]);
   const fieldProjection = useMemo(() => {
     const fields = activeTerrain?.fields ?? [];
     return Object.freeze({
@@ -861,6 +872,7 @@ export function AcceleratedTerrainSurface({
           ? "terrain"
           : "none",
       terrain_source_key: terrainSourceKey || "unbound",
+      landscape_terrain_fabrics: Object.freeze(retainedTerrainFabrics),
       landscape_relief_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
       landscape_relief_scale_basis: landscapeReliefScaleSummary.scale_basis,
       landscape_relief_scale_support: landscapeReliefScaleSummary.scale_support,
