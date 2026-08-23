@@ -24,8 +24,8 @@ const REY_SEAM_COLUMN = 704;
 const REY_SEAM_ROW_START = 225;
 const SEAM_TREND_RADIUS_ROWS = 8;
 const SEAM_TRANSITION_COLUMNS = 24;
-const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v3";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@3";
+const DATASET_ID = "rey-eastern-uplands-semantic-terrain-v4";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-eastern-uplands@4";
 
 export function buildReyEasternUplandsTerrainSource(
   sceneDirectory = SCENE_DIRECTORY,
@@ -154,7 +154,7 @@ export function buildReyEasternUplandsTerrainSource(
         },
       ],
       seam: {
-        schema: "rey.authored-regional-seam.v3",
+        schema: "rey.authored-regional-seam.v4",
         axis: "longitude",
         coordinate_microdegrees: -159120000,
         start_microdegrees: -19720400,
@@ -191,7 +191,7 @@ export function buildReyEasternUplandsTerrainSource(
     features: [
       {
         type: "Feature",
-        id: "rey-eastern-uplands-packed-terrain-v1",
+        id: "rey-eastern-uplands-packed-terrain-v2",
         properties: {
           title: "Rey Eastern Uplands admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
@@ -237,15 +237,15 @@ export function serializeReyEasternUplandsTerrain(document) {
 
 function verifySourceGrid(grid) {
   if (
-    grid.dataset_id !== "rey-county-semantic-terrain-v15" ||
-    grid.compiler_revision !== "rey.agent-geography.rey-county@15" ||
+    grid.dataset_id !== "rey-county-semantic-terrain-v16" ||
+    grid.compiler_revision !== "rey.agent-geography.rey-county@16" ||
     grid.columns !== 705 ||
     grid.rows !== 626 ||
     grid.native_bounds_microdegrees.join(",") !==
       "-160000000,-20000000,-159120000,-19250000"
   )
     throw new Error(
-      "Rey Eastern Uplands requires the exact Rey County v15 grid",
+      "Rey Eastern Uplands requires the exact Rey County v16 grid",
     );
 }
 

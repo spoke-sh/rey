@@ -1372,6 +1372,24 @@ presentation cadence remain failures, while the capture still exhibits broad
 source-scale bands, muddy low-contrast County form, and oversmoothed Uplands
 landforms relative to the operator reference.
 
+Candidate `rey.agent-geography.rey-county@16` next removes single-receiver D8
+incision as height authority. Priority flood still supplies a bounded escape
+surface, but accumulation is distributed across every downhill neighbor with
+hydraulic-slope weights, actual unfilled source-height slope owns displacement,
+and a dominant receiver remains only for channel-order reporting. Centerline,
+inner-valley, and outer-valley profiles are smoothed independently inside
+validity before the existing source-scale divide/valley separation. Across
+321,748 fully supported source neighborhoods, mean absolute second difference
+falls from 3.941 m to 2.864 m horizontally, 3.977 m to 3.510 m vertically, and
+6.060 m to 5.138 m on the first diagonal, while 528.85 m local relief remains
+25.74 m at p50 and 53.07 m at p90. Those measurements show that the grid-scale
+scar signal changed without flattening the named relief; they are not a
+perceptual acceptance result. The County validity boundary remains unchanged,
+and companion `rey.agent-geography.rey-eastern-uplands@4` copies the new exact
+168-sample seam and first interior slope before the same bounded low-pass
+transition. Both are candidate sources until fresh admission, regional
+composition, and accelerated pixels prove the source correction.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence

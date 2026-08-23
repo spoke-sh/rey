@@ -14,8 +14,8 @@ const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
 // beyond this bounded in-memory grid.
 const COLUMNS = 705;
 const ROWS = 626;
-const DATASET_ID = "rey-county-semantic-terrain-v15";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@15";
+const DATASET_ID = "rey-county-semantic-terrain-v16";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@16";
 const INPUT_FILES = [
   "boundary.geojson",
   "districts.geojson",
@@ -205,7 +205,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v15",
+      schema: "rey.county-terrain-source.v16",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -227,7 +227,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
         topology:
           "named terrain controls, exact County footprint, districts, hydrology, meadow, wetland, transport hierarchy, labels, and explicit unexplored polygon",
         elevation:
-          "anisotropic named landforms plus deterministic domain-warped irregular mountain mass, locally bounded structural ridges, reduced unstructured fine noise, slope-conditioned dendritic stream-power valleys, and post-fluvial source-scale divide/valley separation below the source-grid Nyquist limit",
+          "anisotropic named landforms plus deterministic domain-warped irregular mountain mass, locally bounded structural ridges, reduced unstructured fine noise, slope-weighted multiple-flow-direction stream-power valleys, and post-fluvial source-scale divide/valley separation below the source-grid Nyquist limit",
         hydrology:
           "exact river and wetland areas accompany a tributary hierarchy; authored constraints and deterministic depression-safe source drainage carve the final height field without crossing no-data",
         land_cover:
@@ -272,7 +272,7 @@ export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
     features: [
       {
         type: "Feature",
-        id: "rey-county-packed-terrain-v15",
+        id: "rey-county-packed-terrain-v16",
         properties: {
           title: "Rey County admitted landscape terrain",
           source_kind: "packed_rectilinear_terrain",
@@ -638,6 +638,7 @@ function applyDrainageIncision(
   const receiver = new Int32Array(count);
   receiver.fill(-1);
   const slopeSupportedReceiver = new Uint8Array(count);
+  const flowSlope = new Float64Array(count);
   const floodParent = new Int32Array(count);
   floodParent.fill(-1);
   const visited = new Uint8Array(count);
@@ -703,14 +704,21 @@ function applyDrainageIncision(
   }
 
   // Priority-flood parents guarantee an outlet but form a traversal tree whose
-  // grid posture becomes visible when used directly. Recover D8 steepest
-  // descent over the depression-safe surface, retaining the flood parent only
-  // as a deterministic escape from a numerically flat cell.
+  // grid posture becomes visible when used directly. Distribute accumulation
+  // over every downhill neighbor with slope-derived weights. One dominant
+  // receiver remains only for bounded channel-order reporting; height
+  // displacement uses the multiple-flow field and an actual-height weighted
+  // slope, never the escape tree.
+  let multipleReceiverVertices = 0;
+  let flowReceiverEdges = 0;
   for (const cell of cells) {
     if (!cell.valid || validityBoundary(cell.column, cell.row)) continue;
     const index = indexAt(cell.column, cell.row);
-    let steepestReceiver = -1;
-    let steepestSlope = 0;
+    let dominantReceiver = -1;
+    let dominantWeight = 0;
+    let receiverCount = 0;
+    let actualSlopeTotal = 0;
+    let actualSlopeWeight = 0;
     for (const [dx, dy] of offsets) {
       const nextColumn = cell.column + dx;
       const nextRow = cell.row + dy;
@@ -725,18 +733,36 @@ function applyDrainageIncision(
       if (!cells[next].valid) continue;
       const drop = hydraulicHeight[index] - hydraulicHeight[next];
       if (drop <= 0) continue;
-      const slope = drop / Math.hypot(dx, dy);
+      const cellDistance = Math.hypot(dx, dy);
+      const weight = (drop / cellDistance) ** 1.35;
+      receiverCount += 1;
+      flowReceiverEdges += 1;
+      const distanceMeters = Math.hypot(
+        dx * longitudeSpacingMeters,
+        dy * latitudeSpacingMeters,
+      );
+      const actualDrop = Math.max(
+        0,
+        cell.sample.elevation - cells[next].sample.elevation,
+      );
+      if (actualDrop > 0) {
+        actualSlopeTotal += (actualDrop / distanceMeters) * weight;
+        actualSlopeWeight += weight;
+      }
       if (
-        slope > steepestSlope ||
-        (slope === steepestSlope && next < steepestReceiver)
+        weight > dominantWeight ||
+        (weight === dominantWeight && next < dominantReceiver)
       ) {
-        steepestSlope = slope;
-        steepestReceiver = next;
+        dominantWeight = weight;
+        dominantReceiver = next;
       }
     }
-    if (steepestReceiver >= 0) {
-      receiver[index] = steepestReceiver;
-      slopeSupportedReceiver[index] = 1;
+    if (receiverCount > 1) multipleReceiverVertices += 1;
+    if (dominantReceiver >= 0) {
+      receiver[index] = dominantReceiver;
+      flowSlope[index] =
+        actualSlopeWeight === 0 ? 0 : actualSlopeTotal / actualSlopeWeight;
+      if (flowSlope[index] > 0) slopeSupportedReceiver[index] = 1;
     } else {
       receiver[index] = floodParent[index];
     }
@@ -752,9 +778,24 @@ function applyDrainageIncision(
     );
   const accumulation = new Float64Array(count);
   for (const { index } of ordered) accumulation[index] = 1;
-  for (const { index } of ordered) {
-    const target = receiver[index];
-    if (target >= 0) accumulation[target] += accumulation[index];
+  for (const { cell, index } of ordered) {
+    if (validityBoundary(cell.column, cell.row)) continue;
+    let weightTotal = 0;
+    for (const [dx, dy] of offsets) {
+      const next = indexAt(cell.column + dx, cell.row + dy);
+      if (!cells[next].valid) continue;
+      const drop = hydraulicHeight[index] - hydraulicHeight[next];
+      if (drop > 0) weightTotal += (drop / Math.hypot(dx, dy)) ** 1.35;
+    }
+    if (weightTotal === 0) continue;
+    for (const [dx, dy] of offsets) {
+      const next = indexAt(cell.column + dx, cell.row + dy);
+      if (!cells[next].valid) continue;
+      const drop = hydraulicHeight[index] - hydraulicHeight[next];
+      if (drop <= 0) continue;
+      const weight = (drop / Math.hypot(dx, dy)) ** 1.35;
+      accumulation[next] += accumulation[index] * (weight / weightTotal);
+    }
   }
   const maximumAccumulation = ordered.reduce(
     (maximum, { index }) => Math.max(maximum, accumulation[index]),
@@ -769,12 +810,13 @@ function applyDrainageIncision(
   const incisionStrength = strength.slice();
   for (const { index } of ordered)
     if (slopeSupportedReceiver[index] === 0) incisionStrength[index] = 0;
-  const innerValley = smoothWithinValidity(incisionStrength, cells, 1);
-  const outerValley = smoothWithinValidity(incisionStrength, cells, 4);
+  const centerlineValley = smoothWithinValidity(incisionStrength, cells, 1);
+  const innerValley = smoothWithinValidity(incisionStrength, cells, 3);
+  const outerValley = smoothWithinValidity(incisionStrength, cells, 6);
   const channel = new Uint8Array(count);
   const incomingChannels = new Uint16Array(count);
   for (const { index } of ordered) {
-    if (strength[index] < 0.02) continue;
+    if (strength[index] < 0.12) continue;
     channel[index] = 1;
   }
   for (const { index } of ordered) {
@@ -809,21 +851,7 @@ function applyDrainageIncision(
   let branchJunctionVertices = 0;
   let maximumStrahlerOrder = 0;
   for (const { cell, index } of ordered) {
-    const target = receiver[index];
-    const receiverCell = target < 0 ? null : cells[target];
-    const distanceMeters = receiverCell
-      ? Math.hypot(
-          (receiverCell.column - cell.column) * longitudeSpacingMeters,
-          (receiverCell.row - cell.row) * latitudeSpacingMeters,
-        )
-      : 1;
-    const localSlope = receiverCell
-      ? Math.max(
-          0,
-          (cell.sample.elevation - receiverCell.sample.elevation) /
-            distanceMeters,
-        )
-      : 0;
+    const localSlope = flowSlope[index];
     const normalizedAccumulation =
       Math.log1p(accumulation[index]) / denominator;
     const streamPower =
@@ -834,9 +862,9 @@ function applyDrainageIncision(
     const incision =
       slopeSupportedReceiver[index] === 0
         ? 0
-        : (incisionStrength[index] * (18 + streamPower * 55) +
-            innerValley[index] * 42 +
-            outerValley[index] * 12) *
+        : (centerlineValley[index] * (10 + streamPower * 24) +
+            innerValley[index] * 52 +
+            outerValley[index] * 16) *
           (0.02 + slopeResponse * 0.98);
     cell.sample.elevation -= incision;
     maximumIncision = Math.max(maximumIncision, incision);
@@ -848,11 +876,16 @@ function applyDrainageIncision(
     maximumStrahlerOrder = Math.max(maximumStrahlerOrder, strahlerOrder[index]);
   }
   return {
-    schema: "rey.county-source-drainage.v3",
+    schema: "rey.county-source-drainage.v4",
     authority:
       "deterministic authored-source derivation inside exact validity; not observed hydrology",
     depression_handling:
-      "priority flood seeded only from exact validity boundaries followed by steepest descent and slope-conditioned stream-power incision on the unfilled local terrain slope; flood-parent escape topology contributes exactly zero height displacement and variable valley widths never cross no-data",
+      "priority flood seeded only from exact validity boundaries followed by slope-weighted multiple-flow-direction accumulation and profile-smoothed stream-power incision on the unfilled weighted local terrain slope; one dominant receiver is retained only for channel-order reporting, flood-parent escape topology contributes exactly zero height displacement, and variable valley widths never cross no-data",
+    flow_model:
+      "multiple-flow-direction accumulation over every downhill D8 neighbor with hydraulic slope exponent 1.35; actual source-height slope owns incision",
+    maximum_flow_receivers: 8,
+    multiple_receiver_vertices: multipleReceiverVertices,
+    flow_receiver_edges: flowReceiverEdges,
     maximum_accumulation_vertices: maximumAccumulation,
     derived_channel_vertices: derivedChannelVertices,
     channel_head_vertices: channelHeadVertices,
@@ -860,7 +893,7 @@ function applyDrainageIncision(
     maximum_strahler_order: maximumStrahlerOrder,
     maximum_incision_meters: roundElevation(maximumIncision),
     maximum_stream_power: Number(maximumStreamPower.toFixed(6)),
-    maximum_valley_half_width_cells: 6,
+    maximum_valley_half_width_cells: 8,
     slope_supported_incision_vertices: slopeSupportedIncisionVertices,
     flat_escape_incision_vertices: 0,
   };

@@ -39,8 +39,8 @@ describe("Rey regional source seam", () => {
       });
     }
     expect(uplands.document.terrain_derivation.seam).toMatchObject({
-      schema: "rey.authored-regional-seam.v3",
-      source_dataset_id: "rey-county-semantic-terrain-v15",
+      schema: "rey.authored-regional-seam.v4",
+      source_dataset_id: "rey-county-semantic-terrain-v16",
       source_interior_context_columns: 1,
       low_pass_trend_radius_rows: 8,
       transition_columns: 24,
