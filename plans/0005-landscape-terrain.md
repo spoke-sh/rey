@@ -1404,6 +1404,22 @@ compares all 168 shared vertices with zero elevation, material, validity,
 coordinate-gap, or no-data conflicts. Accelerated pixels remain required
 before the source correction is perceptually accepted.
 
+The exact fulfilled-transport WebGL2 voyage passed as
+`sha256:d9c02eb2db9407c660608eb3cda232049d0344896f01003a21b5d8c765060a63`.
+Its Landscape capture
+`sha256:32027992f8c152472fff639b99a881792d4ec0c4d685e11275160fdad357f579`
+retains all 12 level-9 tiles, zero screen error, zero relief-partition,
+relief-seam, tile-seam, and no-data-leak mismatches, 62,172,000 resident CPU
+bytes, and 46,851,876 resident GPU bytes. Side-by-side inspection against the
+preceding County v15 capture accepts the distributed-flow source correction:
+the isolated vertical single-receiver incision scars are absent and central
+drainage reads as a connected distributed surface. It does not accept the
+overall fidelity gate. County still has broad low-contrast, source-scale banding
+and Eastern Uplands still reads as oversized smooth forms rather than the
+multi-scale ridges and valleys in the operator reference. The 207,457 ms
+voyage and 600/1,483.2 ms Landscape median/p95 presentation cadence also remain
+explicit performance failures.
+
 Reference voyage
 `sha256:fb22c58cc67c239eded46b7353de3d3fab6ea27ad060a748c084f0ef14679d8f`
 then completed the full World → Atlas → Landscape → Object → Evidence
