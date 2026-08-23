@@ -964,10 +964,29 @@ describe("regional scene topology projection", () => {
       "atlas",
     );
     expect(prewarmedAtlas.scene.terrain).toBe(false);
-    expect(prewarmedAtlas.scene.atlas_landscape_transition).toBeNull();
+    expect(prewarmedAtlas.scene.focus_id).toBe("cluster:portfolio");
+    expect(prewarmedAtlas.scene.atlas_landscape_transition).toMatchObject({
+      scene_id: "scene:1",
+      terrain_field_id: prewarmedAtlas.scene.terrain_fields[0]?.field_set_id,
+    });
     expect(prewarmedAtlas.scene.terrain_fields).toHaveLength(1);
     expect(prewarmedAtlas.compiler_revisions).toContain(
-      "rey.explorer.atlas-terrain-prewarm@1",
+      "rey.atlas-landscape-projector@2",
+    );
+
+    const automaticCounty = buildTopologyScene(
+      terrainPortfolio,
+      0.58,
+      "cluster:portfolio",
+    );
+    expect(automaticCounty.regime).toBe("landscape");
+    expect(automaticCounty.focus_id).toBe("regional:scene:1");
+    expect(automaticCounty.terrain).toBe(true);
+    expect(automaticCounty.terrain_fields[0]).toBe(
+      prewarmedAtlas.scene.terrain_fields[0],
+    );
+    expect(automaticCounty.atlas_landscape_transition?.transition_id).toBe(
+      prewarmedAtlas.scene.atlas_landscape_transition?.transition_id,
     );
 
     const county = buildTopologyScene(

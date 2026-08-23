@@ -286,7 +286,7 @@ export function ReferenceRenderer({
       <div
         className={sx(styles.projection)}
         style={
-          scene.terrain && atlasLandscapePresentation
+          atlasLandscapePresentation
             ? {
                 opacity: atlasLandscapePresentation.terrain_opacity,
                 transform: atlasLandscapePresentation.css_transform,

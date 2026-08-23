@@ -388,11 +388,22 @@ export function buildTopologyScene(
     focusId.startsWith("seed:") ||
     focusId.startsWith("anchor:") ||
     focusId.startsWith("frontier:");
-  const regionalFocus = regionalScenes.some(
+  const explicitRegionalFocus = regionalScenes.some(
     (regionalScene) =>
       regionalSceneTraversable(regionalScene) &&
       regionalSceneMatchesFocus(regionalScene.scene, focusId),
   );
+  const automaticRegionalFocusId =
+    !surveyFocus && focusId === "cluster:portfolio"
+      ? automaticRegionalLandscapeFocus(
+          regionalScenes,
+          portfolio.regional_geography ?? null,
+        )
+      : null;
+  const resolvedRegionalFocusId = explicitRegionalFocus
+    ? focusId
+    : automaticRegionalFocusId;
+  const regionalFocus = resolvedRegionalFocusId !== null;
   // Computed up front (not after `projection`, where it used to live) so its
   // terrain field can be threaded into buildRegionalCounty below instead of
   // that function independently recompiling the same admitted DEM through
@@ -404,7 +415,7 @@ export function buildTopologyScene(
     regionalScenes.length > 0 && !surveyFocus && regionalFocus
       ? compileRegionalLandscapeTerrain(
           regionalScenes,
-          selectRegionalScene(regionalScenes, focusId),
+          selectRegionalScene(regionalScenes, resolvedRegionalFocusId),
           portfolio.regional_geography ?? null,
         )
       : null;
@@ -415,7 +426,7 @@ export function buildTopologyScene(
     (regime === "atlas" || regime === "landscape")
       ? buildAtlasLandscapeTransition(
           regionalScenes,
-          focusId,
+          resolvedRegionalFocusId,
           regionalLandscape,
         )
       : null;
@@ -448,7 +459,7 @@ export function buildTopologyScene(
   )
     projection = buildRegionalCounty(
       regionalScenes,
-      focusId,
+      resolvedRegionalFocusId,
       regime,
       regionalLandscape,
     );
@@ -1688,6 +1699,64 @@ function selectRegionalScene(
   if (!selected)
     throw new Error("County projection requires an admitted focus");
   return selected;
+}
+
+/**
+ * Chooses only a presentation anchor; it does not choose terrain ownership.
+ * A portfolio-level camera may enter automatically when every traversable
+ * regional scene belongs to one current, qualified terrain component. The
+ * largest exact valid source is a stable camera anchor while the component's
+ * renderer-neutral mosaic still owns all connected member contributions.
+ * Multiple disconnected components remain in Atlas for an explicit choice.
+ */
+export function automaticRegionalLandscapeFocus(
+  regionalScenes: AdmittedRegionalProjection[],
+  composition: RegionalGeographyComposition | null,
+): string | null {
+  const traversable = regionalScenes.filter(regionalSceneTraversable);
+  if (traversable.length === 0) return null;
+  if (traversable.length === 1)
+    return `regional:${traversable[0]!.scene.scene_id}`;
+  if (
+    !composition?.complete ||
+    composition.stitch_status !== "ready" ||
+    composition.conflicts.length !== 0 ||
+    composition.terrain_components.length !== 1
+  )
+    return null;
+
+  const projectionBySceneId = new Map(
+    traversable.map((projection) => [projection.scene.scene_id, projection]),
+  );
+  const component = composition.terrain_components[0]!;
+  const candidates = component.member_ids.flatMap((memberId) => {
+    const member = composition.members.find(
+      (candidate) => candidate.member_id === memberId,
+    );
+    if (!member) return [];
+    const projection = projectionBySceneId.get(member.scene_id);
+    if (
+      !projection ||
+      projection.scene.admission.admission_id !== member.admission_id
+    )
+      return [];
+    return [{ member, projection }];
+  });
+  if (
+    candidates.length !== traversable.length ||
+    new Set(candidates.map(({ projection }) => projection.scene.scene_id))
+      .size !== traversable.length
+  )
+    return null;
+  candidates.sort(
+    (left, right) =>
+      right.member.terrain_valid_vertices -
+        left.member.terrain_valid_vertices ||
+      left.projection.scene.scene_id.localeCompare(
+        right.projection.scene.scene_id,
+      ),
+  );
+  return `regional:${candidates[0]!.projection.scene.scene_id}`;
 }
 
 function regionalSceneMatchesFocus(

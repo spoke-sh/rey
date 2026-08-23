@@ -3,10 +3,65 @@ import type {
   RegionalGeographyComposition,
   AdmittedRegionalScene,
 } from "../../domain";
-import { regionalLandscapeMembers } from "../../topology";
+import {
+  automaticRegionalLandscapeFocus,
+  regionalLandscapeMembers,
+} from "../../topology";
 import type { AdmittedRegionalProjection } from "./regional-scene-projector";
 
 describe("regional landscape composition selection", () => {
+  it("chooses one stable camera anchor for one connected terrain component", () => {
+    const west = projection("west");
+    const east = projection("east");
+    const composition = compositionFixture();
+    composition.members.find(
+      ({ member_id }) => member_id === "member:west",
+    )!.terrain_valid_vertices = 12;
+    composition.members = composition.members.filter(
+      ({ member_id }) => member_id !== "member:isolated",
+    );
+    composition.seams = composition.seams.slice(0, 1);
+    composition.terrain_components = composition.terrain_components.slice(0, 1);
+
+    expect(automaticRegionalLandscapeFocus([east, west], composition)).toBe(
+      "regional:scene:west",
+    );
+    expect(automaticRegionalLandscapeFocus([west, east], composition)).toBe(
+      "regional:scene:west",
+    );
+    expect(automaticRegionalLandscapeFocus([west], null)).toBe(
+      "regional:scene:west",
+    );
+  });
+
+  it("keeps disconnected or conflicted terrain components in Atlas", () => {
+    const west = projection("west");
+    const east = projection("east");
+    const isolated = projection("isolated");
+    const disconnected = compositionFixture();
+    expect(
+      automaticRegionalLandscapeFocus([west, east, isolated], disconnected),
+    ).toBeNull();
+
+    const conflicted = compositionFixture();
+    conflicted.members = conflicted.members.filter(
+      ({ member_id }) => member_id !== "member:isolated",
+    );
+    conflicted.seams = conflicted.seams.slice(0, 1);
+    conflicted.terrain_components = conflicted.terrain_components.slice(0, 1);
+    conflicted.conflicts.push({
+      conflict_id: "conflict:edge",
+      seam_id: "seam:west-east",
+      member_ids: ["member:west", "member:east"],
+      kind: "seam_elevation",
+      count: 1,
+      detail: "fixture conflict",
+    });
+    expect(
+      automaticRegionalLandscapeFocus([west, east], conflicted),
+    ).toBeNull();
+  });
+
   it("selects only the connected conflict-free terrain-qualified component", () => {
     const west = projection("west");
     const east = projection("east");
