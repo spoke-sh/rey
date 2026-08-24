@@ -1,7 +1,11 @@
 import { create } from "@react-three/test-renderer";
 import { type Material, type Mesh } from "three/src/Three.WebGPU.js";
 import { describe, expect, it } from "vitest";
-import { ContinuousReliefScene } from "./terrain-scene";
+import {
+  ContinuousReliefScene,
+  TERRAIN_MATERIAL_BINDING_REVISION,
+  terrainMaterialBindingKeys,
+} from "./terrain-scene";
 import {
   terrainFieldFixture,
   terrainRenderPassFixture,
@@ -58,6 +62,56 @@ describe("terrain scene", () => {
     expect(camera.rotation.x).toBeCloseTo(-Math.PI / 2);
 
     await renderer.unmount();
+  });
+
+  it("shares one terrain material graph across non-overlapping hierarchy tiles", async () => {
+    const first = terrainFieldFixture();
+    const second = {
+      ...terrainFieldFixture(),
+      field_set_id: "terrain:fixture:east",
+      grid: {
+        ...first.grid,
+        bounds: {
+          ...first.grid.bounds,
+          x: first.grid.bounds.x + first.grid.bounds.width + 10,
+        },
+      },
+    };
+    const compiled = compileContinuousRelief([first, second]);
+    expect(new Set(terrainMaterialBindingKeys(compiled))).toEqual(
+      new Set([
+        `${TERRAIN_MATERIAL_BINDING_REVISION}:shared-non-overlapping-terrain`,
+      ]),
+    );
+    const renderer = await create(
+      <ContinuousReliefScene
+        compiled={compiled}
+        view={{
+          world_width: 3000,
+          world_height: 1000,
+          viewport_width: 900,
+          viewport_height: 600,
+          rendered_scale: 1,
+          pan_x: 0,
+          pan_y: 0,
+        }}
+        world={{ width: 3000, height: 1000 }}
+      />,
+    );
+    const firstMesh = renderer.scene.findByProps({
+      name: first.field_set_id,
+    }).instance as Mesh;
+    const secondMesh = renderer.scene.findByProps({
+      name: second.field_set_id,
+    }).instance as Mesh;
+    expect(firstMesh.material).toBe(secondMesh.material);
+    await renderer.unmount();
+
+    const overlapping = compileContinuousRelief([
+      first,
+      { ...second, grid: first.grid },
+    ]);
+    expect(new Set(terrainMaterialBindingKeys(overlapping)).size).toBe(2);
   });
 
   it("applies the bounded terrain model and orbit camera declaratively", async () => {

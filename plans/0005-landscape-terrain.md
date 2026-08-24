@@ -1806,6 +1806,19 @@ idle mount timer. This keeps a completed predicted entry submission valid and
 prevents a performance improvement from stranding the harness/operator at a
 false `mounted` state. The stopped run is diagnostic only, not retained proof.
 
+A subsequent cold run reached Landscape in 2,661.8 ms but timed out for five
+minutes waiting for the monolithic settled submission: the retained moving
+surface remained level 6 with 9,979 triangles. The settled hierarchy projects
+many non-overlapping tiles, while `ContinuousReliefScene` previously built an
+independent but identical TSL node material for every tile. That multiplied
+shader-graph compilation at the exact level-of-detail handoff.
+`rey.terrain.material-binding@2` now binds one immutable material graph across
+all non-overlapping hierarchy tiles; only legacy uncomposed patch identities
+named by an overlap pair retain separate depth-biased materials. A focused R3F
+fixture proves shared object identity for disjoint meshes and distinct binding
+for overlap. This addresses redundant shader compilation; it does not yet
+qualify the full settled handoff.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

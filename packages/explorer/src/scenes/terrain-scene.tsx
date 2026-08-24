@@ -19,6 +19,9 @@ import {
 } from "../three-terrain";
 import { ReyOrthographicCamera } from "./orthographic-camera";
 
+export const TERRAIN_MATERIAL_BINDING_REVISION =
+  "rey.terrain.material-binding@2" as const;
+
 export function ContinuousReliefScene({
   compiled,
   view,
@@ -31,20 +34,25 @@ export function ContinuousReliefScene({
   const materialRevision = continuousReliefMaterialRevision(
     compiled.render_passes,
   );
-  const materials = useMemo(
-    () =>
-      compiled.meshes.map((_, index) => {
-        const material = createContinuousReliefMaterial(compiled.render_passes);
-        material.polygonOffset = index > 0;
+  const materialBindingKeys = terrainMaterialBindingKeys(compiled);
+  const materialBindings = useMemo(() => {
+    const bindings = new Map<string, MeshBasicNodeMaterial>();
+    for (const [index, key] of materialBindingKeys.entries()) {
+      if (bindings.has(key)) continue;
+      const overlapping = key.startsWith("overlap:");
+      const material = createContinuousReliefMaterial(compiled.render_passes);
+      if (overlapping) {
+        material.polygonOffset = true;
         material.polygonOffsetFactor = -index;
         material.polygonOffsetUnits = -index;
-        return material;
-      }),
-    [compiled.patch_set.patch_set_id, materialRevision],
-  );
+      }
+      bindings.set(key, material);
+    }
+    return bindings;
+  }, [compiled.patch_set.patch_set_id, materialRevision]);
   useEffect(
-    () => () => materials.forEach((material) => material.dispose()),
-    [materials],
+    () => () => materialBindings.forEach((material) => material.dispose()),
+    [materialBindings],
   );
   const camera = terrainCameraProjection(world, view);
 
@@ -77,7 +85,7 @@ export function ContinuousReliefScene({
           <TerrainMesh
             data={mesh.data}
             key={mesh.field_set_id}
-            material={materials[index]!}
+            material={materialBindings.get(materialBindingKeys[index]!)!}
             name={mesh.field_set_id}
           />
         ))}
@@ -86,6 +94,25 @@ export function ContinuousReliefScene({
         ) : null}
       </group>
     </>
+  );
+}
+
+/**
+ * Non-overlapping hierarchy tiles use one immutable TSL material graph. A
+ * separately constructed node material per tile forces redundant shader
+ * compilation during settled refinement. Legacy overlapping patch inputs keep
+ * distinct depth-biased materials so their declared ordering is unchanged.
+ */
+export function terrainMaterialBindingKeys(
+  compiled: CompiledContinuousRelief,
+): readonly string[] {
+  const overlapping = new Set(compiled.patch_set.overlap_pairs.flat());
+  return Object.freeze(
+    compiled.meshes.map(({ field_set_id }, index) =>
+      overlapping.has(field_set_id)
+        ? `overlap:${index}:${field_set_id}`
+        : `${TERRAIN_MATERIAL_BINDING_REVISION}:shared-non-overlapping-terrain`,
+    ),
   );
 }
 

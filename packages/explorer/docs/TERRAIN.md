@@ -267,8 +267,13 @@ the terrain into a pale wash. Its separately revisioned pass inputs gate:
 - explicit occlusion;
 - and the exact retained cartographic-color array.
 
-`ContinuousReliefScene` shares the material across compiled meshes without
-adding another lighting owner. Regional geography continuously blends the
+`rey.terrain.material-binding@2` shares one immutable TSL material graph across
+non-overlapping hierarchy tiles instead of constructing and compiling an
+identical node graph for every settled tile. Legacy uncomposed patches named by
+an overlap pair retain separate depth-biased materials and their declared draw
+order. Material sharing changes shader ownership and compilation count, not
+mesh attributes, validity, relief, or source identity. Regional geography
+continuously blends the
 admitted material class with deterministic moisture, elevation, slope,
 exposure, and validity-bounded drainage fields without changing elevation or
 source support. `rey.terrain.regional-geography@8` uses a bounded linear-color
