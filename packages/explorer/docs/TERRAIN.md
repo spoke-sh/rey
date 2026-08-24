@@ -403,6 +403,15 @@ screen error would exceed the retained tile budgets, selection falls back to
 the finest visible uniform level that fits and discloses the resulting error
 instead of failing residency or silently raising a budget.
 
+The interaction surface currently hard-caps moving composition at hierarchy
+level 6 and settled composition at level 7. The latter is a named responsiveness
+ceiling introduced after the exact level-9, 638,262-triangle SwiftShader
+workload failed to submit within five minutes. The renderer continues to
+disclose the resulting screen error and must not call level 7 full fidelity.
+Closing the remaining fidelity/performance delta requires sampling the exact
+high-resolution relief/color hierarchy as tiled textures over bounded geometry
+instead of equating DEM sample density with triangle density.
+
 `rey.terrain.compilation-worker@22` runs hierarchy projection, haloed relief
 derivation, exact relief sampling, procedural field evaluation, partition and
 border parity checking, and mesh preparation in a cancellable dedicated

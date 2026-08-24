@@ -1819,6 +1819,19 @@ fixture proves shared object identity for disjoint meshes and distinct binding
 for overlap. This addresses redundant shader compilation; it does not yet
 qualify the full settled handoff.
 
+Repeating the cold workload with shared material identity still saturated
+SwiftShader at the 638,262-triangle finest submission while the level-6 result
+remained responsive. The engine had coupled exact relief sample density to
+geometry density; redundant shader compilation was not the only cause.
+`LANDSCAPE_SETTLED_TERRAIN_MAXIMUM_LEVEL` now hard-caps the interactive settled
+surface at level 7 (one hierarchy step above the level-6 moving surface). The
+reported screen error remains authoritative, so this bounded result is not
+described as full detail and cannot pass the open fidelity gate. The required
+engine follow-up is explicit: retain high-resolution hillshade, MDOW, SVF,
+hypsometry, and material as tiled sampled textures while geometry LOD remains
+bounded independently. That separation—not another unbounded triangle
+increase—is the route to Google Maps-class fidelity and responsive motion.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

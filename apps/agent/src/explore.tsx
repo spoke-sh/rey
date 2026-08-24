@@ -101,6 +101,7 @@ const visibleReferenceLayers: ReferenceLayerVisibility = {
 };
 export const DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS = 5_000;
 export const ATLAS_LANDSCAPE_MOVING_TERRAIN_MAXIMUM_LEVEL = 6;
+export const LANDSCAPE_SETTLED_TERRAIN_MAXIMUM_LEVEL = 7;
 export const ATLAS_LANDSCAPE_SETTLED_REFINEMENT_DELAY_MS = 300;
 export const ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE = 0.5;
 const EXPLORER_NOTICE_DURATION_MS = DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS;
@@ -298,8 +299,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     useState(false);
   const [settledTerrainDetailReady, setSettledTerrainDetailReady] =
     useState(false);
-  const [fullDetailTerrainSourceKey, setFullDetailTerrainSourceKey] =
-    useState("");
+  const [settledTerrainSourceKey, setSettledTerrainSourceKey] = useState("");
   const [footerState, dispatchFooter] = useReducer(
     explorerFooterReducer,
     undefined,
@@ -442,10 +442,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const terrainSurfaceCompositing =
     terrainMotionActive ||
     (deferSettledTerrainRefinement && !settledTerrainDetailReady);
-  const fullTerrainDetailPrepared =
-    fullDetailTerrainSourceKey === atlasTerrainPrewarmKey;
+  const settledTerrainDetailPrepared =
+    settledTerrainSourceKey === atlasTerrainPrewarmKey;
   const terrainUsesMovingDetail =
-    terrainSurfaceCompositing && !fullTerrainDetailPrepared;
+    terrainSurfaceCompositing && !settledTerrainDetailPrepared;
   const terrainSurfaceCompilationView = terrainSurfaceCompositing
     ? terrainUsesMovingDetail
       ? atlasTerrainMovingCompilationView(
@@ -1071,7 +1071,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             maximumHierarchyLevel={
               terrainUsesMovingDetail
                 ? ATLAS_LANDSCAPE_MOVING_TERRAIN_MAXIMUM_LEVEL
-                : undefined
+                : LANDSCAPE_SETTLED_TERRAIN_MAXIMUM_LEVEL
             }
             onReport={(report) => {
               setTerrainSurfaceRenderer(report);
@@ -1083,7 +1083,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
               ) {
                 setAtlasTerrainPrewarmPrepared(true);
                 if (!terrainUsesMovingDetail)
-                  setFullDetailTerrainSourceKey(atlasTerrainPrewarmKey);
+                  setSettledTerrainSourceKey(atlasTerrainPrewarmKey);
               }
             }}
             renderVisibility={renderVisibility}
