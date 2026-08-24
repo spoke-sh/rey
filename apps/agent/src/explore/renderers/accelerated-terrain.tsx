@@ -888,6 +888,9 @@ export function AcceleratedTerrainSurface({
       : null;
   const frame = {
     snapshot_id: snapshot.snapshot_id,
+    content_revision: globeCompilation
+      ? `globe:${globeCompilation.globe.globe_id}:${globeCompilation.projection_revision}`
+      : `terrain:${activeTerrain?.job_id ?? terrainSourceKey}:${terrainRenderPasses?.pass_set_id ?? "unbound-passes"}`,
     camera_revision: semanticGlobe
       ? `orthographic-globe:${globeView.yaw_degrees}:${globeView.pitch_degrees}:${projectionMorphProgress}`
       : `terrain-orbit:${view.viewport_width}x${view.viewport_height}:${view.rendered_scale}:${view.pan_x}:${view.pan_y}:${view.pitch_degrees ?? 90}:${view.yaw_degrees ?? 0}:${view.model_transform ? Object.values(view.model_transform).join(":") : "identity"}`,

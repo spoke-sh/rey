@@ -33,6 +33,7 @@ describe("renderer contracts", () => {
 describe("render invalidation", () => {
   const frame = {
     snapshot_id: "scene:one",
+    content_revision: "content:one",
     camera_revision: "camera:one",
     material_revision: "material:one",
     render_graph_id: "graph:one",
@@ -46,6 +47,12 @@ describe("render invalidation", () => {
       "render_graph",
     ]);
     expect(renderFrameInvalidation(frame, { ...frame })).toEqual([]);
+    expect(
+      renderFrameInvalidation(frame, {
+        ...frame,
+        content_revision: "content:two",
+      }),
+    ).toEqual(["scene"]);
     expect(
       renderFrameInvalidation(frame, {
         ...frame,

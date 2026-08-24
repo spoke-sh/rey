@@ -19,6 +19,7 @@ export interface RendererStatus {
 
 export interface RenderFrameIdentity {
   snapshot_id: string;
+  content_revision: string;
   camera_revision: string;
   material_revision: string;
   render_graph_id: string;
@@ -42,7 +43,11 @@ export function renderFrameInvalidation(
   if (!previous)
     return Object.freeze(["scene", "camera", "material", "render_graph"]);
   const dirty: RenderInvalidation[] = [];
-  if (previous.snapshot_id !== next.snapshot_id) dirty.push("scene");
+  if (
+    previous.snapshot_id !== next.snapshot_id ||
+    previous.content_revision !== next.content_revision
+  )
+    dirty.push("scene");
   if (previous.camera_revision !== next.camera_revision) dirty.push("camera");
   if (previous.material_revision !== next.material_revision)
     dirty.push("material");

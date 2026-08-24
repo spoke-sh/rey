@@ -298,6 +298,7 @@ export function ExplorerCanvas({
     root.render(sceneElement);
   }, [
     frame.camera_revision,
+    frame.content_revision,
     frame.material_revision,
     frame.render_graph_id,
     frame.snapshot_id,
