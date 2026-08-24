@@ -5,6 +5,7 @@ import {
   ATLAS_LANDSCAPE_MOVING_TERRAIN_MAXIMUM_LEVEL,
   ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE,
   ATLAS_LANDSCAPE_SETTLED_REFINEMENT_DELAY_MS,
+  atlasLandscapeLiveTerrainView,
   atlasTerrainMovingCompilationView,
   atlasTerrainPredictedEntryView,
   atlasTerrainPrewarmDelayMs,
@@ -19,6 +20,7 @@ import {
   shouldMountTerrainSurface,
 } from "./explore";
 import type { TopologyScene } from "./topology";
+import { atlasLandscapePresentation } from "./explore/projection/atlas-landscape";
 
 describe("Explorer canvas toolbar", () => {
   it("reports the bounded Atlas terrain prewarm lifecycle", () => {
@@ -110,6 +112,49 @@ describe("Explorer canvas toolbar", () => {
     });
     expect(ATLAS_LANDSCAPE_MOVING_TERRAIN_MAXIMUM_LEVEL).toBe(6);
     expect(ATLAS_LANDSCAPE_SETTLED_REFINEMENT_DELAY_MS).toBe(300);
+  });
+
+  it("presents moving terrain with the live County border camera", () => {
+    const scene = {
+      regime: "landscape",
+      terrain: true,
+      county_frame: { frame_id: "county:one" },
+      world: { width: 1500, height: 1000 },
+    } as unknown as TopologyScene;
+    const presentation = atlasLandscapePresentation(
+      {
+        source_frame: { x: 420, y: 360, width: 180, height: 120 },
+        target_frame: { x: 96, y: 72, width: 1008, height: 576 },
+      },
+      0.48,
+      { pitch_degrees: 82, yaw_degrees: 17 },
+      scene.world,
+    );
+    const view = atlasLandscapeLiveTerrainView(
+      scene,
+      0.72,
+      0.5,
+      { width: 1720, height: 760 },
+      { x: 183, y: -74 },
+      presentation,
+    );
+    expect(view).toMatchObject({
+      viewport_width: 1720,
+      viewport_height: 760,
+      pan_x: 183,
+      pan_y: -74,
+      pitch_degrees: presentation.pitch_degrees,
+      yaw_degrees: presentation.yaw_degrees,
+      model_transform: presentation.model_transform,
+    });
+    expect(view.rendered_scale).toBeGreaterThan(0);
+    expect(view.model_transform).not.toEqual({
+      scale_x: 1,
+      scale_z: 1,
+      translate_x: 0,
+      translate_z: 0,
+      elevation_scale: 1,
+    });
   });
 
   it("keeps view controls without exposing projection layer buttons", () => {

@@ -1,5 +1,5 @@
 import { KineticButton } from "@hifi/kinetic";
-import { terrainCameraProjection } from "@rey/explorer";
+import { terrainCameraProjection, type TerrainCameraView } from "@rey/explorer";
 import {
   useEffect,
   useLayoutEffect,
@@ -450,33 +450,23 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           terrainOrbit,
         )
     : undefined;
-  const liveTerrainSurfaceView = {
-    world_width: scene.world.width,
-    world_height: scene.world.height,
-    viewport_width: viewportSize.width,
-    viewport_height: viewportSize.height,
-    rendered_scale: renderedScaleForTerrainSurface(
-      scene,
-      fitScale,
-      zoom,
-      landscapePresentation.composition_scale,
-    ),
-    pan_x: pan.x,
-    pan_y: pan.y,
-    pitch_degrees: landscapePresentation.pitch_degrees,
-    yaw_degrees: landscapePresentation.yaw_degrees,
-    model_transform: landscapePresentation.model_transform,
-  };
-  // The moving submission is rendered once at the exact predicted endpoint
-  // camera and composited through the morph. Re-rendering the multi-operator
-  // terrain material for every wheel animation frame defeats prewarming on
-  // software and integrated GPUs; opacity remains a cheap DOM composition
-  // update, while the reference overlay owns the reversible source→target
-  // projector until the settled terrain submission takes over.
-  const terrainSurfaceView =
-    terrainSurfaceCompositing && terrainSurfaceCompilationView
-      ? terrainSurfaceCompilationView
-      : liveTerrainSurfaceView;
+  const liveTerrainSurfaceView = atlasLandscapeLiveTerrainView(
+    scene,
+    fitScale,
+    zoom,
+    viewportSize,
+    pan,
+    landscapePresentation,
+  );
+  // Tile selection and relief compilation remain fixed at the predicted,
+  // bounded moving working set above, but presentation uses the same live
+  // camera/model transform as the County footprint on every wheel frame.
+  // Freezing this view at the endpoint (whose pan is deliberately zero)
+  // detached terrain from the border whenever pointer-anchored zoom produced
+  // a non-zero pan, and also made their scales disagree through the morph.
+  // A level-6 moving mesh is small enough to resubmit while the expensive
+  // hierarchy/relief work stays stable in the dedicated worker.
+  const terrainSurfaceView = liveTerrainSurfaceView;
   const projectionMorphActive =
     scene.world_atlas_transition !== null &&
     projectionMorphProgress > 0 &&
@@ -1591,6 +1581,33 @@ function renderedScaleForTerrainSurface(
       scene.regime,
     ) * compositionScale
   );
+}
+
+export function atlasLandscapeLiveTerrainView(
+  scene: TopologyScene,
+  fitScale: number,
+  zoom: number,
+  viewport: { width: number; height: number },
+  pan: Point,
+  presentation: ReturnType<typeof atlasLandscapePresentation>,
+): TerrainCameraView {
+  return Object.freeze({
+    world_width: scene.world.width,
+    world_height: scene.world.height,
+    viewport_width: viewport.width,
+    viewport_height: viewport.height,
+    rendered_scale: renderedScaleForTerrainSurface(
+      scene,
+      fitScale,
+      zoom,
+      presentation.composition_scale,
+    ),
+    pan_x: pan.x,
+    pan_y: pan.y,
+    pitch_degrees: presentation.pitch_degrees,
+    yaw_degrees: presentation.yaw_degrees,
+    model_transform: presentation.model_transform,
+  });
 }
 
 export function atlasTerrainPrewarmStatus(

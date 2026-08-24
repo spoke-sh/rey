@@ -971,7 +971,7 @@ describe("regional scene topology projection", () => {
     });
     expect(prewarmedAtlas.scene.terrain_fields).toHaveLength(1);
     expect(prewarmedAtlas.compiler_revisions).toContain(
-      "rey.atlas-landscape-projector@2",
+      "rey.atlas-landscape-projector@3",
     );
 
     const automaticCounty = buildTopologyScene(
@@ -1008,7 +1008,7 @@ describe("regional scene topology projection", () => {
       schema: "rey.atlas-landscape-transition.v3",
       scene_id: "scene:1",
       terrain_field_id: county.terrain_fields[0]?.field_set_id,
-      projection_revision: "rey.atlas-landscape-projector@2",
+      projection_revision: "rey.atlas-landscape-projector@3",
       gap_policy: "unsupported_remains_transparent",
       overlap_policy: "validity_authority_resolution_then_stable_identity",
       source_contribution_id: expect.stringMatching(/^blake3:/),
@@ -1068,7 +1068,7 @@ describe("regional scene topology projection", () => {
       "rey.terrain.regional-mosaic@8",
     );
     expect(snapshot.compiler_revisions).toContain(
-      "rey.atlas-landscape-projector@2",
+      "rey.atlas-landscape-projector@3",
     );
     const markup = renderToStaticMarkup(
       ReferenceRenderer({

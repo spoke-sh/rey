@@ -660,6 +660,11 @@ describe("reference renderer", () => {
     expect(markup).toContain("data-relief-field-id=");
     expect(markup).toContain('data-semantic-identity="atlas-sector:1"');
     expect(markup).toContain('style="opacity:' + presentation.atlas_opacity);
+    expect(markup).toContain(
+      `data-atlas-landscape-model-transform="${Object.values(
+        presentation.model_transform,
+      ).join(",")}"`,
+    );
 
     // The css_transform is meant only for content laid out in target_frame
     // (terrain/county pixel space) — it maps that space onto source_frame

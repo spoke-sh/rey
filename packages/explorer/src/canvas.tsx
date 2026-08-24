@@ -317,6 +317,26 @@ export function ExplorerCanvas({
         content.kind === "globe" ? horizontalWrapIndexes.join(",") : undefined
       }
       data-render-kind={content.kind}
+      data-terrain-camera-pan-x={
+        content.kind === "terrain" ? content.view.pan_x : undefined
+      }
+      data-terrain-camera-pan-y={
+        content.kind === "terrain" ? content.view.pan_y : undefined
+      }
+      data-terrain-camera-pitch={
+        content.kind === "terrain" ? content.view.pitch_degrees : undefined
+      }
+      data-terrain-camera-rendered-scale={
+        content.kind === "terrain" ? content.view.rendered_scale : undefined
+      }
+      data-terrain-camera-yaw={
+        content.kind === "terrain" ? content.view.yaw_degrees : undefined
+      }
+      data-terrain-model-transform={
+        content.kind === "terrain" && content.view.model_transform
+          ? Object.values(content.view.model_transform).join(",")
+          : undefined
+      }
       data-rendered-snapshot={submittedFrame?.snapshot_id}
       data-globe-horizontal-wrap-depth={
         content.kind === "globe" ? horizontalWrapDepth.toFixed(3) : undefined

@@ -5,6 +5,7 @@ import {
   atlasLandscapeMorphProgress,
   atlasLandscapePresentation,
   projectAtlasLandscapePoint,
+  projectAtlasLandscapeTerrainPoint,
 } from "./atlas-landscape";
 
 const binding = {
@@ -225,6 +226,43 @@ describe("Atlas-to-Landscape projector", () => {
       );
       expect(warpedTerrainPoint.x).toBeCloseTo(atlasSectorPoint.x, 6);
       expect(warpedTerrainPoint.y).toBeCloseTo(atlasSectorPoint.y, 6);
+    }
+  });
+
+  it("uses the accelerated terrain projector for every intermediate County-border point", () => {
+    const sampleOrbit = { pitch_degrees: 74, yaw_degrees: 29 };
+    const points = [
+      { x: binding.target_frame.x, y: binding.target_frame.y },
+      {
+        x: binding.target_frame.x + binding.target_frame.width * 0.43,
+        y: binding.target_frame.y + binding.target_frame.height * 0.71,
+      },
+      {
+        x: binding.target_frame.x + binding.target_frame.width,
+        y: binding.target_frame.y + binding.target_frame.height,
+      },
+    ];
+    for (const progress of [0, 0.17, 0.41, 0.68, 1]) {
+      const presentation = atlasLandscapePresentation(
+        binding,
+        progress,
+        sampleOrbit,
+        world,
+      );
+      for (const point of points) {
+        const accelerated = projectAtlasLandscapeTerrainPoint(
+          point,
+          presentation.model_transform,
+          {
+            pitch_degrees: presentation.pitch_degrees,
+            yaw_degrees: presentation.yaw_degrees,
+          },
+          world,
+        );
+        const border = applyCssMatrix(presentation.css_transform, point);
+        expect(border.x).toBeCloseTo(accelerated.x, 6);
+        expect(border.y).toBeCloseTo(accelerated.y, 6);
+      }
     }
   });
 });

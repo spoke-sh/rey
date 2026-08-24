@@ -2,7 +2,7 @@ import { projectTerrainCoordinate } from "@rey/explorer";
 import type { FieldBounds } from "../engine/fields";
 
 export const ATLAS_LANDSCAPE_PROJECTION_REVISION =
-  "rey.atlas-landscape-projector@2" as const;
+  "rey.atlas-landscape-projector@3" as const;
 export const ATLAS_LANDSCAPE_MORPH_START_ZOOM = 0.34;
 export const ATLAS_LANDSCAPE_MORPH_END_ZOOM = 0.66;
 
@@ -143,6 +143,29 @@ export function projectAtlasLandscapePoint(
 }
 
 /**
+ * Projects one terrain-space point through the exact model transform and
+ * orbit camera used by the accelerated terrain scene. Keeping this beside the
+ * CSS projector makes the County footprint and WebGL/WebGPU surface share one
+ * mathematical mapping rather than merely matching at their endpoints.
+ */
+export function projectAtlasLandscapeTerrainPoint(
+  point: { x: number; y: number; elevation?: number },
+  transform: TerrainModelTransform,
+  view: { pitch_degrees: number; yaw_degrees: number },
+  world: { width: number; height: number },
+): { x: number; y: number } {
+  return projectTerrainCoordinate(
+    {
+      x: point.x * transform.scale_x + transform.translate_x,
+      z: point.y * transform.scale_z + transform.translate_z,
+      elevation: (point.elevation ?? 0) * transform.elevation_scale,
+    },
+    view,
+    world,
+  );
+}
+
+/**
  * Builds the 2D CSS matrix approximating the same real orbit camera
  * `packages/explorer`'s accelerated terrain path renders with
  * (`projectTerrainCoordinate` / `terrainCameraProjection`), rather than an
@@ -160,52 +183,30 @@ function cssTerrainTransform(
   world: { width: number; height: number },
 ): string {
   const view = { pitch_degrees: pitchDegrees, yaw_degrees: yawDegrees };
-  const centerX = world.width / 2;
-  const centerY = world.height / 2;
-  const origin = projectTerrainCoordinate(
-    { x: centerX, z: centerY },
+  const origin = projectAtlasLandscapeTerrainPoint(
+    { x: 0, y: 0 },
+    model,
     view,
     world,
   );
-  const alongX = projectTerrainCoordinate(
-    { x: centerX + 1, z: centerY },
+  const alongX = projectAtlasLandscapeTerrainPoint(
+    { x: 1, y: 0 },
+    model,
     view,
     world,
   );
-  const alongZ = projectTerrainCoordinate(
-    { x: centerX, z: centerY + 1 },
+  const alongY = projectAtlasLandscapeTerrainPoint(
+    { x: 0, y: 1 },
+    model,
     view,
     world,
   );
-  const cameraA = alongX.x - origin.x;
-  const cameraB = alongX.y - origin.y;
-  const cameraC = alongZ.x - origin.x;
-  const cameraD = alongZ.y - origin.y;
-  const a = cameraA * model.scale_x;
-  const b = cameraB * model.scale_x;
-  const c = cameraC * model.scale_z;
-  const d = cameraD * model.scale_z;
-  // projectTerrainCoordinate is affine around the pivot — p ↦ origin +
-  // M·(p − pivot), not p ↦ origin + M·p — so composing it with the model
-  // transform (q ↦ S·q + T) needs the pivot subtracted back out of the
-  // constant term: origin + M·T − M·pivot. Omitting the −M·pivot term (as
-  // this used to) leaves every point offset by exactly (cameraA·centerX +
-  // cameraC·centerY, cameraB·centerX + cameraD·centerY) — 600px at
-  // progress 0 in a 1200-wide world — which is why the terrain never
-  // actually lined up with the Atlas sector it's supposed to emerge from,
-  // however correct the crossfade opacity and stipple seeding were.
-  const e =
-    cameraA * model.translate_x +
-    cameraC * model.translate_z +
-    origin.x -
-    cameraA * centerX -
-    cameraC * centerY;
-  const f =
-    cameraB * model.translate_x +
-    cameraD * model.translate_z +
-    origin.y -
-    cameraB * centerX -
-    cameraD * centerY;
+  const a = alongX.x - origin.x;
+  const b = alongX.y - origin.y;
+  const c = alongY.x - origin.x;
+  const d = alongY.y - origin.y;
+  const e = origin.x;
+  const f = origin.y;
   return `matrix(${a}, ${b}, ${c}, ${d}, ${e}, ${f})`;
 }
 

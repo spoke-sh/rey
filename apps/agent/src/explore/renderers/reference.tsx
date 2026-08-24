@@ -290,6 +290,13 @@ export function ReferenceRenderer({
       */}
       <div
         className={sx(styles.projection)}
+        data-atlas-landscape-model-transform={
+          atlasLandscapePresentation
+            ? Object.values(atlasLandscapePresentation.model_transform).join(
+                ",",
+              )
+            : undefined
+        }
         style={
           atlasLandscapePresentation
             ? {
