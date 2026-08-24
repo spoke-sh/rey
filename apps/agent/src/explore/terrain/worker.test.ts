@@ -25,7 +25,7 @@ import { admittedField, terrainTileView } from "./tiles.fixture";
 describe("bounded terrain compilation worker", () => {
   it("retains the bounded high-density hierarchy output budget", () => {
     expect(TERRAIN_COMPILATION_WORKER_REVISION).toBe(
-      "rey.terrain.compilation-worker@22",
+      "rey.terrain.compilation-worker@23",
     );
     expect(MAX_TERRAIN_COMPILATION_OUTPUT_BYTES).toBe(160 * 1024 * 1024);
     expect(MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES).toBe(112 * 1024 * 1024);
@@ -85,6 +85,18 @@ describe("bounded terrain compilation worker", () => {
     });
     expect(result.compiled.pyramid_envelopes).toEqual(
       result.landscape_pyramids,
+    );
+    const finestTextureField =
+      result.materialized_landscape_pyramids[0]!.relief_levels.at(-1)!.field;
+    expect(result.compiled.cartographic_textures).toEqual([
+      expect.objectContaining({
+        columns: finestTextureField.grid.columns,
+        rows: finestTextureField.grid.rows,
+        rgba: expect.any(Uint8Array),
+      }),
+    ]);
+    expect(result.compiled.cartographic_textures[0]!.rgba).toHaveLength(
+      finestTextureField.field_cells * 4,
     );
     expect(result.terrain_fabrics).toEqual([]);
     expect(result.landscape_pyramids[0]).toMatchObject({

@@ -10,7 +10,10 @@ import {
   terrainFieldFixture,
   terrainRenderPassFixture,
 } from "../test-fixtures";
-import { compileContinuousRelief } from "../three-terrain";
+import {
+  buildTerrainCartographicTextureData,
+  compileContinuousRelief,
+} from "../three-terrain";
 
 (
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
@@ -19,7 +22,14 @@ import { compileContinuousRelief } from "../three-terrain";
 describe("terrain scene", () => {
   it("materializes cartographic relief buffers and the bounded camera", async () => {
     const fields = terrainFieldFixture();
-    const compiled = compileContinuousRelief([fields]);
+    const compiled = compileContinuousRelief(
+      [fields],
+      64 * 1024 * 1024,
+      undefined,
+      undefined,
+      [],
+      [buildTerrainCartographicTextureData(fields)],
+    );
     const renderer = await create(
       <ContinuousReliefScene
         compiled={compiled}
@@ -52,9 +62,15 @@ describe("terrain scene", () => {
     expect(meshInstance.geometry.getAttribute("reySalience").count).toBe(
       fields.field_cells,
     );
+    expect(meshInstance.geometry.getAttribute("reyTerrainUv").count).toBe(
+      fields.field_cells,
+    );
     expect(meshInstance.geometry.index?.count).toBeGreaterThan(0);
     expect((meshInstance.material as Material).type).toBe(
       "MeshBasicNodeMaterial",
+    );
+    expect((meshInstance.material as Material).name).toContain(
+      "rey.terrain.cartographic-texture@1",
     );
     expect(renderer.scene.findAllByType("DirectionalLight")).toHaveLength(0);
     const camera = renderer.scene.findByType("OrthographicCamera").instance;

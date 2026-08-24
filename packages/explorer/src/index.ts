@@ -73,12 +73,14 @@ export {
 } from "./three-globe";
 export type { CompiledContextGlobe } from "./three-globe";
 export {
+  buildTerrainCartographicTextureData,
   buildTerrainMeshData,
   compileContinuousRelief,
   CONTINUOUS_RELIEF_MATERIAL_REVISION,
   continuousReliefMaterialRevision,
   createContinuousReliefMaterial,
   MAX_ACCELERATED_TERRAIN_GPU_BYTES,
+  TERRAIN_CARTOGRAPHIC_TEXTURE_REVISION,
   TERRAIN_MESH_PARITY_REVISION,
   projectTerrainCoordinate,
   terrainCameraProjection,
@@ -90,6 +92,7 @@ export {
 } from "./three-terrain";
 export type {
   CompiledContinuousRelief,
+  TerrainCartographicTextureData,
   TerrainCellWindow,
   TerrainCameraProjection,
   TerrainMeshData,

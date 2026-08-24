@@ -2,11 +2,16 @@ import {
   BufferAttribute,
   BufferGeometry,
   CircleGeometry,
+  ClampToEdgeWrapping,
+  DataTexture,
   DoubleSide,
+  LinearFilter,
   LineSegments,
   LineBasicNodeMaterial,
   Mesh,
   MeshBasicNodeMaterial,
+  RGBAFormat,
+  UnsignedByteType,
 } from "three/src/Three.WebGPU.js";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { TerrainCameraView } from "../types";
@@ -20,7 +25,7 @@ import {
 import { ReyOrthographicCamera } from "./orthographic-camera";
 
 export const TERRAIN_MATERIAL_BINDING_REVISION =
-  "rey.terrain.material-binding@2" as const;
+  "rey.terrain.material-binding@3" as const;
 
 export function ContinuousReliefScene({
   compiled,
@@ -33,14 +38,43 @@ export function ContinuousReliefScene({
 }) {
   const materialRevision = continuousReliefMaterialRevision(
     compiled.render_passes,
+    compiled.cartographic_textures.length > 0,
   );
   const materialBindingKeys = terrainMaterialBindingKeys(compiled);
+  const textureRevision = compiled.cartographic_textures
+    .map(({ texture_id }) => texture_id)
+    .join("|");
+  const textureBindings = useMemo(() => {
+    const bindings = new Map<string, DataTexture>();
+    for (const texture of compiled.cartographic_textures) {
+      const dataTexture = new DataTexture(
+        texture.rgba,
+        texture.columns,
+        texture.rows,
+        RGBAFormat,
+        UnsignedByteType,
+      );
+      dataTexture.name = texture.texture_id;
+      dataTexture.wrapS = ClampToEdgeWrapping;
+      dataTexture.wrapT = ClampToEdgeWrapping;
+      dataTexture.magFilter = LinearFilter;
+      dataTexture.minFilter = LinearFilter;
+      dataTexture.generateMipmaps = false;
+      dataTexture.needsUpdate = true;
+      bindings.set(texture.source_field_set_id, dataTexture);
+    }
+    return bindings;
+  }, [textureRevision]);
   const materialBindings = useMemo(() => {
     const bindings = new Map<string, MeshBasicNodeMaterial>();
     for (const [index, key] of materialBindingKeys.entries()) {
       if (bindings.has(key)) continue;
       const overlapping = key.startsWith("overlap:");
-      const material = createContinuousReliefMaterial(compiled.render_passes);
+      const sourceFieldSetId = compiled.meshes[index]!.source_field_set_id;
+      const material = createContinuousReliefMaterial(
+        compiled.render_passes,
+        textureBindings.get(sourceFieldSetId),
+      );
       if (overlapping) {
         material.polygonOffset = true;
         material.polygonOffsetFactor = -index;
@@ -49,10 +83,19 @@ export function ContinuousReliefScene({
       bindings.set(key, material);
     }
     return bindings;
-  }, [compiled.patch_set.patch_set_id, materialRevision]);
+  }, [
+    compiled.patch_set.patch_set_id,
+    materialRevision,
+    textureBindings,
+    textureRevision,
+  ]);
   useEffect(
     () => () => materialBindings.forEach((material) => material.dispose()),
     [materialBindings],
+  );
+  useEffect(
+    () => () => textureBindings.forEach((texture) => texture.dispose()),
+    [textureBindings],
   );
   const camera = terrainCameraProjection(world, view);
 
@@ -107,12 +150,20 @@ export function terrainMaterialBindingKeys(
   compiled: CompiledContinuousRelief,
 ): readonly string[] {
   const overlapping = new Set(compiled.patch_set.overlap_pairs.flat());
+  const textureIdsBySource = new Map(
+    compiled.cartographic_textures.map((texture) => [
+      texture.source_field_set_id,
+      texture.texture_id,
+    ]),
+  );
   return Object.freeze(
-    compiled.meshes.map(({ field_set_id }, index) =>
-      overlapping.has(field_set_id)
-        ? `overlap:${index}:${field_set_id}`
-        : `${TERRAIN_MATERIAL_BINDING_REVISION}:shared-non-overlapping-terrain`,
-    ),
+    compiled.meshes.map(({ field_set_id, source_field_set_id }, index) => {
+      const textureId = textureIdsBySource.get(source_field_set_id);
+      const textureBinding = textureId ? `:${textureId}` : "";
+      return overlapping.has(field_set_id)
+        ? `overlap:${index}:${field_set_id}${textureBinding}`
+        : `${TERRAIN_MATERIAL_BINDING_REVISION}:shared-non-overlapping-terrain${textureBinding}`;
+    }),
   );
 }
 
@@ -252,6 +303,7 @@ function TerrainMesh({
           args={[data.positions, 3]}
           attach="attributes-position"
         />
+        <bufferAttribute args={[data.uv, 2]} attach="attributes-reyTerrainUv" />
         <bufferAttribute args={[data.normals, 3]} attach="attributes-normal" />
         <bufferAttribute args={[data.tint, 3]} attach="attributes-reyTint" />
         <bufferAttribute

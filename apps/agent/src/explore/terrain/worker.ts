@@ -1,4 +1,5 @@
 import {
+  buildTerrainCartographicTextureData,
   compileContinuousRelief,
   deriveLandscapeReliefField,
   landscapeTerrainFabricSamples,
@@ -9,6 +10,7 @@ import {
   type LandscapePyramidEnvelope,
   type LandscapeTerrainFabricSample,
   type TerrainLineFeatureInput,
+  type TerrainCartographicTextureData,
 } from "@rey/explorer";
 import type { LensRegime } from "../engine/camera";
 import {
@@ -52,7 +54,7 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@22" as const;
+  "rey.terrain.compilation-worker@23" as const;
 export const MAX_TERRAIN_COMPILATION_OUTPUT_BYTES = 160 * 1024 * 1024;
 export const MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES = 112 * 1024 * 1024;
 export const TERRAIN_COMPILATION_FABRIC_SAMPLE_LIMIT = 2_600;
@@ -256,6 +258,9 @@ export function executeTerrainCompilationJob(
   const landscapePyramids = materializedLandscapePyramids.map(
     ({ envelope }) => envelope,
   );
+  const cartographicTextures = materializedLandscapePyramids.map(
+    cartographicTextureForPyramidTransfer,
+  );
   const compiledTiles = selections.flatMap((selection, pyramidIndex) => {
     const pyramid = pyramids[pyramidIndex]!;
     return selection.tiles.map((descriptor) => {
@@ -351,7 +356,11 @@ export function executeTerrainCompilationJob(
     ) +
     cartographyFields
       .filter((field) => !fields.includes(field))
-      .reduce((total, field) => total + field.field_bytes, 0);
+      .reduce((total, field) => total + field.field_bytes, 0) +
+    cartographicTextures.reduce(
+      (total, texture) => total + texture.rgba.byteLength,
+      0,
+    );
   if (cpuBytes > job.maximum_cpu_bytes)
     throw new Error(
       `terrain worker output ${cpuBytes} exceeds CPU budget ${job.maximum_cpu_bytes}`,
@@ -363,6 +372,7 @@ export function executeTerrainCompilationJob(
     undefined,
     reliefFields,
     landscapePyramids,
+    cartographicTextures,
   );
   const meshPreparationMs = measurementNow() - meshStarted;
   const meshById = new Map(
@@ -626,6 +636,25 @@ export function terrainCompilationResultWithTransferMetrics(
       ),
     }),
   });
+}
+
+const cartographicTextureCache = new WeakMap<
+  MaterializedLandscapePyramid,
+  TerrainCartographicTextureData
+>();
+
+function cartographicTextureForPyramidTransfer(
+  pyramid: MaterializedLandscapePyramid,
+): TerrainCartographicTextureData {
+  let retained = cartographicTextureCache.get(pyramid);
+  if (!retained) {
+    const fine = pyramid.relief_levels.at(-1)!;
+    retained = buildTerrainCartographicTextureData(fine.field, fine.relief);
+    cartographicTextureCache.set(pyramid, retained);
+  }
+  // Transfer ownership of a per-result copy. The exact packed raster stays
+  // worker-local so camera successors do not force another relief/color pass.
+  return Object.freeze({ ...retained, rgba: retained.rgba.slice() });
 }
 
 function measurementNow(): number {

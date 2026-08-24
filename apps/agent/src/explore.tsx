@@ -101,7 +101,7 @@ const visibleReferenceLayers: ReferenceLayerVisibility = {
 };
 export const DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS = 5_000;
 export const ATLAS_LANDSCAPE_MOVING_TERRAIN_MAXIMUM_LEVEL = 6;
-export const LANDSCAPE_SETTLED_TERRAIN_MAXIMUM_LEVEL = 7;
+export const LANDSCAPE_SETTLED_TERRAIN_MAXIMUM_LEVEL = 6;
 export const ATLAS_LANDSCAPE_SETTLED_REFINEMENT_DELAY_MS = 300;
 export const ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE = 0.5;
 const EXPLORER_NOTICE_DURATION_MS = DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS;
@@ -1432,6 +1432,15 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-terrain-cartography-field-bytes={
             terrainRenderer.terrain_cartography_field_bytes
           }
+          data-renderer-terrain-cartographic-texture-count={
+            terrainRenderer.terrain_cartographic_texture_count
+          }
+          data-renderer-terrain-cartographic-texture-cells={
+            terrainRenderer.terrain_cartographic_texture_cells
+          }
+          data-renderer-terrain-cartographic-texture-bytes={
+            terrainRenderer.terrain_cartographic_texture_bytes
+          }
           data-renderer-terrain-surface-active-tile-count={
             terrainSurfaceRenderer.active_tile_count
           }
@@ -1485,6 +1494,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           }
           data-renderer-terrain-surface-antialiasing={
             terrainSurfaceRenderer.render_antialiasing
+          }
+          data-renderer-terrain-surface-cartographic-texture-cells={
+            terrainSurfaceRenderer.terrain_cartographic_texture_cells
+          }
+          data-renderer-terrain-surface-cartographic-texture-bytes={
+            terrainSurfaceRenderer.terrain_cartographic_texture_bytes
           }
           data-renderer-terrain-surface-worker-execution={
             terrainSurfaceRenderer.terrain_worker_execution

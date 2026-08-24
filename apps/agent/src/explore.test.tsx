@@ -112,7 +112,7 @@ describe("Explorer canvas toolbar", () => {
       yaw_degrees: first.yaw_degrees,
     });
     expect(ATLAS_LANDSCAPE_MOVING_TERRAIN_MAXIMUM_LEVEL).toBe(6);
-    expect(LANDSCAPE_SETTLED_TERRAIN_MAXIMUM_LEVEL).toBe(7);
+    expect(LANDSCAPE_SETTLED_TERRAIN_MAXIMUM_LEVEL).toBe(6);
     expect(ATLAS_LANDSCAPE_SETTLED_REFINEMENT_DELAY_MS).toBe(300);
   });
 

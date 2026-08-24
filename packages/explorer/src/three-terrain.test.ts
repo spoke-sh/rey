@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { deriveLandscapeReliefField } from "./landscape-relief";
 import {
+  buildTerrainCartographicTextureData,
   buildTerrainMeshData,
   compileContinuousRelief,
   continuousReliefMaterialRevision,
@@ -56,18 +57,32 @@ describe("accelerated continuous terrain compiler", () => {
 
   it("constructs one TSL material graph and a bounded compiled scene", () => {
     const fieldSet = terrainFieldFixture();
+    const texture = buildTerrainCartographicTextureData(fieldSet);
+    expect(texture).toMatchObject({
+      source_field_set_id: fieldSet.field_set_id,
+      columns: fieldSet.grid.columns,
+      rows: fieldSet.grid.rows,
+    });
+    expect(texture.rgba).toHaveLength(fieldSet.field_cells * 4);
     const material = createContinuousReliefMaterial();
     expect(material.isMeshBasicNodeMaterial).toBe(true);
     expect(material.colorNode).not.toBeNull();
     material.dispose();
 
-    const compiled = compileContinuousRelief([fieldSet]);
+    const compiled = compileContinuousRelief(
+      [fieldSet],
+      64 * 1024 * 1024,
+      undefined,
+      undefined,
+      [],
+      [texture],
+    );
     expect(compiled.statistics).toMatchObject({
       field_sets: 1,
       vertices: fieldSet.field_cells,
       field_bytes: fieldSet.field_bytes,
       gpu_budget_bytes: 64 * 1024 * 1024,
-      parity_revision: "rey.terrain.cpu-mesh-upload-parity@3",
+      parity_revision: "rey.terrain.cpu-mesh-upload-parity@4",
       parity_samples: fieldSet.field_cells,
     });
     expect(compiled.statistics.triangles).toBeGreaterThan(0);
@@ -76,6 +91,10 @@ describe("accelerated continuous terrain compiler", () => {
       0,
     );
     expect(compiled.meshes[0]?.field_set_id).toBe(fieldSet.field_set_id);
+    expect(compiled.cartographic_textures).toEqual([texture]);
+    expect(compiled.meshes[0]?.data.uv).toHaveLength(
+      fieldSet.field_cells * 2,
+    );
 
     expect(
       terrainCameraProjection(
@@ -172,7 +191,7 @@ describe("accelerated continuous terrain compiler", () => {
     const passes = terrainRenderPassFixture();
     const material = createContinuousReliefMaterial(passes);
     expect(material.name).toBe(
-      "rey.terrain.tsl-cartographic-relief@6:rey.landscape-relief-engine@5:rey.landscape.chromatic-relief@2",
+      "rey.terrain.tsl-cartographic-relief@7:rey.landscape-relief-engine@5:rey.landscape.chromatic-relief@2",
     );
     expect(material.colorNode).not.toBeNull();
     material.dispose();

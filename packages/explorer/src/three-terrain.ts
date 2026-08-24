@@ -1,10 +1,14 @@
-import { MeshBasicNodeMaterial } from "three/src/Three.WebGPU.js";
+import {
+  MeshBasicNodeMaterial,
+  type Texture,
+} from "three/src/Three.WebGPU.js";
 import {
   add,
   attribute,
   clamp,
   float,
   mul,
+  texture as textureNode,
   vec3,
 } from "three/src/nodes/TSL.js";
 import {
@@ -29,7 +33,9 @@ import {
 } from "./cartographic-terrain";
 
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
-  "rey.terrain.tsl-cartographic-relief@6";
+  "rey.terrain.tsl-cartographic-relief@7";
+export const TERRAIN_CARTOGRAPHIC_TEXTURE_REVISION =
+  "rey.terrain.cartographic-texture@1" as const;
 const CONTINUOUS_RELIEF_MATERIAL_STAGES = Object.freeze([
   "base_terrain",
   "height_normals_hillshade",
@@ -37,7 +43,7 @@ const CONTINUOUS_RELIEF_MATERIAL_STAGES = Object.freeze([
 ] as const);
 export const MAX_ACCELERATED_TERRAIN_GPU_BYTES = 64 * 1024 * 1024;
 export const TERRAIN_MESH_PARITY_REVISION =
-  "rey.terrain.cpu-mesh-upload-parity@3";
+  "rey.terrain.cpu-mesh-upload-parity@4";
 
 export interface CompiledContinuousRelief {
   material_revision: string;
@@ -46,8 +52,10 @@ export interface CompiledContinuousRelief {
   render_passes?: TerrainRenderPassSetInput;
   meshes: readonly {
     field_set_id: string;
+    source_field_set_id: string;
     data: TerrainMeshData;
   }[];
+  cartographic_textures: readonly TerrainCartographicTextureData[];
   statistics: {
     field_sets: number;
     vertices: number;
@@ -84,7 +92,17 @@ export interface TerrainMeshData {
   curvature: Float32Array;
   hillshade: Float32Array;
   salience: Float32Array;
+  uv: Float32Array;
   indices: Uint32Array;
+}
+
+export interface TerrainCartographicTextureData {
+  texture_id: string;
+  source_field_set_id: string;
+  columns: number;
+  rows: number;
+  bounds: { x: number; y: number; width: number; height: number };
+  rgba: Uint8Array;
 }
 
 export function terrainMeshByteLength(mesh: TerrainMeshData): number {
@@ -98,6 +116,7 @@ export function terrainMeshByteLength(mesh: TerrainMeshData): number {
     mesh.curvature.byteLength +
     mesh.hillshade.byteLength +
     mesh.salience.byteLength +
+    mesh.uv.byteLength +
     mesh.indices.byteLength
   );
 }
@@ -106,6 +125,7 @@ export function verifyTerrainMeshParity(
   fields: TerrainFieldSetInput,
   mesh: TerrainMeshData,
   relief: LandscapeReliefField = deriveLandscapeReliefField(fields),
+  textureBounds = fields.grid.bounds,
 ): number {
   verifyLandscapeReliefField(fields, relief);
   if (
@@ -117,7 +137,8 @@ export function verifyTerrainMeshParity(
     mesh.roughness.length !== fields.field_cells ||
     mesh.curvature.length !== fields.field_cells ||
     mesh.hillshade.length !== fields.field_cells ||
-    mesh.salience.length !== fields.field_cells
+    mesh.salience.length !== fields.field_cells ||
+    mesh.uv.length !== fields.field_cells * 2
   )
     throw new Error("accelerated terrain mesh shape diverges from CPU fields");
   if (terrainNoDataLeakTriangleCount(fields, mesh) > 0)
@@ -149,6 +170,12 @@ export function verifyTerrainMeshParity(
         fields.curvature.values[index]!,
         relief.hillshade[index]!,
         relief.salience[index]!,
+        textureBounds.width === 0
+          ? 0
+          : (point.x - textureBounds.x) / textureBounds.width,
+        textureBounds.height === 0
+          ? 0
+          : (point.y - textureBounds.y) / textureBounds.height,
       ].map(Math.fround);
       const actual = [
         mesh.positions[offset],
@@ -168,6 +195,8 @@ export function verifyTerrainMeshParity(
         mesh.curvature[index],
         mesh.hillshade[index],
         mesh.salience[index],
+        mesh.uv[index * 2],
+        mesh.uv[index * 2 + 1],
       ];
       if (actual.some((value, component) => value !== expected[component]))
         throw new Error(
@@ -197,11 +226,13 @@ export function terrainNoDataLeakTriangleCount(
 export function buildTerrainMeshData(
   fields: TerrainFieldSetInput,
   relief: LandscapeReliefField = deriveLandscapeReliefField(fields),
+  textureBounds = fields.grid.bounds,
 ): TerrainMeshData {
   verifyLandscapeReliefField(fields, relief);
   const { grid } = fields;
   const positions = new Float32Array(fields.field_cells * 3);
   const normals = new Float32Array(fields.normal.values.length);
+  const uv = new Float32Array(fields.field_cells * 2);
   for (let row = 0; row < grid.rows; row += 1) {
     for (let column = 0; column < grid.columns; column += 1) {
       const index = row * grid.columns + column;
@@ -214,6 +245,14 @@ export function buildTerrainMeshData(
       normals[offset] = fields.normal.values[offset]!;
       normals[offset + 1] = fields.normal.values[offset + 2]!;
       normals[offset + 2] = fields.normal.values[offset + 1]!;
+      uv[index * 2] =
+        textureBounds.width === 0
+          ? 0
+          : (point.x - textureBounds.x) / textureBounds.width;
+      uv[index * 2 + 1] =
+        textureBounds.height === 0
+          ? 0
+          : (point.y - textureBounds.y) / textureBounds.height;
     }
   }
 
@@ -228,8 +267,38 @@ export function buildTerrainMeshData(
     curvature: fields.curvature.values.slice(),
     hillshade: relief.hillshade.slice(),
     salience: relief.salience.slice(),
+    uv,
     indices,
   };
+}
+
+export function buildTerrainCartographicTextureData(
+  fields: TerrainFieldSetInput,
+  relief: LandscapeReliefField = deriveLandscapeReliefField(fields),
+): TerrainCartographicTextureData {
+  verifyLandscapeReliefField(fields, relief);
+  const color = composeCartographicTerrainColor(fields, relief);
+  const rgba = new Uint8Array(fields.field_cells * 4);
+  for (let index = 0; index < fields.field_cells; index += 1) {
+    const colorOffset = index * 3;
+    const textureOffset = index * 4;
+    rgba[textureOffset] = Math.round(clampUnit(color[colorOffset]!) * 255);
+    rgba[textureOffset + 1] = Math.round(
+      clampUnit(color[colorOffset + 1]!) * 255,
+    );
+    rgba[textureOffset + 2] = Math.round(
+      clampUnit(color[colorOffset + 2]!) * 255,
+    );
+    rgba[textureOffset + 3] = 255;
+  }
+  return Object.freeze({
+    texture_id: `${TERRAIN_CARTOGRAPHIC_TEXTURE_REVISION}:${relief.relief_field_id}`,
+    source_field_set_id: fields.field_set_id,
+    columns: fields.grid.columns,
+    rows: fields.grid.rows,
+    bounds: Object.freeze({ ...fields.grid.bounds }),
+    rgba,
+  });
 }
 
 export function terrainTriangleIndices(
@@ -327,14 +396,30 @@ export function compileContinuousRelief(
   renderPasses?: TerrainRenderPassSetInput,
   reliefFields?: readonly LandscapeReliefField[],
   pyramidEnvelopes: readonly LandscapePyramidEnvelope[] = [],
+  cartographicTextures: readonly TerrainCartographicTextureData[] = [],
 ): CompiledContinuousRelief {
   const compilationStarted = measurementNow();
   if (!Number.isSafeInteger(gpuBudgetBytes) || gpuBudgetBytes < 1)
     throw new Error("accelerated terrain GPU budget is invalid");
   const resolvedRelief = resolveLandscapeReliefFields(fields, reliefFields);
+  const texturesBySource = new Map(
+    cartographicTextures.map((texture) => [
+      texture.source_field_set_id,
+      texture,
+    ]),
+  );
+  if (texturesBySource.size !== cartographicTextures.length)
+    throw new Error("accelerated terrain texture sources are ambiguous");
   verifyPyramidEnvelopeSet(resolvedRelief, pyramidEnvelopes);
+  const meshTextures = fields.map((field, index) =>
+    texturesBySource.get(resolvedRelief[index]!.source_field_set_id),
+  );
   const meshData = fields.map((field, index) =>
-    buildTerrainMeshData(field, resolvedRelief[index]!),
+    buildTerrainMeshData(
+      field,
+      resolvedRelief[index]!,
+      meshTextures[index]?.bounds ?? field.grid.bounds,
+    ),
   );
   const paritySamples = fields.reduce(
     (total, fieldSet, index) =>
@@ -343,12 +428,16 @@ export function compileContinuousRelief(
         fieldSet,
         meshData[index]!,
         resolvedRelief[index]!,
+        meshTextures[index]?.bounds ?? fieldSet.grid.bounds,
       ),
     0,
   );
   const gpuBytes = meshData.reduce(
     (total, data) => total + terrainMeshByteLength(data),
-    0,
+    cartographicTextures.reduce(
+      (total, texture) => total + texture.rgba.byteLength,
+      0,
+    ),
   );
   if (gpuBytes > gpuBudgetBytes)
     throw new Error(
@@ -365,7 +454,10 @@ export function compileContinuousRelief(
   }
 
   return {
-    material_revision: continuousReliefMaterialRevision(renderPasses),
+    material_revision: continuousReliefMaterialRevision(
+      renderPasses,
+      cartographicTextures.length > 0,
+    ),
     patch_set: compileLandscapePatchSet(fields),
     pyramid_envelopes: Object.freeze([...pyramidEnvelopes]),
     render_passes: renderPasses,
@@ -373,10 +465,12 @@ export function compileContinuousRelief(
       fields.map((fieldSet, index) =>
         Object.freeze({
           field_set_id: fieldSet.field_set_id,
+          source_field_set_id: resolvedRelief[index]!.source_field_set_id,
           data: meshData[index]!,
         }),
       ),
     ),
+    cartographic_textures: Object.freeze([...cartographicTextures]),
     statistics: Object.freeze({
       field_sets: fields.length,
       vertices,
@@ -445,6 +539,10 @@ function resolveLandscapeReliefFields(
 
 function measurementNow(): number {
   return globalThis.performance?.now() ?? Date.now();
+}
+
+function clampUnit(value: number): number {
+  return Math.max(0, Math.min(1, value));
 }
 
 function fieldPoint(
@@ -555,11 +653,16 @@ export function projectTerrainCoordinate(
 
 export function createContinuousReliefMaterial(
   renderPasses?: TerrainRenderPassSetInput,
+  cartographicTexture?: Texture,
 ): MeshBasicNodeMaterial {
   const material = new MeshBasicNodeMaterial();
-  material.name = continuousReliefMaterialRevision(renderPasses);
+  material.name = continuousReliefMaterialRevision(
+    renderPasses,
+    cartographicTexture !== undefined,
+  );
   const tint = attribute<"vec3">("reyTint", "vec3");
   const cartographicColor = attribute<"vec3">("reyCartographicColor", "vec3");
+  const cartographicUv = attribute<"vec2">("reyTerrainUv", "vec2");
   const occlusion = attribute<"float">("reyOcclusion", "float");
   const hillshade = attribute<"float">("reyHillshade", "float");
   const enabled = (id: TerrainRenderPassSetInput["passes"][number]["id"]) =>
@@ -576,7 +679,9 @@ export function createContinuousReliefMaterial(
   const allCartographicStages =
     CONTINUOUS_RELIEF_MATERIAL_STAGES.every(enabled);
   material.colorNode = allCartographicStages
-    ? cartographicColor
+    ? cartographicTexture
+      ? textureNode(cartographicTexture, cartographicUv).rgb
+      : cartographicColor
     : clamp(
         mul(mul(cartographicTint, multidirectionalHillshade), ambientOcclusion),
         0,
@@ -587,13 +692,17 @@ export function createContinuousReliefMaterial(
 
 export function continuousReliefMaterialRevision(
   renderPasses?: TerrainRenderPassSetInput,
+  sampledCartographicTexture = false,
 ): string {
+  const textureRevision = sampledCartographicTexture
+    ? `:sampled=${TERRAIN_CARTOGRAPHIC_TEXTURE_REVISION}`
+    : "";
   if (!renderPasses)
-    return `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${LANDSCAPE_RELIEF_ENGINE_REVISION}:${LANDSCAPE_CARTOGRAPHIC_COLOR_REVISION}`;
+    return `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${LANDSCAPE_RELIEF_ENGINE_REVISION}:${LANDSCAPE_CARTOGRAPHIC_COLOR_REVISION}${textureRevision}`;
   const disabled = CONTINUOUS_RELIEF_MATERIAL_STAGES.filter(
     (id) => !renderPasses.passes.some((pass) => pass.id === id),
   );
   return disabled.length === 0
-    ? `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${LANDSCAPE_RELIEF_ENGINE_REVISION}:${LANDSCAPE_CARTOGRAPHIC_COLOR_REVISION}`
-    : `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${LANDSCAPE_RELIEF_ENGINE_REVISION}:${LANDSCAPE_CARTOGRAPHIC_COLOR_REVISION}:without=${disabled.join(",")}`;
+    ? `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${LANDSCAPE_RELIEF_ENGINE_REVISION}:${LANDSCAPE_CARTOGRAPHIC_COLOR_REVISION}${textureRevision}`
+    : `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${LANDSCAPE_RELIEF_ENGINE_REVISION}:${LANDSCAPE_CARTOGRAPHIC_COLOR_REVISION}:without=${disabled.join(",")}${textureRevision}`;
 }

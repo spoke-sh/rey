@@ -149,6 +149,9 @@ export interface AcceleratedTerrainReport {
   terrain_cartography_tile_count: number;
   terrain_cartography_field_cells: number;
   terrain_cartography_field_bytes: number;
+  terrain_cartographic_texture_count: number;
+  terrain_cartographic_texture_cells: number;
+  terrain_cartographic_texture_bytes: number;
   active_tile_count: number;
   active_tile_levels: readonly number[];
   resident_tile_count: number;
@@ -273,6 +276,9 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     terrain_cartography_tile_count: 0,
     terrain_cartography_field_cells: 0,
     terrain_cartography_field_bytes: 0,
+    terrain_cartographic_texture_count: 0,
+    terrain_cartographic_texture_cells: 0,
+    terrain_cartographic_texture_bytes: 0,
     active_tile_count: 0,
     active_tile_levels: Object.freeze([]),
     resident_tile_count: 0,
@@ -704,6 +710,7 @@ export function AcceleratedTerrainSurface({
               return resident
                 ? Object.freeze({
                     field_set_id: resident.fields.field_set_id,
+                    source_field_set_id: mesh.source_field_set_id,
                     data: resident.mesh,
                   })
                 : mesh;
@@ -1166,6 +1173,18 @@ export function AcceleratedTerrainSurface({
         terrainMetrics?.cartography_field_cells ?? 0,
       terrain_cartography_field_bytes:
         terrainMetrics?.cartography_field_bytes ?? 0,
+      terrain_cartographic_texture_count:
+        terrainCompilation?.cartographic_textures.length ?? 0,
+      terrain_cartographic_texture_cells:
+        terrainCompilation?.cartographic_textures.reduce(
+          (total, texture) => total + texture.columns * texture.rows,
+          0,
+        ) ?? 0,
+      terrain_cartographic_texture_bytes:
+        terrainCompilation?.cartographic_textures.reduce(
+          (total, texture) => total + texture.rgba.byteLength,
+          0,
+        ) ?? 0,
       active_tile_count: activeTerrain?.result.active_tile_ids.length ?? 0,
       active_tile_levels: activeTileLevels,
       resident_tile_count: residency?.entries ?? 0,
