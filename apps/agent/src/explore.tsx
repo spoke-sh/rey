@@ -366,8 +366,19 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       terrainPrewarmSceneCompiler,
     ],
   );
+  // Preparation belongs to the exact source/backend identity. Atlas wheel
+  // movement may restart the idle mount timer, but it cannot invalidate an
+  // already submitted predicted entry view: doing so races a fast hidden
+  // submission against the final zoom tick and leaves the state at "mounted"
+  // with no new frame from which to republish readiness.
   useEffect(() => {
     setAtlasTerrainPrewarmPrepared(false);
+  }, [
+    atlasTerrainPrewarmEligible,
+    atlasTerrainPrewarmKey,
+    requestedRendererPreference,
+  ]);
+  useEffect(() => {
     if (!atlasTerrainPrewarmEligible) {
       setAtlasTerrainPrewarmReady(false);
       return;

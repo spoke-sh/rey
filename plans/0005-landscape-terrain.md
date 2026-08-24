@@ -1797,6 +1797,15 @@ than compiling overlays against the full source while prewarm is pending, and
 keys reuse by exact cartography tile identity. This is an implemented enabling
 slice; a completed retained voyage is still required.
 
+That faster prewarm exposed a readiness race in the next attempted voyage:
+the hidden terrain submission completed before the Atlas wheel animation's
+last zoom tick, then the idle-timer effect cleared `prepared` even though
+neither source nor backend had changed. Preparation invalidation is now scoped
+to exact source/backend eligibility while zoom movement only reschedules the
+idle mount timer. This keeps a completed predicted entry submission valid and
+prevents a performance improvement from stranding the harness/operator at a
+false `mounted` state. The stopped run is diagnostic only, not retained proof.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
