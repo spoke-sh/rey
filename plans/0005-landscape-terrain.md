@@ -1781,6 +1781,22 @@ triangulation and that exact clipped water edges remain unchanged. Fresh
 voyage evidence is still required before attributing an interaction-level
 improvement or closing the direct-transport performance gate.
 
+The first attempted rerun was stopped rather than retained when the new
+diagnostics exposed a remaining 4,134.7 ms main-thread render-pass compile.
+The worker cutover itself behaved as intended: a registered-source successor
+kept 91,705,859 hierarchy bytes worker-local and transferred 1,726,608 active
+bytes. Area bounds reduced the candidate set from 1,120,000 complete-field
+cells to 155,124 cells, but exact clipping still visited 307,014 fine-source
+triangles—far beyond an interaction-sized cartographic mesh.
+`rey.terrain.compilation-worker@22` therefore derives a distinct
+level-6-or-coarser cartography support set from the same height/validity
+hierarchy. Conservative coarse validity may remove supported detail but cannot
+gain support, and exact polygon clipping still uses the canonical diagonal
+rule inside that support. The page waits for this bounded worker result rather
+than compiling overlays against the full source while prewarm is pending, and
+keys reuse by exact cartography tile identity. This is an implemented enabling
+slice; a completed retained voyage is still required.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

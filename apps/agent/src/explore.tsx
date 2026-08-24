@@ -1408,6 +1408,15 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-terrain-render-pass-area-candidate-triangles={
             terrainRenderer.terrain_render_pass_area_candidate_triangles
           }
+          data-renderer-terrain-cartography-tile-count={
+            terrainRenderer.terrain_cartography_tile_count
+          }
+          data-renderer-terrain-cartography-field-cells={
+            terrainRenderer.terrain_cartography_field_cells
+          }
+          data-renderer-terrain-cartography-field-bytes={
+            terrainRenderer.terrain_cartography_field_bytes
+          }
           data-renderer-terrain-surface-active-tile-count={
             terrainSurfaceRenderer.active_tile_count
           }

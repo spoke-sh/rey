@@ -399,11 +399,12 @@ Direct browser HTTP is the default transport. A socket-restricted execution
 environment may add `--transport fulfilled`; that posture runs the exact built
 JS/CSS assets in Chrome and supplies only the bounded root-loader GET documents
 read from the named `rey agent` origin through a local-file bootstrap. The
-manifest discloses that it did not exercise direct browser networking. Because
-module workers cannot load from that file-origin bootstrap, the posture also
-exercises and discloses the bounded main-thread terrain fallback. Such a voyage
-remains useful for rendering and interaction qualification but cannot close
-direct-transport or dedicated-worker claims.
+manifest discloses that it did not exercise direct browser networking. The
+harness binds the exact built, self-contained terrain worker asset to a local
+blob URL so this posture preserves the production dedicated-worker boundary;
+it does not convert worker execution into a direct-network claim. Such a
+voyage remains useful for rendering and interaction qualification but cannot
+close direct browser transport.
 
 Add `--revalidation attention` to one fulfilled reference voyage to supply a
 two-document workload sequence: the exact initial document followed by one

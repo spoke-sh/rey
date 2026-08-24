@@ -144,6 +144,9 @@ export interface AcceleratedTerrainReport {
   terrain_render_pass_area_complete_field_cells: number;
   terrain_render_pass_area_candidate_cells: number;
   terrain_render_pass_area_candidate_triangles: number;
+  terrain_cartography_tile_count: number;
+  terrain_cartography_field_cells: number;
+  terrain_cartography_field_bytes: number;
   active_tile_count: number;
   active_tile_levels: readonly number[];
   resident_tile_count: number;
@@ -263,6 +266,9 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     terrain_render_pass_area_complete_field_cells: 0,
     terrain_render_pass_area_candidate_cells: 0,
     terrain_render_pass_area_candidate_triangles: 0,
+    terrain_cartography_tile_count: 0,
+    terrain_cartography_field_cells: 0,
+    terrain_cartography_field_bytes: 0,
     active_tile_count: 0,
     active_tile_levels: Object.freeze([]),
     resident_tile_count: 0,
@@ -754,6 +760,14 @@ export function AcceleratedTerrainSurface({
   const derivedLineSetRevision = terrainDerivedLineSetRevision(
     activeTerrain?.result.derived_lines ?? Object.freeze([]),
   );
+  const cartographyFields =
+    activeTerrain?.result.cartography_fields ?? Object.freeze([]);
+  const cartographyFieldSetRevision = cartographyFields
+    .map(
+      (field) =>
+        `${field.field_set_id}:${field.source_revision}:${field.grid.columns}x${field.grid.rows}`,
+    )
+    .join("|");
   const terrainRenderPasses = useMemo(() => {
     if (semanticGlobe) return null;
     return compileTerrainRenderPasses(
@@ -761,6 +775,7 @@ export function AcceleratedTerrainSurface({
       snapshot.render_graph,
       renderVisibility,
       activeTerrain?.result.derived_lines,
+      cartographyFields,
     );
   }, [
     renderVisibility.contours,
@@ -768,6 +783,7 @@ export function AcceleratedTerrainSurface({
     renderVisibility.water,
     renderVisibility.weather,
     derivedLineSetRevision,
+    cartographyFieldSetRevision,
     semanticGlobe,
     snapshot.snapshot_id,
   ]);
@@ -1132,6 +1148,12 @@ export function AcceleratedTerrainSurface({
         terrainRenderPasses?.compilation_metrics.area_candidate_cells ?? 0,
       terrain_render_pass_area_candidate_triangles:
         terrainRenderPasses?.compilation_metrics.area_candidate_triangles ?? 0,
+      terrain_cartography_tile_count:
+        activeTerrain?.result.cartography_tile_ids.length ?? 0,
+      terrain_cartography_field_cells:
+        terrainMetrics?.cartography_field_cells ?? 0,
+      terrain_cartography_field_bytes:
+        terrainMetrics?.cartography_field_bytes ?? 0,
       active_tile_count: activeTerrain?.result.active_tile_ids.length ?? 0,
       active_tile_levels: activeTileLevels,
       resident_tile_count: residency?.entries ?? 0,

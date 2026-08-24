@@ -52,10 +52,11 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@21" as const;
+  "rey.terrain.compilation-worker@22" as const;
 export const MAX_TERRAIN_COMPILATION_OUTPUT_BYTES = 160 * 1024 * 1024;
 export const MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES = 112 * 1024 * 1024;
 export const TERRAIN_COMPILATION_FABRIC_SAMPLE_LIMIT = 2_600;
+export const TERRAIN_CARTOGRAPHY_MAXIMUM_HIERARCHY_LEVEL = 6;
 
 export interface TerrainProgramWorkerRequest {
   program: TerrainProgram;
@@ -94,6 +95,8 @@ export interface TerrainCompilationMetrics {
   relief_hierarchy_bytes: number;
   relief_derived_bytes: number;
   relief_halo_source_cells: number;
+  cartography_field_cells: number;
+  cartography_field_bytes: number;
   selected_tile_cpu_bytes: number;
   selected_tile_gpu_bytes: number;
   materialized_pyramid_cache_hits: number;
@@ -117,6 +120,8 @@ export interface TerrainCompilationResult {
   active_tile_ids: readonly string[];
   compiled_tiles: readonly CompiledTerrainTile[];
   fields: readonly TerrainFieldSet[];
+  cartography_fields: readonly TerrainFieldSet[];
+  cartography_tile_ids: readonly string[];
   compiled: CompiledContinuousRelief;
   derived_lines: readonly TerrainLineFeatureInput[];
   terrain_fabrics: readonly TerrainCompilationFabric[];
@@ -209,6 +214,25 @@ export function executeTerrainCompilationJob(
       ),
     ),
   );
+  const cartographySelections = pyramids.map((pyramid) =>
+    selectTerrainTilesForView(
+      pyramid,
+      job.view,
+      undefined,
+      {
+        maximum_cpu_bytes: Math.floor(
+          MAX_TERRAIN_TILE_CPU_BYTES / Math.max(1, pyramids.length),
+        ),
+        maximum_gpu_bytes: Math.floor(
+          MAX_TERRAIN_TILE_GPU_BYTES / Math.max(1, pyramids.length),
+        ),
+      },
+      Math.min(
+        pyramid.maximum_level,
+        TERRAIN_CARTOGRAPHY_MAXIMUM_HIERARCHY_LEVEL,
+      ),
+    ),
+  );
   const derivedLines =
     job.presentation_mode === "moving"
       ? []
@@ -257,6 +281,22 @@ export function executeTerrainCompilationJob(
       });
     });
   });
+  const compiledTileById = new Map(
+    compiledTiles.map((tile) => [tile.descriptor.tile_id, tile] as const),
+  );
+  const cartographyTiles = cartographySelections.flatMap((selection) =>
+    selection.tiles.map((descriptor) => {
+      const compiled = compiledTileById.get(descriptor.tile_id);
+      if (compiled) return compiled;
+      const source = fieldById.get(descriptor.field_set_id);
+      if (!source)
+        throw new Error("terrain cartography tile lost its hierarchy field");
+      return Object.freeze({
+        descriptor,
+        fields: materializeTerrainTile(source, descriptor),
+      });
+    }),
+  );
   const tileProjectionMs = measurementNow() - projectionStarted;
 
   const evaluationStarted = measurementNow();
@@ -266,6 +306,11 @@ export function executeTerrainCompilationJob(
   const fieldEvaluationMs = measurementNow() - evaluationStarted;
   const fields = [
     ...compiledTiles.map((tile) => tile.fields),
+    ...passthroughFields,
+    ...evaluatedFields,
+  ];
+  const cartographyFields = [
+    ...cartographyTiles.map((tile) => tile.fields),
     ...passthroughFields,
     ...evaluatedFields,
   ];
@@ -303,7 +348,10 @@ export function executeTerrainCompilationJob(
     terrainFabrics.reduce(
       (total, fabric) => total + fabric.samples.length * 96,
       0,
-    );
+    ) +
+    cartographyFields
+      .filter((field) => !fields.includes(field))
+      .reduce((total, field) => total + field.field_bytes, 0);
   if (cpuBytes > job.maximum_cpu_bytes)
     throw new Error(
       `terrain worker output ${cpuBytes} exceeds CPU budget ${job.maximum_cpu_bytes}`,
@@ -375,6 +423,10 @@ export function executeTerrainCompilationJob(
     ),
     compiled_tiles: Object.freeze(tiles),
     fields: Object.freeze(fields),
+    cartography_fields: Object.freeze(cartographyFields),
+    cartography_tile_ids: Object.freeze(
+      cartographyTiles.map(({ descriptor }) => descriptor.tile_id),
+    ),
     compiled,
     derived_lines: Object.freeze(derivedLines),
     terrain_fabrics: Object.freeze(terrainFabrics),
@@ -458,6 +510,14 @@ export function executeTerrainCompilationJob(
               ),
             0,
           ),
+        0,
+      ),
+      cartography_field_cells: cartographyFields.reduce(
+        (total, field) => total + field.field_cells,
+        0,
+      ),
+      cartography_field_bytes: cartographyFields.reduce(
+        (total, field) => total + field.field_bytes,
         0,
       ),
       selected_tile_cpu_bytes: tiles.reduce(

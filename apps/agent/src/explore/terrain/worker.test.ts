@@ -13,6 +13,7 @@ import {
   executeTerrainCompilationJob,
   MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES,
   MAX_TERRAIN_COMPILATION_OUTPUT_BYTES,
+  TERRAIN_CARTOGRAPHY_MAXIMUM_HIERARCHY_LEVEL,
   terrainCompilationResultForWorkerTransfer,
   terrainCompilationResultWithTransferMetrics,
   terrainCompilationTransferableBuffers,
@@ -24,11 +25,12 @@ import { admittedField, terrainTileView } from "./tiles.fixture";
 describe("bounded terrain compilation worker", () => {
   it("retains the bounded high-density hierarchy output budget", () => {
     expect(TERRAIN_COMPILATION_WORKER_REVISION).toBe(
-      "rey.terrain.compilation-worker@21",
+      "rey.terrain.compilation-worker@22",
     );
     expect(MAX_TERRAIN_COMPILATION_OUTPUT_BYTES).toBe(160 * 1024 * 1024);
     expect(MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES).toBe(112 * 1024 * 1024);
     expect(TERRAIN_COMPILATION_FABRIC_SAMPLE_LIMIT).toBe(2_600);
+    expect(TERRAIN_CARTOGRAPHY_MAXIMUM_HIERARCHY_LEVEL).toBe(6);
   });
 
   it("projects, resamples, and prepares a named tile workload", () => {
@@ -51,6 +53,25 @@ describe("bounded terrain compilation worker", () => {
     expect(result.execution).toBe("main_thread_fallback");
     expect(result.active_tile_ids.length).toBeGreaterThan(1);
     expect(result.compiled_tiles).toHaveLength(result.active_tile_ids.length);
+    expect(result.cartography_fields.length).toBeGreaterThan(0);
+    expect(result.cartography_tile_ids.length).toBe(
+      result.cartography_fields.length,
+    );
+    const cartographyTileIds = new Set(result.cartography_tile_ids);
+    expect(
+      result.pyramids
+        .flatMap(({ tiles }) => tiles)
+        .filter(({ tile_id }) => cartographyTileIds.has(tile_id))
+        .every(
+          ({ level }) => level <= TERRAIN_CARTOGRAPHY_MAXIMUM_HIERARCHY_LEVEL,
+        ),
+    ).toBe(true);
+    expect(
+      result.cartography_fields.reduce(
+        (total, field) => total + field.field_cells,
+        0,
+      ),
+    ).toBe(result.metrics.cartography_field_cells);
     expect(result.landscape_pyramids).toHaveLength(1);
     expect(result.height_hierarchies).toHaveLength(1);
     expect(result.height_hierarchies[0]).toMatchObject({
@@ -211,6 +232,9 @@ describe("bounded terrain compilation worker", () => {
     expect(workerResult.pyramids).toEqual([]);
     expect(workerResult.materialized_landscape_pyramids).toEqual([]);
     expect(workerResult.height_hierarchies).toEqual([]);
+    expect(workerResult.cartography_fields).toHaveLength(
+      retained.cartography_fields.length,
+    );
     expect(workerResult.height_hierarchy_summaries).toEqual([
       expect.objectContaining({
         hierarchy_id: retained.height_hierarchies[0]!.hierarchy_id,

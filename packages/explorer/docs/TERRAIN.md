@@ -398,7 +398,7 @@ screen error would exceed the retained tile budgets, selection falls back to
 the finest visible uniform level that fits and discloses the resulting error
 instead of failing residency or silently raising a budget.
 
-`rey.terrain.compilation-worker@21` runs hierarchy projection, haloed relief
+`rey.terrain.compilation-worker@22` runs hierarchy projection, haloed relief
 derivation, exact relief sampling, procedural field evaluation, partition and
 border parity checking, and mesh preparation in a cancellable dedicated
 worker. `rey.terrain.regional-mosaic@8` hashes every composed typed channel,
@@ -410,7 +410,11 @@ relief hierarchies remain worker-resident. Results return compact hierarchy
 lineage plus the active working set, and transfer each active `ArrayBuffer`
 instead of structured-cloning it. Browser diagnostics distinguish full-source
 registration from registered-source successors and disclose transferred bytes
-and worker-retained hierarchy bytes. The complete hierarchy plus selected-tile
+and worker-retained hierarchy bytes. The same selection emits a separately
+identified level-6-or-coarser cartography support set. Its validity is the
+hierarchy's conservative validity—coarsening may remove support but cannot
+gain it—and area/line draping uses this bounded set instead of the full source
+lattice. The complete hierarchy plus selected-tile
 output still has a separate 160 MiB worker bound; that transient computation
 bound is not the 64 MiB resident-tile budget or a license to copy the hierarchy
 into the page. The deterministic reference field remains visible while work

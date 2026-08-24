@@ -68,8 +68,9 @@ export function compileTerrainRenderPasses(
   graph: ExplorerRenderGraph,
   visibility: ExplorerRenderVisibility,
   derivedLines: readonly TerrainLineFeatureInput[] = Object.freeze([]),
+  terrainFields: readonly TerrainFieldSet[] = scene.terrain_fields,
 ): CompiledTerrainRenderPassSet | null {
-  if (scene.terrain_fields.length === 0) return null;
+  if (terrainFields.length === 0) return null;
   const compilationStarted = measurementNow();
   const areaMetrics: MutableTerrainAreaDrapeMetrics = {
     area_feature_count: 0,
@@ -109,7 +110,7 @@ export function compileTerrainRenderPasses(
     let admitted = 0;
     const positions: number[] = [];
     polylines.forEach((polyline) => {
-      const segments = drapePolyline(polyline, scene.terrain_fields, 1.4);
+      const segments = drapePolyline(polyline, terrainFields, 1.4);
       segments.forEach((strip) => {
         for (let component = 3; component < strip.length; component += 3) {
           positions.push(
@@ -223,7 +224,7 @@ export function compileTerrainRenderPasses(
         const wetland = feature.hydrology_class === "wetland_candidate";
         const positions = drapeTerrainAreaWithMetrics(
           feature.geometry_path,
-          scene.terrain_fields,
+          terrainFields,
           TERRAIN_WATER_SURFACE_OFFSET,
           areaMetrics,
         );
@@ -310,11 +311,7 @@ export function compileTerrainRenderPasses(
             node.focus_id === scene.focus_id,
           ))
       ) {
-        const height = terrainHeightAtPoint(
-          scene.terrain_fields,
-          node.x,
-          node.y,
-        );
+        const height = terrainHeightAtPoint(terrainFields, node.x, node.y);
         if (height !== null)
           points.push(
             pointFeature(
@@ -336,11 +333,7 @@ export function compileTerrainRenderPasses(
     }
     for (const point of scene.points) {
       if (point.kind === "frontier" && !visibility.probes) continue;
-      const height = terrainHeightAtPoint(
-        scene.terrain_fields,
-        point.x,
-        point.y,
-      );
+      const height = terrainHeightAtPoint(terrainFields, point.x, point.y);
       if (height !== null)
         points.push(
           pointFeature(
@@ -358,7 +351,7 @@ export function compileTerrainRenderPasses(
     }
   }
 
-  const bounds = terrainBounds(scene.terrain_fields);
+  const bounds = terrainBounds(terrainFields);
   const passSetId = compactPresentationRevision(
     "rey.terrain-render-pass-set.v1",
     [
