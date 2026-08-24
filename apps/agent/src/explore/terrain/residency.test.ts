@@ -21,6 +21,7 @@ describe("terrain tile residency", () => {
   it("evicts the oldest unrequested tile deterministically", () => {
     const result = executeTerrainCompilationJob({
       job_id: "terrain-job:residency",
+      source_key: "terrain-source:residency-fixture",
       workload_id: "landscape-residency-fixture",
       regime: "landscape",
       fields: [admittedField()],
@@ -64,6 +65,7 @@ describe("terrain tile residency", () => {
   it("rejects an active set larger than either retained budget", () => {
     const result = executeTerrainCompilationJob({
       job_id: "terrain-job:residency-overflow",
+      source_key: "terrain-source:residency-overflow-fixture",
       workload_id: "landscape-residency-overflow-fixture",
       regime: "landscape",
       fields: [admittedField()],
@@ -88,6 +90,7 @@ describe("terrain tile residency", () => {
   it("rejects a tile whose cache identity no longer matches its relief", () => {
     const result = executeTerrainCompilationJob({
       job_id: "terrain-job:residency-identity",
+      source_key: "terrain-source:residency-identity-fixture",
       workload_id: "landscape-residency-identity-fixture",
       regime: "landscape",
       fields: [admittedField()],

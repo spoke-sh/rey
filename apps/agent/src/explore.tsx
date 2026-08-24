@@ -1381,6 +1381,21 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-terrain-worker-revision={
             terrainRenderer.terrain_worker_revision
           }
+          data-renderer-terrain-worker-source-payload={
+            terrainRenderer.terrain_worker_source_payload
+          }
+          data-renderer-terrain-worker-result-payload={
+            terrainRenderer.terrain_worker_result_payload
+          }
+          data-renderer-terrain-worker-transferred-array-buffers={
+            terrainRenderer.terrain_worker_transferred_array_buffers
+          }
+          data-renderer-terrain-worker-transferred-bytes={
+            terrainRenderer.terrain_worker_transferred_bytes
+          }
+          data-renderer-terrain-worker-retained-hierarchy-bytes={
+            terrainRenderer.terrain_worker_retained_hierarchy_bytes
+          }
           data-renderer-terrain-surface-active-tile-count={
             terrainSurfaceRenderer.active_tile_count
           }
@@ -1431,6 +1446,15 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           }
           data-renderer-terrain-surface-worker-execution={
             terrainSurfaceRenderer.terrain_worker_execution
+          }
+          data-renderer-terrain-surface-worker-source-payload={
+            terrainSurfaceRenderer.terrain_worker_source_payload
+          }
+          data-renderer-terrain-surface-worker-result-payload={
+            terrainSurfaceRenderer.terrain_worker_result_payload
+          }
+          data-renderer-terrain-surface-worker-transferred-bytes={
+            terrainSurfaceRenderer.terrain_worker_transferred_bytes
           }
           data-renderer-terrain-surface-valid-vertices={
             terrainSurfaceRenderer.source_valid_vertices

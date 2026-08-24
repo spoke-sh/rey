@@ -52,7 +52,7 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@20" as const;
+  "rey.terrain.compilation-worker@21" as const;
 export const MAX_TERRAIN_COMPILATION_OUTPUT_BYTES = 160 * 1024 * 1024;
 export const MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES = 112 * 1024 * 1024;
 export const TERRAIN_COMPILATION_FABRIC_SAMPLE_LIMIT = 2_600;
@@ -64,6 +64,7 @@ export interface TerrainProgramWorkerRequest {
 
 export interface TerrainCompilationJob {
   job_id: string;
+  source_key: string;
   workload_id: string;
   regime: LensRegime;
   fields: readonly TerrainFieldSet[];
@@ -110,6 +111,8 @@ export interface TerrainCompilationResult {
   landscape_pyramids: readonly LandscapePyramidEnvelope[];
   materialized_landscape_pyramids: readonly MaterializedLandscapePyramid[];
   height_hierarchies: readonly MaterializedLandscapeHeightHierarchy[];
+  height_hierarchy_summaries: readonly TerrainHeightHierarchySummary[];
+  relief_hierarchy_summaries: readonly TerrainReliefHierarchySummary[];
   selections: readonly TerrainTileSelection[];
   active_tile_ids: readonly string[];
   compiled_tiles: readonly CompiledTerrainTile[];
@@ -118,6 +121,30 @@ export interface TerrainCompilationResult {
   derived_lines: readonly TerrainLineFeatureInput[];
   terrain_fabrics: readonly TerrainCompilationFabric[];
   metrics: TerrainCompilationMetrics;
+  transport: TerrainCompilationTransport;
+}
+
+export interface TerrainHeightHierarchySummary {
+  hierarchy_id: string;
+  complete: boolean;
+  omissions: readonly string[];
+}
+
+export interface TerrainReliefHierarchySummary {
+  hierarchy_id: string;
+  levels: readonly {
+    derivation_tile_count: number;
+    maximum_gutter_radius_cells: number;
+    border_digest_id: string;
+  }[];
+}
+
+export interface TerrainCompilationTransport {
+  source_payload: "main_thread" | "full_source" | "registered_source";
+  result_payload: "inline_materialized" | "active_working_set";
+  transferred_array_buffers: number;
+  transferred_bytes: number;
+  worker_retained_hierarchy_bytes: number;
 }
 
 export interface TerrainCompilationFabric {
@@ -134,6 +161,7 @@ export function executeTerrainCompilationJob(
   const updateStarted = measurementNow();
   if (
     !job.job_id ||
+    !job.source_key ||
     !job.workload_id ||
     !Number.isSafeInteger(job.maximum_cpu_bytes) ||
     !Number.isSafeInteger(job.maximum_gpu_bytes) ||
@@ -316,6 +344,31 @@ export function executeTerrainCompilationJob(
       materializedLandscapePyramids,
     ),
     height_hierarchies: Object.freeze(heightHierarchies),
+    height_hierarchy_summaries: Object.freeze(
+      heightHierarchies.map((hierarchy) =>
+        Object.freeze({
+          hierarchy_id: hierarchy.hierarchy_id,
+          complete: hierarchy.complete,
+          omissions: hierarchy.omissions,
+        }),
+      ),
+    ),
+    relief_hierarchy_summaries: Object.freeze(
+      materializedLandscapePyramids.map((pyramid) =>
+        Object.freeze({
+          hierarchy_id: pyramid.hierarchy_id,
+          levels: Object.freeze(
+            pyramid.relief_levels.map((level) =>
+              Object.freeze({
+                derivation_tile_count: level.tiles.length,
+                maximum_gutter_radius_cells: level.maximum_gutter_radius_cells,
+                border_digest_id: level.border_digest_id,
+              }),
+            ),
+          ),
+        }),
+      ),
+    ),
     selections: Object.freeze(selections),
     active_tile_ids: Object.freeze(
       selections.flatMap((selection) => selection.tile_ids),
@@ -430,6 +483,87 @@ export function executeTerrainCompilationJob(
       ),
       gpu_timing_ms: null,
       gpu_timing_authority: "unavailable_without_capable_gpu_timer",
+    }),
+    transport: Object.freeze({
+      source_payload:
+        execution === "dedicated_worker" ? "full_source" : "main_thread",
+      result_payload: "inline_materialized",
+      transferred_array_buffers: 0,
+      transferred_bytes: 0,
+      worker_retained_hierarchy_bytes: 0,
+    }),
+  });
+}
+
+/**
+ * Removes hierarchy arrays that remain authoritative in the dedicated
+ * worker's exact cache. The page consumes only the active render tiles and
+ * compact lineage summaries; cloning the complete materialized hierarchy
+ * back to the main thread on every view successor previously moved tens of
+ * megabytes across the interaction boundary for data the renderer never read.
+ */
+export function terrainCompilationResultForWorkerTransfer(
+  result: TerrainCompilationResult,
+  sourcePayload: "full_source" | "registered_source",
+): TerrainCompilationResult {
+  return Object.freeze({
+    ...result,
+    pyramids: Object.freeze([]),
+    materialized_landscape_pyramids: Object.freeze([]),
+    height_hierarchies: Object.freeze([]),
+    transport: Object.freeze({
+      source_payload: sourcePayload,
+      result_payload: "active_working_set",
+      transferred_array_buffers: 0,
+      transferred_bytes: 0,
+      worker_retained_hierarchy_bytes:
+        result.metrics.height_hierarchy_bytes +
+        result.metrics.relief_hierarchy_bytes,
+    }),
+  });
+}
+
+/** Collects each transferable ArrayBuffer once while preserving shared views. */
+export function terrainCompilationTransferableBuffers(
+  result: TerrainCompilationResult,
+): readonly ArrayBuffer[] {
+  const buffers = new Set<ArrayBuffer>();
+  const visited = new WeakSet<object>();
+  const visit = (value: unknown): void => {
+    if (value === null || typeof value !== "object") return;
+    if (ArrayBuffer.isView(value)) {
+      if (value.buffer instanceof ArrayBuffer) buffers.add(value.buffer);
+      return;
+    }
+    if (value instanceof ArrayBuffer) {
+      buffers.add(value);
+      return;
+    }
+    if (visited.has(value)) return;
+    visited.add(value);
+    if (Array.isArray(value)) {
+      for (const member of value) visit(member);
+      return;
+    }
+    for (const member of Object.values(value)) visit(member);
+  };
+  visit(result);
+  return Object.freeze([...buffers]);
+}
+
+export function terrainCompilationResultWithTransferMetrics(
+  result: TerrainCompilationResult,
+  buffers: readonly ArrayBuffer[],
+): TerrainCompilationResult {
+  return Object.freeze({
+    ...result,
+    transport: Object.freeze({
+      ...result.transport,
+      transferred_array_buffers: buffers.length,
+      transferred_bytes: buffers.reduce(
+        (total, buffer) => total + buffer.byteLength,
+        0,
+      ),
     }),
   });
 }

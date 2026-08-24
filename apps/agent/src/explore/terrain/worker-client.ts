@@ -1,4 +1,7 @@
-import type { TerrainWorkerResponseMessage } from "./worker-entry";
+import type {
+  TerrainWorkerRequestMessage,
+  TerrainWorkerResponseMessage,
+} from "./worker-entry";
 import {
   executeTerrainCompilationJob,
   type TerrainCompilationJob,
@@ -6,7 +9,7 @@ import {
 } from "./worker";
 
 export const TERRAIN_WORKER_CLIENT_REVISION =
-  "rey.terrain.worker-client@2" as const;
+  "rey.terrain.worker-client@3" as const;
 
 interface QueuedTerrainCompilation {
   job: TerrainCompilationJob;
@@ -36,6 +39,7 @@ export class TerrainCompilationWorkerClient {
   #worker: Worker | null = null;
   #active: QueuedTerrainCompilation | null = null;
   #next: QueuedTerrainCompilation | null = null;
+  #registeredSourceKey: string | null = null;
 
   compile(
     job: TerrainCompilationJob,
@@ -85,7 +89,15 @@ export class TerrainCompilationWorkerClient {
 
   #dispatch(entry: QueuedTerrainCompilation) {
     this.#active = entry;
-    this.#ensureWorker().postMessage({ type: "compile", job: entry.job });
+    const sourceRegistered = this.#registeredSourceKey === entry.job.source_key;
+    const message: TerrainWorkerRequestMessage = sourceRegistered
+      ? {
+          type: "compile-view",
+          job: omitRegisteredTerrainFields(entry.job),
+        }
+      : { type: "compile-source", job: entry.job };
+    if (!sourceRegistered) this.#registeredSourceKey = entry.job.source_key;
+    this.#ensureWorker().postMessage(message);
   }
 
   #ensureWorker(): Worker {
@@ -114,6 +126,7 @@ export class TerrainCompilationWorkerClient {
     worker.onerror = (event) => {
       const active = this.#active;
       this.#active = null;
+      this.#registeredSourceKey = null;
       if (active && !active.signal.aborted)
         active.reject(new Error(event.message || "terrain worker failed"));
       this.#advance();
@@ -136,7 +149,15 @@ export class TerrainCompilationWorkerClient {
     this.#worker = null;
     this.#active = null;
     this.#next = null;
+    this.#registeredSourceKey = null;
   }
+}
+
+function omitRegisteredTerrainFields(
+  job: TerrainCompilationJob,
+): Omit<TerrainCompilationJob, "fields"> {
+  const { fields: _, ...viewJob } = job;
+  return viewJob;
 }
 
 function abortError(): Error {

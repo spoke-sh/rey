@@ -34,9 +34,10 @@ class MockWorker {
   }
 }
 
-function job(jobId: string) {
+function job(jobId: string, sourceKey = "terrain-source:pan-fixture") {
   return {
     job_id: jobId,
+    source_key: sourceKey,
     workload_id: "neighborhoods-pan-fixture",
     regime: "neighborhoods" as const,
     fields: [admittedField()],
@@ -59,6 +60,7 @@ describe("terrain compilation worker client", () => {
 
     const first = client.compile(job("pan:1"), new AbortController().signal);
     expect(MockWorker.instances).toHaveLength(1);
+    expect(MockWorker.instances[0]!.posted[0]!.type).toBe("compile-source");
     MockWorker.instances[0]!.respond("pan:1");
     await expect(first).resolves.toMatchObject({ job_id: "pan:1" });
 
@@ -69,6 +71,8 @@ describe("terrain compilation worker client", () => {
     // jerky independent of how fast any individual compile actually was.
     expect(MockWorker.instances).toHaveLength(1);
     expect(MockWorker.instances[0]!.terminated).toBe(false);
+    expect(MockWorker.instances[0]!.posted[1]!.type).toBe("compile-view");
+    expect("fields" in MockWorker.instances[0]!.posted[1]!.job).toBe(false);
     MockWorker.instances[0]!.respond("pan:2");
     await expect(second).resolves.toMatchObject({
       job_id: "pan:2",
@@ -77,6 +81,22 @@ describe("terrain compilation worker client", () => {
         materialized_pyramid_cache_misses: 0,
       },
     });
+  });
+
+  it("registers a replacement source before compiling its first view", async () => {
+    vi.stubGlobal("Worker", MockWorker);
+    const client = new TerrainCompilationWorkerClient();
+
+    const first = client.compile(job("source:a"), new AbortController().signal);
+    MockWorker.instances[0]!.respond("source:a");
+    await first;
+    const replacement = client.compile(
+      job("source:b", "terrain-source:replacement"),
+      new AbortController().signal,
+    );
+    expect(MockWorker.instances[0]!.posted.at(-1)!.type).toBe("compile-source");
+    MockWorker.instances[0]!.respond("source:b");
+    await replacement;
   });
 
   it("collapses requests that arrive while one is in flight down to just the latest", async () => {

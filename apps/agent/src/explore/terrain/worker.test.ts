@@ -13,6 +13,9 @@ import {
   executeTerrainCompilationJob,
   MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES,
   MAX_TERRAIN_COMPILATION_OUTPUT_BYTES,
+  terrainCompilationResultForWorkerTransfer,
+  terrainCompilationResultWithTransferMetrics,
+  terrainCompilationTransferableBuffers,
   TERRAIN_COMPILATION_FABRIC_SAMPLE_LIMIT,
   TERRAIN_COMPILATION_WORKER_REVISION,
 } from "./worker";
@@ -21,7 +24,7 @@ import { admittedField, terrainTileView } from "./tiles.fixture";
 describe("bounded terrain compilation worker", () => {
   it("retains the bounded high-density hierarchy output budget", () => {
     expect(TERRAIN_COMPILATION_WORKER_REVISION).toBe(
-      "rey.terrain.compilation-worker@20",
+      "rey.terrain.compilation-worker@21",
     );
     expect(MAX_TERRAIN_COMPILATION_OUTPUT_BYTES).toBe(160 * 1024 * 1024);
     expect(MAX_MATERIALIZED_LANDSCAPE_CACHE_BYTES).toBe(112 * 1024 * 1024);
@@ -36,6 +39,7 @@ describe("bounded terrain compilation worker", () => {
       TERRAIN_VALIDITY_NO_DATA;
     const result = executeTerrainCompilationJob({
       job_id: "terrain-job:one",
+      source_key: "terrain-source:worker-fixture",
       workload_id: "landscape-seam-fixture",
       regime: "landscape",
       fields: [source],
@@ -106,6 +110,7 @@ describe("bounded terrain compilation worker", () => {
     ).toBe(true);
     const moving = executeTerrainCompilationJob({
       job_id: "terrain-job:moving",
+      source_key: "terrain-source:worker-fixture",
       workload_id: "landscape-moving-fixture",
       regime: "landscape",
       fields: [source],
@@ -183,6 +188,7 @@ describe("bounded terrain compilation worker", () => {
     expect(independentlyDerivedTileDiffers).toBe(true);
     const retained = executeTerrainCompilationJob({
       job_id: "terrain-job:two",
+      source_key: "terrain-source:worker-fixture",
       workload_id: "landscape-seam-fixture",
       regime: "objects",
       fields: [source],
@@ -198,12 +204,47 @@ describe("bounded terrain compilation worker", () => {
     expect(retained.height_hierarchies[0]!.hierarchy_id).toBe(
       result.height_hierarchies[0]!.hierarchy_id,
     );
+    const workerResult = terrainCompilationResultForWorkerTransfer(
+      retained,
+      "registered_source",
+    );
+    expect(workerResult.pyramids).toEqual([]);
+    expect(workerResult.materialized_landscape_pyramids).toEqual([]);
+    expect(workerResult.height_hierarchies).toEqual([]);
+    expect(workerResult.height_hierarchy_summaries).toEqual([
+      expect.objectContaining({
+        hierarchy_id: retained.height_hierarchies[0]!.hierarchy_id,
+        complete: true,
+      }),
+    ]);
+    expect(workerResult.relief_hierarchy_summaries[0]!.levels).toHaveLength(
+      retained.materialized_landscape_pyramids[0]!.relief_levels.length,
+    );
+    expect(workerResult.transport).toMatchObject({
+      source_payload: "registered_source",
+      result_payload: "active_working_set",
+      worker_retained_hierarchy_bytes:
+        retained.metrics.height_hierarchy_bytes +
+        retained.metrics.relief_hierarchy_bytes,
+    });
+    const transfer = terrainCompilationTransferableBuffers(workerResult);
+    expect(transfer.length).toBeGreaterThan(0);
+    const metered = terrainCompilationResultWithTransferMetrics(
+      workerResult,
+      transfer,
+    );
+    expect(metered.transport.transferred_array_buffers).toBe(transfer.length);
+    expect(metered.transport.transferred_bytes).toBe(
+      transfer.reduce((total, buffer) => total + buffer.byteLength, 0),
+    );
+    expect(metered.transport.transferred_bytes).toBeGreaterThan(0);
   }, 15_000);
 
   it("rejects CPU overflow and cancels before fallback evaluation", async () => {
     expect(() =>
       executeTerrainCompilationJob({
         job_id: "terrain-job:overflow",
+        source_key: "terrain-source:overflow-fixture",
         workload_id: "landscape-budget-fixture",
         regime: "landscape",
         fields: [admittedField()],
@@ -220,6 +261,7 @@ describe("bounded terrain compilation worker", () => {
       new TerrainCompilationWorkerClient().compile(
         {
           job_id: "terrain-job:cancelled",
+          source_key: "terrain-source:cancellation-fixture",
           workload_id: "landscape-cancellation-fixture",
           regime: "landscape",
           fields: [admittedField()],

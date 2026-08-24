@@ -1749,6 +1749,26 @@ capture
 binds the settled result. This qualifies the shared projection/camera
 connection under fulfilled transport, not direct hardware frame rate.
 
+The first responsiveness deep dive uses that exact voyage as its
+uninstrumented baseline. Despite dedicated-worker execution, each camera
+successor still structured-cloned the full immutable DEM source into the
+worker and returned about 92 MiB of materialized height/relief hierarchy that
+the page never read. The baseline retained a 1,798.2 ms maximum moving-frame
+gap, 559 ms worker update, 333 ms tile projection, 223 ms geometry compilation,
+and 624 ms render submission for the named Landscape handoff. Full-voyage CPU
+sampling was rejected as qualification evidence because its observer overhead
+stalled the SwiftShader run; the retained uninstrumented manifest remains
+authoritative. `rey.terrain.compilation-worker@21` hard-cuts the transport
+contract: the first exact source identity is registered once in the long-lived
+worker, compatible view successors omit source fields, complete hierarchies
+remain worker-local, and only the active working set plus compact lineage
+summaries crosses back by transferable `ArrayBuffer` ownership. Browser
+diagnostics disclose source and result payload kinds, transferred
+buffers/bytes, and retained hierarchy bytes. This closes the avoidable
+hierarchy-clone mechanism, not the open direct-hardware frame-rate gate; the
+next named performance slice bounds main-thread cartographic draping to the
+feature's terrain support before rerunning the same voyage.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
