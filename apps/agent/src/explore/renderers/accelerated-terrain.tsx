@@ -122,6 +122,7 @@ export interface AcceleratedTerrainReport {
   field_evaluation_ms: number;
   geometry_compilation_ms: number;
   render_submission_ms: number;
+  render_resolution_scale: number;
   terrain_update_ms: number;
   terrain_decode_ms: number;
   terrain_tile_projection_ms: number;
@@ -247,6 +248,7 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     field_evaluation_ms: 0,
     geometry_compilation_ms: 0,
     render_submission_ms: 0,
+    render_resolution_scale: 1,
     terrain_update_ms: 0,
     terrain_decode_ms: 0,
     terrain_tile_projection_ms: 0,
@@ -886,6 +888,11 @@ export function AcceleratedTerrainSurface({
           world: snapshot.scene.world,
         }
       : null;
+  const renderResolutionScale = terrainCompilation
+    ? presentationMode === "moving"
+      ? 0.5
+      : 0.75
+    : 1;
   const frame = {
     snapshot_id: snapshot.snapshot_id,
     content_revision: globeCompilation
@@ -1117,6 +1124,7 @@ export function AcceleratedTerrainSurface({
       field_evaluation_ms: fieldProjection.evaluation_ms,
       geometry_compilation_ms: statistics.geometry_compilation_ms,
       render_submission_ms: canvasReport.render_submission_ms,
+      render_resolution_scale: renderResolutionScale,
       terrain_update_ms: terrainMetrics?.update_ms ?? 0,
       terrain_decode_ms: terrainMetrics?.decode_ms ?? 0,
       terrain_tile_projection_ms: terrainMetrics?.tile_projection_ms ?? 0,
@@ -1238,6 +1246,7 @@ export function AcceleratedTerrainSurface({
       opacity={canvasOpacity}
       preference={preference}
       readyClassName={sx(styles.acceleratedTerrainCanvasReady)}
+      resolutionScale={renderResolutionScale}
       visible={visible}
     />
   ) : null;

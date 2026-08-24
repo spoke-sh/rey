@@ -27,6 +27,15 @@ describe("renderer contracts", () => {
     expect(
       large.width * large.height * large.device_pixel_ratio ** 2,
     ).toBeLessThanOrEqual(8_388_608);
+    expect(
+      boundedViewport(
+        { width: 1920, height: 1080, device_pixel_ratio: 2 },
+        2,
+        2048,
+        8_388_608,
+        0.5,
+      ),
+    ).toEqual({ width: 1920, height: 1080, device_pixel_ratio: 1 });
   });
 });
 

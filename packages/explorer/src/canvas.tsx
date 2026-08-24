@@ -59,6 +59,7 @@ export interface ExplorerCanvasProps {
   opacity?: number;
   preference: RendererPreference;
   readyClassName?: string;
+  resolutionScale?: number;
   visible: boolean;
 }
 
@@ -78,6 +79,7 @@ export function ExplorerCanvas({
   opacity = 1,
   preference,
   readyClassName,
+  resolutionScale = 1,
   visible,
 }: ExplorerCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -92,7 +94,7 @@ export function ExplorerCanvas({
   const horizontalWrapIndexes = globeHorizontalWrapIndexes(content);
   const horizontalWrapDepth = globeHorizontalWrapDepth(content);
   const horizontalWrapOpacity = globeHorizontalWrapOpacity(content);
-  const viewport = canvasViewport(content);
+  const viewport = canvasViewport(content, resolutionScale);
   const wrappedCanvasStyle =
     content.kind === "globe" && horizontalWrapIndexes.length > 1
       ? {
@@ -142,6 +144,8 @@ export function ExplorerCanvas({
   frameRef.current = frame;
   const contentRef = useRef(content);
   contentRef.current = content;
+  const resolutionScaleRef = useRef(resolutionScale);
+  resolutionScaleRef.current = resolutionScale;
 
   useEffect(() => {
     if (preference !== "reference") return;
@@ -220,7 +224,10 @@ export function ExplorerCanvas({
       }
       try {
         root = createRoot(canvas);
-        const viewport = canvasViewport(contentRef.current);
+        const viewport = canvasViewport(
+          contentRef.current,
+          resolutionScaleRef.current,
+        );
         await root.configure({
           dpr: viewport.device_pixel_ratio,
           flat: true,
@@ -287,7 +294,12 @@ export function ExplorerCanvas({
         top: 0,
       },
     });
-  }, [rootGeneration, viewport.height, viewport.width]);
+  }, [
+    rootGeneration,
+    viewport.device_pixel_ratio,
+    viewport.height,
+    viewport.width,
+  ]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -381,6 +393,7 @@ export function ExplorerCanvas({
           : undefined
       }
       data-renderer="react-three-fiber"
+      data-render-resolution-scale={resolutionScale}
       ref={canvasRef}
       style={{
         ...wrappedCanvasStyle,
@@ -390,7 +403,10 @@ export function ExplorerCanvas({
   );
 }
 
-function canvasViewport(content: ExplorerCanvasContent) {
+function canvasViewport(
+  content: ExplorerCanvasContent,
+  resolutionScale = 1,
+) {
   const horizontalWraps = globeHorizontalWrapIndexes(content).length;
   return boundedViewport(
     {
@@ -406,6 +422,8 @@ function canvasViewport(content: ExplorerCanvasContent) {
     },
     2,
     horizontalWraps > 1 ? 4_096 : 2_048,
+    8_388_608,
+    resolutionScale,
   );
 }
 

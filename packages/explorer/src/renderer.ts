@@ -61,11 +61,14 @@ export function boundedViewport(
   maximumDevicePixelRatio = 2,
   maximumDimension = 2048,
   maximumPhysicalPixels = 8_388_608,
+  resolutionScale = 1,
 ): RendererViewport {
-  const devicePixelRatio = Math.min(
-    maximumDevicePixelRatio,
-    Math.max(1, viewport.device_pixel_ratio),
-  );
+  const boundedResolutionScale = Math.min(1, Math.max(0.5, resolutionScale));
+  const devicePixelRatio =
+    Math.min(
+      maximumDevicePixelRatio,
+      Math.max(1, viewport.device_pixel_ratio),
+    ) * boundedResolutionScale;
   const width = Math.max(1, Math.floor(viewport.width));
   const height = Math.max(1, Math.floor(viewport.height));
   const scale = Math.min(
