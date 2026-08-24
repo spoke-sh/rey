@@ -13,6 +13,8 @@ import {
   compileTerrainRenderPasses,
   drapeTerrainArea,
   parseSvgPolylines,
+  terrainCellWindowForBounds,
+  terrainDerivedLineSetRevision,
 } from "./terrain-passes";
 import type { TerrainFieldSet } from "../terrain/compile";
 
@@ -97,6 +99,16 @@ describe("executable terrain render passes", () => {
     expect(compiled?.pass_set_id.length).toBeLessThan(128);
     expect(Object.isFrozen(compiled?.areas)).toBe(true);
     expect(Object.isFrozen(compiled?.lines)).toBe(true);
+    expect(compiled?.compilation_metrics).toMatchObject({
+      area_feature_count: 1,
+      area_complete_field_cells: 8,
+      area_candidate_cells: 4,
+      area_candidate_triangles: expect.any(Number),
+      compilation_ms: expect.any(Number),
+    });
+    expect(compiled!.compilation_metrics.area_candidate_cells).toBeLessThan(
+      compiled!.compilation_metrics.area_complete_field_cells,
+    );
   });
 
   it("renders typed wetland polygons separately from open water", () => {
@@ -175,6 +187,42 @@ describe("executable terrain render passes", () => {
     expect(Math.max(...x)).toBeCloseTo(19.2, 5);
     expect(Math.min(...y)).toBeCloseTo(0.8, 5);
     expect(Math.max(...y)).toBeCloseTo(4.3, 5);
+    expect(
+      terrainCellWindowForBounds(terrainFixture(), {
+        left: 15.7,
+        top: 0.8,
+        right: 19.2,
+        bottom: 4.3,
+      }),
+    ).toEqual({
+      column_start: 3,
+      column_end: 3,
+      row_start: 0,
+      row_end: 0,
+    });
+  });
+
+  it("keys derived line geometry by retained source and presentation identity", () => {
+    const scene = sceneFixture();
+    const compiled = compileTerrainRenderPasses(
+      scene,
+      compileExplorerRenderGraph(scene),
+      visible(),
+    )!;
+    const lines = compiled.lines;
+    const copied = lines.map((line) => ({
+      ...line,
+      positions: line.positions.slice(),
+    }));
+    expect(terrainDerivedLineSetRevision(copied)).toBe(
+      terrainDerivedLineSetRevision(lines),
+    );
+    expect(
+      terrainDerivedLineSetRevision([
+        { ...copied[0]!, source_revision: "changed-source" },
+        ...copied.slice(1),
+      ]),
+    ).not.toBe(terrainDerivedLineSetRevision(lines));
   });
 
   it("retains a deterministic dense-vector fixture under one terrain transform", () => {

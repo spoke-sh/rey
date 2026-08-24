@@ -1,5 +1,6 @@
 import {
-  terrainTriangleIndices,
+  terrainTriangleIndicesForCellWindow,
+  type TerrainCellWindow,
   type TerrainAreaFeatureInput,
   type TerrainLineFeatureInput,
   type TerrainPointFeatureInput,
@@ -18,17 +19,64 @@ import {
 } from "./render-graph";
 
 export const TERRAIN_RENDER_PASS_COMPILER_REVISION =
-  "rey.explorer.terrain-render-passes@6" as const;
+  "rey.explorer.terrain-render-passes@7" as const;
 
 const TERRAIN_WATER_SURFACE_OFFSET = 4;
+
+export interface TerrainRenderPassCompilationMetrics {
+  compilation_ms: number;
+  area_feature_count: number;
+  area_complete_field_cells: number;
+  area_candidate_cells: number;
+  area_candidate_triangles: number;
+}
+
+export interface CompiledTerrainRenderPassSet extends TerrainRenderPassSetInput {
+  compilation_metrics: TerrainRenderPassCompilationMetrics;
+}
+
+interface MutableTerrainAreaDrapeMetrics {
+  area_feature_count: number;
+  area_complete_field_cells: number;
+  area_candidate_cells: number;
+  area_candidate_triangles: number;
+}
+
+export function terrainDerivedLineSetRevision(
+  lines: readonly TerrainLineFeatureInput[],
+): string {
+  return compactPresentationRevision(
+    "rey.terrain-derived-line-set.v1",
+    lines.map(
+      ({
+        id,
+        pass_id,
+        kind,
+        source_revision,
+        color,
+        opacity,
+        width,
+        positions,
+      }) =>
+        `${id}:${pass_id}:${kind}:${source_revision}:${color}:${opacity}:${width ?? 1}:${positions.byteLength}`,
+    ),
+  );
+}
 
 export function compileTerrainRenderPasses(
   scene: TopologyScene,
   graph: ExplorerRenderGraph,
   visibility: ExplorerRenderVisibility,
   derivedLines: readonly TerrainLineFeatureInput[] = Object.freeze([]),
-): TerrainRenderPassSetInput | null {
+): CompiledTerrainRenderPassSet | null {
   if (scene.terrain_fields.length === 0) return null;
+  const compilationStarted = measurementNow();
+  const areaMetrics: MutableTerrainAreaDrapeMetrics = {
+    area_feature_count: 0,
+    area_complete_field_cells: 0,
+    area_candidate_cells: 0,
+    area_candidate_triangles: 0,
+  };
   const active = activeExplorerRenderPasses(graph, visibility);
   const activeIds = new Set(active.map(({ id }) => id));
   const passes = active
@@ -173,10 +221,11 @@ export function compileTerrainRenderPasses(
         feature.geometry_representation === "exact_native"
       ) {
         const wetland = feature.hydrology_class === "wetland_candidate";
-        const positions = drapeTerrainArea(
+        const positions = drapeTerrainAreaWithMetrics(
           feature.geometry_path,
           scene.terrain_fields,
           TERRAIN_WATER_SURFACE_OFFSET,
+          areaMetrics,
         );
         if (positions.length > 0)
           areas.push(
@@ -337,6 +386,10 @@ export function compileTerrainRenderPasses(
     lines: Object.freeze(lines),
     points: Object.freeze(points),
     omissions: Object.freeze(omissions),
+    compilation_metrics: Object.freeze({
+      ...areaMetrics,
+      compilation_ms: measurementNow() - compilationStarted,
+    }),
   });
 }
 
@@ -345,12 +398,32 @@ export function drapeTerrainArea(
   fields: readonly TerrainFieldSet[],
   offset: number,
 ): Float32Array {
+  return drapeTerrainAreaWithMetrics(path, fields, offset);
+}
+
+function drapeTerrainAreaWithMetrics(
+  path: string,
+  fields: readonly TerrainFieldSet[],
+  offset: number,
+  metrics?: MutableTerrainAreaDrapeMetrics,
+): Float32Array {
   const rings = parseSvgPolylines(path);
   if (rings.length === 0) return new Float32Array();
+  if (metrics) metrics.area_feature_count += 1;
   const positions: number[] = [];
   const polygonBounds = pointBounds(rings.flat());
   for (const field of fields) {
-    const indices = terrainTriangleIndices(field);
+    if (metrics)
+      metrics.area_complete_field_cells +=
+        (field.grid.columns - 1) * (field.grid.rows - 1);
+    const window = terrainCellWindowForBounds(field, polygonBounds);
+    if (!window) continue;
+    if (metrics)
+      metrics.area_candidate_cells +=
+        (window.column_end - window.column_start + 1) *
+        (window.row_end - window.row_start + 1);
+    const indices = terrainTriangleIndicesForCellWindow(field, window);
+    if (metrics) metrics.area_candidate_triangles += indices.length / 3;
     const pointForIndex = (index: number) => {
       const column = index % field.grid.columns;
       const row = Math.floor(index / field.grid.columns);
@@ -376,13 +449,79 @@ export function drapeTerrainArea(
   return Float32Array.from(positions);
 }
 
+export function terrainCellWindowForBounds(
+  field: Pick<TerrainFieldSet, "grid">,
+  bounds: PointBounds,
+): TerrainCellWindow | null {
+  const fieldBounds: PointBounds = {
+    left: field.grid.bounds.x,
+    top: field.grid.bounds.y,
+    right: field.grid.bounds.x + field.grid.bounds.width,
+    bottom: field.grid.bounds.y + field.grid.bounds.height,
+  };
+  if (!boundsIntersect(fieldBounds, bounds)) return null;
+  const columnIntervals = field.grid.columns - 1;
+  const rowIntervals = field.grid.rows - 1;
+  const columnStart = Math.max(
+    0,
+    Math.min(
+      columnIntervals - 1,
+      Math.ceil(
+        ((Math.max(bounds.left, fieldBounds.left) - fieldBounds.left) /
+          field.grid.bounds.width) *
+          columnIntervals,
+      ) - 1,
+    ),
+  );
+  const columnEnd = Math.max(
+    0,
+    Math.min(
+      columnIntervals - 1,
+      Math.floor(
+        ((Math.min(bounds.right, fieldBounds.right) - fieldBounds.left) /
+          field.grid.bounds.width) *
+          columnIntervals,
+      ),
+    ),
+  );
+  const rowStart = Math.max(
+    0,
+    Math.min(
+      rowIntervals - 1,
+      Math.ceil(
+        ((Math.max(bounds.top, fieldBounds.top) - fieldBounds.top) /
+          field.grid.bounds.height) *
+          rowIntervals,
+      ) - 1,
+    ),
+  );
+  const rowEnd = Math.max(
+    0,
+    Math.min(
+      rowIntervals - 1,
+      Math.floor(
+        ((Math.min(bounds.bottom, fieldBounds.bottom) - fieldBounds.top) /
+          field.grid.bounds.height) *
+          rowIntervals,
+      ),
+    ),
+  );
+  if (columnStart > columnEnd || rowStart > rowEnd) return null;
+  return Object.freeze({
+    column_start: columnStart,
+    column_end: columnEnd,
+    row_start: rowStart,
+    row_end: rowEnd,
+  });
+}
+
 interface DrapedAreaPoint {
   x: number;
   y: number;
   height: number;
 }
 
-interface PointBounds {
+export interface PointBounds {
   left: number;
   top: number;
   right: number;
@@ -573,6 +712,10 @@ function midpoint(
   second: { x: number; y: number },
 ) {
   return { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+}
+
+function measurementNow(): number {
+  return globalThis.performance?.now() ?? Date.now();
 }
 
 function pointBounds(points: readonly { x: number; y: number }[]): PointBounds {

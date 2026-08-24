@@ -13,7 +13,10 @@ import {
   activeExplorerRenderPasses,
   type ExplorerRenderVisibility,
 } from "../engine/render-graph";
-import { compileTerrainRenderPasses } from "../engine/terrain-passes";
+import {
+  compileTerrainRenderPasses,
+  terrainDerivedLineSetRevision,
+} from "../engine/terrain-passes";
 import type { SceneSnapshot } from "../engine/scene";
 import {
   terrainPatchRequestsForView,
@@ -137,6 +140,10 @@ export interface AcceleratedTerrainReport {
   terrain_worker_transferred_array_buffers: number;
   terrain_worker_transferred_bytes: number;
   terrain_worker_retained_hierarchy_bytes: number;
+  terrain_render_pass_compilation_ms: number;
+  terrain_render_pass_area_complete_field_cells: number;
+  terrain_render_pass_area_candidate_cells: number;
+  terrain_render_pass_area_candidate_triangles: number;
   active_tile_count: number;
   active_tile_levels: readonly number[];
   resident_tile_count: number;
@@ -252,6 +259,10 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     terrain_worker_transferred_array_buffers: 0,
     terrain_worker_transferred_bytes: 0,
     terrain_worker_retained_hierarchy_bytes: 0,
+    terrain_render_pass_compilation_ms: 0,
+    terrain_render_pass_area_complete_field_cells: 0,
+    terrain_render_pass_area_candidate_cells: 0,
+    terrain_render_pass_area_candidate_triangles: 0,
     active_tile_count: 0,
     active_tile_levels: Object.freeze([]),
     resident_tile_count: 0,
@@ -740,6 +751,9 @@ export function AcceleratedTerrainSurface({
     () => (projectionGlobe ? compileContextGlobe(projectionGlobe) : null),
     [projectionGlobe],
   );
+  const derivedLineSetRevision = terrainDerivedLineSetRevision(
+    activeTerrain?.result.derived_lines ?? Object.freeze([]),
+  );
   const terrainRenderPasses = useMemo(() => {
     if (semanticGlobe) return null;
     return compileTerrainRenderPasses(
@@ -753,7 +767,7 @@ export function AcceleratedTerrainSurface({
     renderVisibility.probes,
     renderVisibility.water,
     renderVisibility.weather,
-    activeTerrain?.job_id,
+    derivedLineSetRevision,
     semanticGlobe,
     snapshot.snapshot_id,
   ]);
@@ -1110,6 +1124,14 @@ export function AcceleratedTerrainSurface({
         activeTerrain?.result.transport.transferred_bytes ?? 0,
       terrain_worker_retained_hierarchy_bytes:
         activeTerrain?.result.transport.worker_retained_hierarchy_bytes ?? 0,
+      terrain_render_pass_compilation_ms:
+        terrainRenderPasses?.compilation_metrics.compilation_ms ?? 0,
+      terrain_render_pass_area_complete_field_cells:
+        terrainRenderPasses?.compilation_metrics.area_complete_field_cells ?? 0,
+      terrain_render_pass_area_candidate_cells:
+        terrainRenderPasses?.compilation_metrics.area_candidate_cells ?? 0,
+      terrain_render_pass_area_candidate_triangles:
+        terrainRenderPasses?.compilation_metrics.area_candidate_triangles ?? 0,
       active_tile_count: activeTerrain?.result.active_tile_ids.length ?? 0,
       active_tile_levels: activeTileLevels,
       resident_tile_count: residency?.entries ?? 0,

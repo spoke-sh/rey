@@ -85,10 +85,12 @@ export {
   terrainMeshByteLength,
   terrainNoDataLeakTriangleCount,
   terrainTriangleIndices,
+  terrainTriangleIndicesForCellWindow,
   verifyTerrainMeshParity,
 } from "./three-terrain";
 export type {
   CompiledContinuousRelief,
+  TerrainCellWindow,
   TerrainCameraProjection,
   TerrainMeshData,
 } from "./three-terrain";

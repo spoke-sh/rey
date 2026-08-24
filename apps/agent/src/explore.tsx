@@ -1396,6 +1396,18 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-terrain-worker-retained-hierarchy-bytes={
             terrainRenderer.terrain_worker_retained_hierarchy_bytes
           }
+          data-renderer-terrain-render-pass-compilation-ms={
+            terrainRenderer.terrain_render_pass_compilation_ms
+          }
+          data-renderer-terrain-render-pass-area-complete-field-cells={
+            terrainRenderer.terrain_render_pass_area_complete_field_cells
+          }
+          data-renderer-terrain-render-pass-area-candidate-cells={
+            terrainRenderer.terrain_render_pass_area_candidate_cells
+          }
+          data-renderer-terrain-render-pass-area-candidate-triangles={
+            terrainRenderer.terrain_render_pass_area_candidate_triangles
+          }
           data-renderer-terrain-surface-active-tile-count={
             terrainSurfaceRenderer.active_tile_count
           }

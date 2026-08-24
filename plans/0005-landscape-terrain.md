@@ -1769,6 +1769,18 @@ hierarchy-clone mechanism, not the open direct-hardware frame-rate gate; the
 next named performance slice bounds main-thread cartographic draping to the
 feature's terrain support before rerunning the same voyage.
 
+`rey.explorer.terrain-render-passes@7` implements that follow-up without
+changing validity or source authority. Exact polygon bounds now select the
+smallest intersecting cell window and reuse the canonical validity-aware
+terrain diagonal rule; the pass set retains complete-field, candidate-cell,
+candidate-triangle, and transient-time diagnostics. The accelerated surface
+also retains an unchanged world-coordinate pass set across camera-only worker
+successors by derived-line source/presentation identity. Focused fixtures prove
+that concatenated bounded cell windows are index-identical to complete-field
+triangulation and that exact clipped water edges remain unchanged. Fresh
+voyage evidence is still required before attributing an interaction-level
+improvement or closing the direct-transport performance gate.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

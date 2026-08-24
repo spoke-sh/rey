@@ -9,6 +9,8 @@ import {
   terrainCameraProjection,
   terrainMeshByteLength,
   terrainNoDataLeakTriangleCount,
+  terrainTriangleIndices,
+  terrainTriangleIndicesForCellWindow,
   verifyTerrainMeshParity,
 } from "./three-terrain";
 import { terrainFieldFixture, terrainRenderPassFixture } from "./test-fixtures";
@@ -24,6 +26,32 @@ describe("accelerated continuous terrain compiler", () => {
     expect(terrainNoDataLeakTriangleCount(fieldSet, mesh)).toBe(0);
     for (const index of mesh.indices)
       expect(fieldSet.validity.values[index]).not.toBe(0);
+  });
+
+  it("preserves exact terrain diagonal and validity decisions in bounded cell windows", () => {
+    const fieldSet = terrainFieldFixture();
+    const partitioned: number[] = [];
+    for (let row = 0; row < fieldSet.grid.rows - 1; row += 1)
+      for (let column = 0; column < fieldSet.grid.columns - 1; column += 1)
+        partitioned.push(
+          ...terrainTriangleIndicesForCellWindow(fieldSet, {
+            column_start: column,
+            column_end: column,
+            row_start: row,
+            row_end: row,
+          }),
+        );
+    expect(Uint32Array.from(partitioned)).toEqual(
+      terrainTriangleIndices(fieldSet),
+    );
+    expect(() =>
+      terrainTriangleIndicesForCellWindow(fieldSet, {
+        column_start: 0,
+        column_end: fieldSet.grid.columns - 1,
+        row_start: 0,
+        row_end: 0,
+      }),
+    ).toThrow("outside the bounded grid");
   });
 
   it("constructs one TSL material graph and a bounded compiled scene", () => {

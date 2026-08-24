@@ -235,7 +235,44 @@ export function buildTerrainMeshData(
 export function terrainTriangleIndices(
   fields: Pick<TerrainFieldSetInput, "grid" | "validity">,
 ): Uint32Array {
+  return terrainTriangleIndicesForCellWindow(fields, {
+    column_start: 0,
+    column_end: fields.grid.columns - 2,
+    row_start: 0,
+    row_end: fields.grid.rows - 2,
+  });
+}
+
+export interface TerrainCellWindow {
+  column_start: number;
+  column_end: number;
+  row_start: number;
+  row_end: number;
+}
+
+/**
+ * Applies the exact validity-aware terrain diagonal rule to one bounded cell
+ * window. Callers that already know a feature's spatial support can avoid
+ * constructing and scanning the complete field index buffer.
+ */
+export function terrainTriangleIndicesForCellWindow(
+  fields: Pick<TerrainFieldSetInput, "grid" | "validity">,
+  window: TerrainCellWindow,
+): Uint32Array {
   const { grid } = fields;
+  if (
+    !Number.isInteger(window.column_start) ||
+    !Number.isInteger(window.column_end) ||
+    !Number.isInteger(window.row_start) ||
+    !Number.isInteger(window.row_end) ||
+    window.column_start < 0 ||
+    window.column_end < window.column_start ||
+    window.column_end >= grid.columns - 1 ||
+    window.row_start < 0 ||
+    window.row_end < window.row_start ||
+    window.row_end >= grid.rows - 1
+  )
+    throw new Error("terrain cell window is outside the bounded grid");
   const indices: number[] = [];
   const appendTriangle = (first: number, second: number, third: number) => {
     if (
@@ -245,8 +282,12 @@ export function terrainTriangleIndices(
     )
       indices.push(first, second, third);
   };
-  for (let row = 0; row < grid.rows - 1; row += 1) {
-    for (let column = 0; column < grid.columns - 1; column += 1) {
+  for (let row = window.row_start; row <= window.row_end; row += 1) {
+    for (
+      let column = window.column_start;
+      column <= window.column_end;
+      column += 1
+    ) {
       const topLeft = row * grid.columns + column;
       const topRight = topLeft + 1;
       const bottomLeft = topLeft + grid.columns;

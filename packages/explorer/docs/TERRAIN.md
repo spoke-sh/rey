@@ -346,7 +346,7 @@ application also projects an exact admitted hydrology Polygon into a
 terrain-following water surface by selecting only supported terrain triangles
 and clipping each boundary triangle to the exact even-odd rings. Every clipped
 vertex receives a barycentric height from that same fully valid terrain
-triangle. `rey.explorer.terrain-render-passes@6` applies one bounded
+triangle. `rey.explorer.terrain-render-passes@7` applies one bounded
 presentation-only vertical separation, and the water material uses a stable
 depth bias/order, so the exact clipped surface does not alternate with the
 underlying terrain through depth conflict. The exact admitted `water_class`
@@ -362,6 +362,17 @@ as geographic support. Disconnected valid line intervals remain independent
 endpoint pairs but batch once per source feature into an R3F `LineSegments`
 object. Batching changes draw mechanism, never the validity cuts or source
 identity.
+
+`rey.explorer.terrain-render-passes@7` maps each exact area bound to the
+smallest intersecting terrain-cell window before applying that same diagonal,
+validity, and polygon-clipping rule. It does not construct or scan a complete
+field index buffer for a local water polygon. The pass set discloses complete
+field cells, candidate cells, candidate triangles, and transient compilation
+time. The accelerated surface keys derived linework by retained source and
+presentation identity, so compatible camera-only worker successors reuse the
+same world-coordinate pass set rather than redraping unchanged areas and
+vectors. A source, lens, visibility, graph, or derived-line revision still
+invalidates it.
 
 Text labels, evidence links, descriptions, and pointer semantics deliberately
 remain in `@rey/agent`'s deterministic reference overlay. It stays mounted
