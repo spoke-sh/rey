@@ -403,16 +403,19 @@ screen error would exceed the retained tile budgets, selection falls back to
 the finest visible uniform level that fits and discloses the resulting error
 instead of failing residency or silently raising a budget.
 
-The interaction surface currently hard-caps moving composition at hierarchy
-level 6 and settled composition at level 7. The latter is a named responsiveness
-ceiling introduced after the exact level-9, 638,262-triangle SwiftShader
-workload failed to submit within five minutes. The renderer continues to
-disclose the resulting screen error and must not call level 7 full fidelity.
-Closing the remaining fidelity/performance delta requires sampling the exact
-high-resolution relief/color hierarchy as tiled textures over bounded geometry
-instead of equating DEM sample density with triangle density.
+The interaction surface currently hard-caps moving and settled geometry at
+hierarchy level 6 after the exact level-9, 638,262-triangle SwiftShader workload
+failed to submit within five minutes. `rey.terrain.cartographic-texture@1`
+decouples visual relief density from that mesh: the worker packs the finest
+exact admitted cartographic color result into RGBA, transfers it by ownership,
+and the TSL material samples it through source-normalized tile UVs. This
+preserves full source hillshade, MDOW/SVF, hypsometry, and material variation
+without turning every relief sample into a vertex. Texture sampling cannot add
+valid geometry, and the renderer continues to disclose the coarse geometry's
+screen error rather than calling the result full fidelity. Tiled texture
+residency/mips and adaptive geometry that closes the error bound remain open.
 
-`rey.terrain.compilation-worker@22` runs hierarchy projection, haloed relief
+`rey.terrain.compilation-worker@23` runs hierarchy projection, haloed relief
 derivation, exact relief sampling, procedural field evaluation, partition and
 border parity checking, and mesh preparation in a cancellable dedicated
 worker. `rey.terrain.regional-mosaic@8` hashes every composed typed channel,
@@ -421,7 +424,8 @@ content identity before the field reaches that worker. The first request for
 an identity registers the immutable source in the worker; compatible camera
 successors carry only the view and program envelope. Complete height and
 relief hierarchies remain worker-resident. Results return compact hierarchy
-lineage plus the active working set, and transfer each active `ArrayBuffer`
+lineage, the exact cartographic source texture, and the active working set, and
+transfer each active `ArrayBuffer`
 instead of structured-cloning it. Browser diagnostics distinguish full-source
 registration from registered-source successors and disclose transferred bytes
 and worker-retained hierarchy bytes. The same selection emits a separately

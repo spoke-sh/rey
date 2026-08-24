@@ -354,6 +354,16 @@ perceptual fidelity. GPU pixels and frame timing are not semantic identities;
 performance results must name the fixture, browser/backend, viewport, DPR,
 hardware, warm/cold posture, revisions, and budgets.
 
+Terrain interaction uses a bounded half-resolution drawing buffer without
+multisample antialiasing; the globe retains multisampling. The terrain material
+samples an exact worker-produced RGBA cartographic-relief texture over bounded
+LOD geometry, so full admitted hillshade/color density no longer requires one
+triangle per relief sample. Diagnostics expose resolution scale, antialiasing,
+texture cells/bytes, geometry triangles, and screen error independently. The
+coarse geometry error remains a fidelity failure even when the sampled relief
+looks sharper; do not use texture resolution as a substitute for geometric
+qualification.
+
 Run a retained Explorer browser voyage against an explicitly started CLI
 surface with:
 

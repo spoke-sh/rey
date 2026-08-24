@@ -1823,14 +1823,56 @@ Repeating the cold workload with shared material identity still saturated
 SwiftShader at the 638,262-triangle finest submission while the level-6 result
 remained responsive. The engine had coupled exact relief sample density to
 geometry density; redundant shader compilation was not the only cause.
-`LANDSCAPE_SETTLED_TERRAIN_MAXIMUM_LEVEL` now hard-caps the interactive settled
-surface at level 7 (one hierarchy step above the level-6 moving surface). The
+At that diagnostic point, `LANDSCAPE_SETTLED_TERRAIN_MAXIMUM_LEVEL` hard-capped
+the interactive settled surface at level 7 (one hierarchy step above the
+level-6 moving surface). The
 reported screen error remains authoritative, so this bounded result is not
 described as full detail and cannot pass the open fidelity gate. The required
 engine follow-up is explicit: retain high-resolution hillshade, MDOW, SVF,
 hypsometry, and material as tiled sampled textures while geometry LOD remains
 bounded independently. That separation—not another unbounded triangle
 increase—is the route to Google Maps-class fidelity and responsive motion.
+
+The responsiveness follow-through implements that separation as a first
+source-raster slice. `9f4a416` adds exact renderer content identity beside the
+semantic scene snapshot, so a completed LOD/texture successor invalidates the
+R3F scene without corrupting the snapshot identity exposed to the operator.
+`3983089` bounds terrain raster resolution to one half of CSS resolution while
+preserving camera, model, border, and native-coordinate math. `8dbf033` removes
+four-sample hardware MSAA from the multiply overdrawn terrain canvas (the globe
+retains it); a later one-pass screen-space AA treatment remains open.
+
+`rey.terrain.compilation-worker@23`,
+`rey.terrain.cartographic-texture@1`,
+`rey.terrain.tsl-cartographic-relief@7`,
+`rey.terrain.material-binding@3`, and
+`rey.terrain.cpu-mesh-upload-parity@4` now pack the finest exact admitted
+chromatic relief into one RGBA source raster, transfer it by ownership, bind
+stable source-normalized UVs to every selected hierarchy tile, and sample one
+shared texture/material graph across non-overlapping tiles. The texture is
+derived from the already qualified complete-field hillshade, MDOW, SVF,
+openness, local contrast, hypsometry, and material result; it does not add
+support or source geography. Both moving and settled interactive surfaces now
+remain at level 6. Geometry error remains separately authoritative, so the
+texture cannot counterfeit a finer height surface.
+
+The unchanged fulfilled-transport WebGL2 continuity gate passed after dynamic
+resolution as incomplete voyage
+`sha256:8f86daac88e3d3fe7981fabc67a70527a9806bcd0a95aa9bf49dd6f42b28451a`:
+the maximum moving-frame gap fell from the 1,798.2 ms baseline to 1,587.3 ms
+under the disclosed 2,000 ms SwiftShader tolerance. The first exact textured
+run retained incomplete manifest
+`sha256:80661351bd9c6fa69a8e4470eda58e52b9330a479df334f09a3de8f4aeb1f123`.
+It transferred a 561,522-texel / 2,246,088-byte raster as part of a 4,044,112
+byte active working set, retained 91,705,859 hierarchy bytes worker-local,
+reported a 220.6 ms worker update, 199.9 ms tile projection, 0.3 ms CPU render
+submission, 9,979 triangles, and a 1,570.6 ms maximum moving-frame gap. It no
+longer requests the 638,262-triangle settled frame. The voyage remains
+correctly incomplete because level-6 geometry reports 950.75 px maximum
+screen error against the unchanged 1.5 px fidelity requirement. A retained
+full voyage, direct-hardware timing, tiled texture residency/mip selection,
+screen-space AA, and adaptive geometry that meets the error bound without a
+monolithic submission all remain open.
 
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
