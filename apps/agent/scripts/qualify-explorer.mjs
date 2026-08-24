@@ -1183,9 +1183,14 @@ async function zoomAtlasToLandscapeWithoutFocus(
         const scene = document.querySelector('[data-scene-snapshot]');
         const projection = document.querySelector('[data-lens-regime]');
         const diagnostics = document.querySelector('[data-renderer-diagnostics]');
+        const terrainCanvas = document.querySelector('canvas[data-render-kind="terrain"]');
+        const terrainProjection = document.querySelector('[data-atlas-landscape-model-transform]');
         const value = (name) => diagnostics?.getAttribute('data-renderer-' + name) ?? null;
         samples.push({
           atlas_landscape_progress: Number(projection?.getAttribute('data-atlas-landscape-progress') ?? 'NaN'),
+          border_model_transform: terrainProjection?.getAttribute('data-atlas-landscape-model-transform') ?? null,
+          camera_pan_x: Number(viewport.getAttribute('data-camera-pan-x') ?? 'NaN'),
+          camera_pan_y: Number(viewport.getAttribute('data-camera-pan-y') ?? 'NaN'),
           compilation_ms: Number(scene?.getAttribute('data-scene-compilation-ms') ?? 'NaN'),
           focus_id: scene?.getAttribute('data-scene-focus') ?? null,
           frame,
@@ -1199,6 +1204,9 @@ async function zoomAtlasToLandscapeWithoutFocus(
           terrain_source_key: value('terrain-surface-source-key'),
           terrain_triangles: Number(value('terrain-surface-triangles') ?? 'NaN'),
           terrain_worker_execution: value('terrain-surface-worker-execution'),
+          terrain_camera_pan_x: Number(terrainCanvas?.getAttribute('data-terrain-camera-pan-x') ?? 'NaN'),
+          terrain_camera_pan_y: Number(terrainCanvas?.getAttribute('data-terrain-camera-pan-y') ?? 'NaN'),
+          terrain_model_transform: terrainCanvas?.getAttribute('data-terrain-model-transform') ?? null,
           sampled_at_ms: performance.now(),
           zoom: Number(viewport.getAttribute('data-camera-zoom') ?? 'NaN'),
         });
@@ -1218,11 +1226,12 @@ async function zoomAtlasToLandscapeWithoutFocus(
       };
       requestAnimationFrame(sample);
       for (let index = 0; index < 9; index += 1) {
+        const bounds = viewport.getBoundingClientRect();
         viewport.dispatchEvent(new WheelEvent('wheel', {
           bubbles: true,
           cancelable: true,
-          clientX: innerWidth / 2,
-          clientY: innerHeight / 2,
+          clientX: bounds.left + bounds.width * 0.58,
+          clientY: bounds.top + bounds.height * 0.46,
           deltaY: -100,
           view: window,
         }));
@@ -1250,6 +1259,41 @@ async function zoomAtlasToLandscapeWithoutFocus(
   const mosaicIds = finiteSamples
     .map(({ mosaic_id }) => mosaic_id)
     .filter((value) => value && value !== "unbound-mosaic");
+  const cameraBoundSamples = finiteSamples.filter(
+    ({
+      border_model_transform,
+      camera_pan_x,
+      camera_pan_y,
+      terrain_camera_pan_x,
+      terrain_camera_pan_y,
+      terrain_model_transform,
+    }) =>
+      border_model_transform &&
+      terrain_model_transform &&
+      Number.isFinite(camera_pan_x) &&
+      Number.isFinite(camera_pan_y) &&
+      Number.isFinite(terrain_camera_pan_x) &&
+      Number.isFinite(terrain_camera_pan_y),
+  );
+  const sharedCameraBinding =
+    cameraBoundSamples.length > 0 &&
+    cameraBoundSamples.every(
+      ({
+        border_model_transform,
+        camera_pan_x,
+        camera_pan_y,
+        terrain_camera_pan_x,
+        terrain_camera_pan_y,
+        terrain_model_transform,
+      }) =>
+        border_model_transform === terrain_model_transform &&
+        Math.abs(camera_pan_x - terrain_camera_pan_x) <= 0.01 &&
+        Math.abs(camera_pan_y - terrain_camera_pan_y) <= 0.01,
+    );
+  const offCenterPanObserved = cameraBoundSamples.some(
+    ({ camera_pan_x, camera_pan_y }) =>
+      Math.abs(camera_pan_x) > 1 || Math.abs(camera_pan_y) > 1,
+  );
   const maximumFrameGapMs = finiteSamples.reduce(
     (maximum, { sampled_at_ms }, index) =>
       index === 0
@@ -1293,6 +1337,7 @@ async function zoomAtlasToLandscapeWithoutFocus(
     no_regional_clicks: finiteSamples.every(
       ({ regional_clicks }) => regional_clicks === 0,
     ),
+    off_center_pan_observed: offCenterPanObserved,
     observed:
       final?.regime === "landscape" &&
       final?.focus_id?.startsWith("regional:") === true &&
@@ -1306,12 +1351,15 @@ async function zoomAtlasToLandscapeWithoutFocus(
           atlas_landscape_progress > 0 && atlas_landscape_progress < 1,
       ) &&
       finiteSamples.every(({ regional_clicks }) => regional_clicks === 0) &&
+      offCenterPanObserved &&
+      sharedCameraBinding &&
       terrainSourceKeys.length > 0 &&
       new Set(terrainSourceKeys).size === 1 &&
       mosaicIds.length > 0 &&
       new Set(mosaicIds).size === 1,
     samples,
     stable_mosaic: mosaicIds.length > 0 && new Set(mosaicIds).size === 1,
+    shared_border_terrain_camera_binding: sharedCameraBinding,
     stable_terrain_source:
       terrainSourceKeys.length > 0 && new Set(terrainSourceKeys).size === 1,
   };

@@ -1707,8 +1707,10 @@ derive the Landscape focus from the connected Atlas member as wheel scale
 crosses the boundary, retain one predicted source/mosaic submission, and keep
 one dedicated terrain worker alive across prewarm, movement, reversal, and
 settled refinement. Moving frames use a half-resolution level-6 ceiling and a
-fixed endpoint camera composite (9,979 triangles in the named voyage); after a
-300 ms settled delay the exact level-9 working set replaces it with zero
+fixed predicted compilation view (9,979 triangles in the named voyage), while
+the resulting bounded mesh is presented through the same live pan, scale,
+orbit, and model transform as the County footprint on every morph frame. After
+a 300 ms settled delay the exact level-9 working set replaces it with zero
 screen error. Main-thread regional contour and full-pyramid derivation no
 longer run during accelerated movement.
 
@@ -1728,6 +1730,24 @@ wheel-frame gap was 1,121.8 ms under the disclosed 2,000 ms fulfilled
 SwiftShader tolerance. This is continuity evidence, not hardware frame-rate
 proof: the 250 ms direct-transport budget and the full retained performance
 matrix remain open.
+
+`d8868bc` hard-cuts the shared Atlas/Landscape projection contract to
+`rey.atlas-landscape-projector@3`. The County footprint's CSS matrix is now
+recovered from the same terrain point projector used by the accelerated scene,
+and the accelerated surface no longer freezes its presentation at the
+zero-pan endpoint while pointer-anchored zoom moves the footprint. The exact
+source/mosaic compilation remains fixed; only the bounded moving mesh camera
+submission changes. Fulfilled-transport WebGL2 voyage
+`sha256:7993841f6590edcad25b0dc9a4cd47e4183ca0a83cfd9a4a17c68d0e734bc72c`
+entered Landscape off-center with zero regional clicks and retained identical
+border/terrain model transforms and pan values at every sampled intermediate
+frame. Pan moved from `0,0` to `-351.77,75.38` while the moving set remained
+level 6 at 9,979 triangles; the maximum sampled wheel-frame gap was 1,798.2 ms
+under the disclosed 2,000 ms fulfilled SwiftShader tolerance. Landscape
+capture
+`sha256:f6e2caa27324aef3bfde6cb39a3bb800c8c0a1df59e2f7f1fbdec353a1adad98`
+binds the settled result. This qualifies the shared projection/camera
+connection under fulfilled transport, not direct hardware frame rate.
 
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
