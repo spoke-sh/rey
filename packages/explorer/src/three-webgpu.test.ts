@@ -30,6 +30,7 @@ describe("React Three Fiber WebGPU renderer adapter", () => {
 
     const status = await adapter.initialize({} as HTMLCanvasElement, "auto");
     expect(factory).toHaveBeenCalledWith({
+      antialias: true,
       canvas: expect.anything(),
       forceWebGL: false,
     });
@@ -51,8 +52,13 @@ describe("React Three Fiber WebGPU renderer adapter", () => {
     const factory = vi.fn(async () => renderer);
     const adapter = new ReactThreeFiberRendererAdapter(factory);
 
-    const status = await adapter.initialize({} as HTMLCanvasElement, "webgl2");
+    const status = await adapter.initialize(
+      {} as HTMLCanvasElement,
+      "webgl2",
+      false,
+    );
     expect(factory).toHaveBeenCalledWith({
+      antialias: false,
       canvas: expect.anything(),
       forceWebGL: true,
     });

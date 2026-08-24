@@ -1365,6 +1365,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             terrainRenderer.submitted_frame?.snapshot_id
           }
           data-renderer-submission-ms={terrainRenderer.render_submission_ms}
+          data-renderer-antialiasing={terrainRenderer.render_antialiasing}
           data-renderer-resolution-scale={
             terrainRenderer.render_resolution_scale
           }
@@ -1481,6 +1482,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           }
           data-renderer-terrain-surface-resolution-scale={
             terrainSurfaceRenderer.render_resolution_scale
+          }
+          data-renderer-terrain-surface-antialiasing={
+            terrainSurfaceRenderer.render_antialiasing
           }
           data-renderer-terrain-surface-worker-execution={
             terrainSurfaceRenderer.terrain_worker_execution

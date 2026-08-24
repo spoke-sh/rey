@@ -27,16 +27,21 @@ export interface ThreeRendererFacade {
 }
 
 export type ThreeRendererFactory = (options: {
+  antialias: boolean;
   canvas: HTMLCanvasElement;
   forceWebGL: boolean;
 }) => Promise<ThreeRendererFacade>;
 
-const defaultFactory: ThreeRendererFactory = async ({ canvas, forceWebGL }) => {
+const defaultFactory: ThreeRendererFactory = async ({
+  antialias,
+  canvas,
+  forceWebGL,
+}) => {
   const { default: WebGPURenderer } =
     await import("three/src/renderers/webgpu/WebGPURenderer.js");
   return new WebGPURenderer({
     alpha: true,
-    antialias: true,
+    antialias,
     canvas,
     forceWebGL,
   }) as unknown as ThreeRendererFacade;
@@ -104,6 +109,7 @@ export class ReactThreeFiberRendererAdapter {
   async initialize(
     canvas: HTMLCanvasElement,
     preferredBackend: "auto" | AcceleratedBackend = "auto",
+    antialias = true,
   ): Promise<Readonly<RendererStatus>> {
     if (this.#status.lifecycle === "disposed")
       throw new Error("the Three.js renderer adapter has been disposed");
@@ -116,7 +122,7 @@ export class ReactThreeFiberRendererAdapter {
     this.notifyStatus();
     try {
       const forceWebGL = preferredBackend === "webgl2";
-      const renderer = await this.#factory({ canvas, forceWebGL });
+      const renderer = await this.#factory({ antialias, canvas, forceWebGL });
       this.#renderer = renderer;
       await renderer.init();
       this.instrumentRenderer(renderer);

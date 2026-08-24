@@ -52,6 +52,7 @@ export interface ExplorerCanvasReport {
 }
 
 export interface ExplorerCanvasProps {
+  antialias?: boolean;
   className?: string;
   content: ExplorerCanvasContent;
   frame: RenderFrameIdentity;
@@ -72,6 +73,7 @@ const REFERENCE_STATUS: RendererStatus = Object.freeze({
 });
 
 export function ExplorerCanvas({
+  antialias = true,
   className,
   content,
   frame,
@@ -217,6 +219,7 @@ export function ExplorerCanvas({
       const status = await adapter.initialize(
         canvas,
         preference === "auto" ? "auto" : preference,
+        antialias,
       );
       if (cancelled || status.lifecycle !== "ready" || !adapter.renderer) {
         if (!cancelled) reportRef.current(status);
@@ -276,7 +279,7 @@ export function ExplorerCanvas({
       lastFrameRef.current = undefined;
       setSubmittedFrame(undefined);
     };
-  }, [preference]);
+  }, [antialias, preference]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -393,6 +396,7 @@ export function ExplorerCanvas({
           : undefined
       }
       data-renderer="react-three-fiber"
+      data-render-antialias={antialias ? "multisample" : "none"}
       data-render-resolution-scale={resolutionScale}
       ref={canvasRef}
       style={{
