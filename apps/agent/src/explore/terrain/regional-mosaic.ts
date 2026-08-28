@@ -23,7 +23,7 @@ import { deriveTerrainNormals } from "./normals";
 export const REGIONAL_TERRAIN_MOSAIC_SCHEMA =
   "rey.landscape-mosaic.v1" as const;
 export const REGIONAL_TERRAIN_MOSAIC_REVISION =
-  "rey.terrain.regional-mosaic@8" as const;
+  "rey.terrain.regional-mosaic@10" as const;
 export const MAXIMUM_REGIONAL_TERRAIN_MOSAIC_CELLS = 2_000_000;
 
 export interface RegionalTerrainMosaicPatch {
@@ -496,14 +496,55 @@ export function compileRegionalTerrainMosaic(
   const validitySummary = summarizeTerrainValidityClassification(
     validityClassification,
   );
-  const sourceContributionId = mosaicContentId("source-contribution", [
-    occupancy,
+  // Every admitted regional field is already bound to a verified source
+  // dataset digest. The mosaic is a deterministic derivation over those
+  // identities, its exact placement, and this compiler revision. Retain that
+  // Merkle boundary instead of synchronously re-hashing every derived typed
+  // array in the browser: the old path hashed roughly 34 MiB for this scene,
+  // including multiple copies of channels whose source bytes had already
+  // been verified during transport admission.
+  const derivationInputs = Object.freeze([
+    TERRAIN_FIELD_SCHEMA,
+    REGIONAL_TERRAIN_MOSAIC_REVISION,
+    compositionRevision,
+    primaryPatchId,
+    coordinateReference,
+    verticalReference,
+    `${columns}x${rows}`,
+    `${bounds.x},${bounds.y},${bounds.width},${bounds.height}`,
+    `${elevationScale}`,
+    ...ordered.flatMap(({ member_id, scene_id, role, authority, field }) => [
+      member_id,
+      scene_id,
+      role,
+      authority.identity,
+      authority.revision,
+      `${authority.priority}`,
+      field.field_set_id,
+      field.program_id,
+      field.working_set_id,
+      field.source_revision,
+      field.detail_authority,
+      `${field.grid.columns}x${field.grid.rows}`,
+      `${field.grid.bounds.x},${field.grid.bounds.y},${field.grid.bounds.width},${field.grid.bounds.height}`,
+      field.validity.implementation_revision,
+      field.validity_classification!.implementation_revision,
+      field.elevation.implementation_revision,
+      field.rainfall.implementation_revision,
+      field.flow_direction.implementation_revision,
+      field.flow_accumulation.implementation_revision,
+      field.erosion.implementation_revision,
+      field.normal.implementation_revision,
+      field.curvature.implementation_revision,
+      field.material.implementation_revision,
+    ]),
   ]);
-  const conflictId = mosaicContentId("overlap-conflicts", [conflictValues]);
-  const featherId = mosaicContentId("overlap-feather", [
-    featherSecondaryOwners,
-    featherPrimaryWeights,
-  ]);
+  const sourceContributionId = mosaicContentId(
+    "source-contribution",
+    derivationInputs,
+  );
+  const conflictId = mosaicContentId("overlap-conflicts", derivationInputs);
+  const featherId = mosaicContentId("overlap-feather", derivationInputs);
   const overviewCoverageValues = new Uint8Array(cells);
   for (let index = 0; index < cells; index += 1) {
     const owner = occupancy[index]!;
@@ -514,10 +555,24 @@ export function compileRegionalTerrainMosaic(
     )
       overviewCoverageValues[index] = 1;
   }
-  const overviewCoverageId = mosaicContentId("overview-coverage", [
-    overviewCoverageValues,
-  ]);
-  const heightId = mosaicContentId("height", [elevationValues]);
+  const overviewCoverageId = mosaicContentId(
+    "overview-coverage",
+    derivationInputs,
+  );
+  const heightId = mosaicContentId("height", derivationInputs);
+  const validityContentId = mosaicContentId("field-validity", derivationInputs);
+  const rainfallContentId = mosaicContentId("field-rainfall", derivationInputs);
+  const flowDirectionContentId = mosaicContentId(
+    "field-flow-direction",
+    derivationInputs,
+  );
+  const flowAccumulationContentId = mosaicContentId(
+    "field-flow-accumulation",
+    derivationInputs,
+  );
+  const erosionContentId = mosaicContentId("field-erosion", derivationInputs);
+  const reliefContentId = mosaicContentId("field-relief", derivationInputs);
+  const materialContentId = mosaicContentId("field-material", derivationInputs);
   const landCoverOwnerIndices = occupancy.slice();
   const landCoverSources = Object.freeze(
     ordered.map(({ field }) =>
@@ -530,18 +585,18 @@ export function compileRegionalTerrainMosaic(
     ),
   );
   const landCoverId = mosaicContentId(
-    `land-cover:${landCoverSources
+    `land-cover:${sourceContributionId}:${landCoverSources
       .flatMap(({ patch_id, source_revision, channel_revision }) => [
         patch_id,
         source_revision,
         channel_revision,
       ])
       .join("|")}`,
-    [landCoverOwnerIndices],
+    derivationInputs,
   );
   const companionAttributionId = mosaicContentId(
     `companion-attribution:${landCoverId}:${heightId}:${validitySummary.validity_id}:height_cannot_mint_companion_authority`,
-    [],
+    derivationInputs,
   );
   const fieldContentId = mosaicContentId(
     [
@@ -564,32 +619,22 @@ export function compileRegionalTerrainMosaic(
       relief.normal.implementation_revision,
       relief.curvature.implementation_revision,
       material.implementation_revision,
+      validityContentId,
+      heightId,
+      rainfallContentId,
+      flowDirectionContentId,
+      flowAccumulationContentId,
+      erosionContentId,
+      reliefContentId,
+      materialContentId,
+      sourceContributionId,
+      conflictId,
+      featherId,
+      overviewCoverageId,
+      landCoverId,
       ...patchIds,
     ].join("|"),
-    [
-      validityValues,
-      validityClassificationValues,
-      elevationValues,
-      rainfallValues,
-      flowDirectionValues,
-      flowAccumulationValues,
-      erosionValues,
-      new Uint8Array(
-        relief.normal.values.buffer,
-        relief.normal.values.byteOffset,
-        relief.normal.values.byteLength,
-      ),
-      relief.curvature.values,
-      tintValues,
-      occlusionValues,
-      roughnessValues,
-      occupancy,
-      conflictValues,
-      featherSecondaryOwners,
-      featherPrimaryWeights,
-      overviewCoverageValues,
-      landCoverOwnerIndices,
-    ],
+    derivationInputs,
   );
   const mosaicId = mosaicContentId(
     [
@@ -618,16 +663,7 @@ export function compileRegionalTerrainMosaic(
       fieldContentId,
       `${columns}x${rows}`,
     ].join("|"),
-    [
-      validityValues,
-      validityClassificationValues,
-      elevationValues,
-      occupancy,
-      conflictValues,
-      featherSecondaryOwners,
-      featherPrimaryWeights,
-      overviewCoverageValues,
-    ],
+    derivationInputs,
   );
   const {
     valid_vertices: validVertices,
@@ -1180,30 +1216,12 @@ function sameNumber(left: number, right: number): boolean {
 
 function mosaicContentId(
   channel: string,
-  arrays: readonly (Float32Array | Uint32Array | Uint8Array)[],
+  derivationInputs: readonly string[],
 ): string {
-  const header = new TextEncoder().encode(
-    JSON.stringify({
-      channel,
-      byte_lengths: arrays.map(({ byteLength }) => byteLength),
-    }),
+  const content = new TextEncoder().encode(
+    JSON.stringify({ channel, derivation_inputs: derivationInputs }),
   );
-  const bytes = new Uint8Array(
-    header.length +
-      arrays.reduce((total, array) => total + array.byteLength, 0),
-  );
-  bytes.set(header);
-  let offset = header.length;
-  for (const array of arrays) {
-    const content = new Uint8Array(
-      array.buffer,
-      array.byteOffset,
-      array.byteLength,
-    );
-    bytes.set(content, offset);
-    offset += content.length;
-  }
-  return `blake3:${[...blake3(bytes)]
+  return `blake3:${[...blake3(content)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("")}`;
 }

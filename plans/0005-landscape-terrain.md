@@ -1874,6 +1874,37 @@ full voyage, direct-hardware timing, tiled texture residency/mip selection,
 screen-space AA, and adaptive geometry that meets the error bound without a
 monolithic submission all remain open.
 
+The 2026-08-27 first-load responsiveness slice separates canvas availability
+from the expensive retained portfolio projection. `/explore` now starts that
+read beside its renderer chunk and mounts an explicitly evidence-pending World
+coordinate scaffold without a provisional region, terrain, count, or coverage
+claim. The admitted projection reuses the root operator shell rather than
+re-reading it. `rey.explorer.pending-canvas` and
+`rey.explorer.scene-ready` provide stable browser marks, and the named
+`rey.explorer-first-load-measurement.v1` workload fails if the pending scene
+misses its 2,000 ms budget or displays Rey County before admission.
+
+The same slice hard-cuts the regional mosaic compiler to
+`rey.terrain.regional-mosaic@10`. Admitted transport has already verified each
+regional dataset's BLAKE3 content identity, so the deterministic mosaic now
+derives channel, field, and mosaic identities as a Merkle graph over those
+exact source digests, composition inputs, spatial frame, authority decisions,
+and compiler revision. It no longer re-hashes roughly 34 MiB of derived typed
+channels synchronously during first paint. Input order remains normalized;
+changed admitted source identity, composition, authority, placement, or
+compiler revision still produces a different derived identity.
+
+On the named local fulfilled-transport cold workload, the evidence-neutral
+canvas appeared at 543.2 ms while a fresh Rey process spent 6,959.3 ms building
+the exact server projection. The admitted scene became ready at 7,978.5 ms,
+with 454.8 ms in client compilation: 161.8 ms in regional field generation and
+234.7 ms in mosaic composition. Against the pre-cutover warm measurement,
+client compilation fell from 3,604.6 ms to 470.6 ms and admitted-scene readiness
+from 4,547.6 ms to 1,406.2 ms. These are fulfilled-transport diagnostics, not a
+direct-browser or GPU timing claim. The cold server projection remains the
+dominant delay to exact evidence and the retained direct-transport performance
+gate remains open.
+
 - [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense

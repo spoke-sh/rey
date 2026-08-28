@@ -21,6 +21,7 @@ describe("regional terrain mosaic", () => {
       left.grid.bounds.x + left.grid.bounds.width,
     );
     copySharedColumn(left, left.grid.columns - 1, right, 0);
+    const rightSourceRevision = right.source_revision;
 
     const compiled = compileRegionalTerrainMosaic(
       [
@@ -79,6 +80,7 @@ describe("regional terrain mosaic", () => {
       compiled.manifest.field_content_id,
     );
     right.material.tint[3] = right.material.tint[3]! + 0.01;
+    right.source_revision = `${right.source_revision}:material-change`;
     const changedMaterial = compilePair(left, right, "adjacent");
     expect(changedMaterial.manifest.field_content_id).not.toBe(
       compiled.manifest.field_content_id,
@@ -99,7 +101,7 @@ describe("regional terrain mosaic", () => {
           },
           {
             patch_id: right.field_set_id,
-            source_revision: right.source_revision,
+            source_revision: rightSourceRevision,
             channel_revision: right.material.implementation_revision,
           },
         ],
