@@ -339,6 +339,21 @@ elevation, material, bounds, and dimensions. Exact evidence is reconstructed
 for the selected cell on demand; compaction cannot turn a retained omission
 into an unavailable evidence route or weaken the validity mask.
 
+Explorer route admission does not wait for that potentially expensive exact
+portfolio projection before mounting its spatial surface. The route starts the
+workload read beside the lazy renderer load and immediately presents a
+non-interactive World canvas marked as evidence-pending. That canvas contains
+only a coordinate scaffold: it renders no provisional region, workload,
+terrain, count, or coverage claim. The admitted scene replaces it only after
+the typed portfolio has arrived, and the already-loaded root operator shell is
+reused rather than fetched a second time. Projection failure remains visible
+inside the same canvas boundary instead of leaving an unexplained blank main
+surface. The browser marks those boundaries as
+`rey.explorer.pending-canvas` and `rey.explorer.scene-ready`; the named
+first-load workload in `apps/agent/scripts/measure-explorer-first-load.mjs`
+checks both marks, the pending-scene posture, and the absence of a provisional
+Rey County claim.
+
 The same rule begins at retention. A regular admitted grid is stored once as
 row-major value and identity channels, with coordinates derived only from its
 exact bounds and dimensions. It must round-trip to the original admitted cells

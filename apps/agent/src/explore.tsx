@@ -104,6 +104,8 @@ export const ATLAS_LANDSCAPE_MOVING_TERRAIN_MAXIMUM_LEVEL = 6;
 export const LANDSCAPE_SETTLED_TERRAIN_MAXIMUM_LEVEL = 6;
 export const ATLAS_LANDSCAPE_SETTLED_REFINEMENT_DELAY_MS = 300;
 export const ATLAS_LANDSCAPE_MOVING_TERRAIN_RESOLUTION_SCALE = 0.5;
+export const EXPLORER_PENDING_CANVAS_MARK = "rey.explorer.pending-canvas";
+export const EXPLORER_SCENE_READY_MARK = "rey.explorer.scene-ready";
 const EXPLORER_NOTICE_DURATION_MS = DEFAULT_EXPLORER_FOOTER_MINIMUM_VISIBLE_MS;
 const EXPLORER_ATTENTION_DURATION_MS = 7_200;
 const EXPLORER_FOOTER_EXIT_DURATION_MS = 260;
@@ -234,6 +236,113 @@ export function ExplorePage({ portfolio, coordinate }: ContextCanvasProps) {
   );
 }
 
+export function ExplorePendingPage({ error }: { error?: Error | null }) {
+  useEffect(() => {
+    globalThis.performance?.mark(EXPLORER_PENDING_CANVAS_MARK);
+  }, []);
+  return (
+    <main className={sx(styles.explorePage)}>
+      <section
+        aria-busy={error ? undefined : "true"}
+        className={sx(styles.canvasShell, styles.orientationCanvasShell)}
+        data-scene-projection={error ? "delayed" : "pending"}
+      >
+        <header
+          className={sx(styles.canvasToolbar, styles.orientationCanvasToolbar)}
+          data-explorer-canvas-header=""
+        >
+          <div className={sx(styles.lensReadout)}>
+            <span className={sx(styles.micro)}>LENS / WORLD</span>
+            <strong>REGIONAL WORLD</strong>
+          </div>
+          <span className={sx(styles.micro, styles.pendingCanvasCoordinate)}>
+            SCENE / {error ? "DELAYED" : "LOADING"}
+          </span>
+        </header>
+        <div
+          className={sx(
+            styles.canvasViewport,
+            styles.orientationViewport,
+            styles.pendingCanvasViewport,
+          )}
+          role="status"
+        >
+          <svg
+            aria-hidden="true"
+            className={sx(styles.pendingGlobe)}
+            viewBox="0 0 600 600"
+          >
+            <circle
+              className={sx(styles.pendingGlobeSphere)}
+              cx="300"
+              cy="300"
+              r="224"
+            />
+            <ellipse
+              className={sx(styles.pendingGlobeLine)}
+              cx="300"
+              cy="300"
+              rx="224"
+              ry="78"
+            />
+            <ellipse
+              className={sx(styles.pendingGlobeLine)}
+              cx="300"
+              cy="300"
+              rx="224"
+              ry="150"
+            />
+            <ellipse
+              className={sx(styles.pendingGlobeLine)}
+              cx="300"
+              cy="300"
+              rx="78"
+              ry="224"
+            />
+            <ellipse
+              className={sx(styles.pendingGlobeLine)}
+              cx="300"
+              cy="300"
+              rx="150"
+              ry="224"
+            />
+            <path className={sx(styles.pendingGlobeLine)} d="M76 300h448" />
+            <path className={sx(styles.pendingGlobeLine)} d="M300 76v448" />
+          </svg>
+          <div className={sx(styles.pendingCanvasStatus)}>
+            <span className={sx(styles.micro)}>EXACT SCENE PROJECTION</span>
+            <strong className={sx(styles.pendingCanvasTitle)}>
+              {error ? "PROJECTION DELAYED" : "CALIBRATING REGIONAL WORLD"}
+            </strong>
+            <p className={sx(styles.pendingCanvasDetail)}>
+              {error
+                ? error.message
+                : "Admitted geography is loading. No regional evidence is rendered until its exact portfolio projection is ready."}
+            </p>
+          </div>
+        </div>
+        <footer
+          className={sx(
+            styles.canvasFooter,
+            styles.orientationCanvasFooter,
+            styles.canvasFooterVisible,
+          )}
+          data-explorer-footer=""
+          data-notice-phase="visible"
+          data-notice-tone={error ? "attention" : "update"}
+          data-visible="true"
+        >
+          <span className={sx(styles.canvasFooterNotice)}>
+            {error
+              ? "EXACT SCENE PROJECTION UNAVAILABLE"
+              : "LOADING EXACT SCENE EVIDENCE"}
+          </span>
+        </footer>
+      </section>
+    </main>
+  );
+}
+
 export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -334,6 +443,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const sceneProjection = measuredSceneProjection.projection;
   const snapshot = sceneProjection.snapshot;
   const scene = snapshot.scene;
+  useEffect(() => {
+    globalThis.performance?.mark(EXPLORER_SCENE_READY_MARK, {
+      detail: { snapshot_id: snapshot.snapshot_id },
+    });
+  }, [snapshot.snapshot_id]);
   const projectionMorphProgress = worldAtlasMorphProgress(zoom);
   const atlasLandscapeProgress = atlasLandscapeProgressForZoom(scene, zoom);
   const requestedRendererPreference = rendererPreference(
@@ -995,6 +1109,38 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       )}
       data-scene-compilers={snapshot.compiler_revisions.join(",")}
       data-scene-compilation-ms={measuredSceneProjection.compilation_ms}
+      data-scene-topology-ms={snapshot.compilation.topology_ms}
+      data-scene-freeze-ms={snapshot.compilation.freeze_ms}
+      data-scene-render-graph-ms={snapshot.compilation.render_graph_ms}
+      data-scene-picking-ms={snapshot.compilation.picking_ms}
+      data-scene-identity-ms={snapshot.compilation.identity_ms}
+      data-scene-topology-admission-ms={
+        scene.topology_compilation?.admission_ms
+      }
+      data-scene-topology-regional-landscape-ms={
+        scene.topology_compilation?.regional_landscape_ms
+      }
+      data-scene-topology-atlas-landscape-ms={
+        scene.topology_compilation?.atlas_landscape_ms
+      }
+      data-scene-topology-projection-ms={
+        scene.topology_compilation?.projection_ms
+      }
+      data-scene-topology-atlas-prewarm-ms={
+        scene.topology_compilation?.atlas_prewarm_ms
+      }
+      data-scene-topology-world-atlas-ms={
+        scene.topology_compilation?.world_atlas_ms
+      }
+      data-scene-topology-regional-frame-ms={
+        scene.topology_compilation?.regional_frame_ms
+      }
+      data-scene-topology-regional-fields-ms={
+        scene.topology_compilation?.regional_fields_ms
+      }
+      data-scene-topology-regional-mosaic-ms={
+        scene.topology_compilation?.regional_mosaic_ms
+      }
       data-scene-focus={snapshot.focus_id}
       data-scene-omissions={JSON.stringify(scene.omissions)}
       data-scene-snapshot={snapshot.snapshot_id}

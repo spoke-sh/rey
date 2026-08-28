@@ -17,6 +17,7 @@ import {
   explorerFooterReducer,
   explorerGeographicCoordinate,
   explorerRegimeNotice,
+  ExplorePendingPage,
   initialExplorerFooterState,
   shouldMountTerrainSurface,
 } from "./explore";
@@ -24,6 +25,17 @@ import type { TopologyScene } from "./topology";
 import { atlasLandscapePresentation } from "./explore/projection/atlas-landscape";
 
 describe("Explorer canvas toolbar", () => {
+  it("mounts an evidence-honest world canvas while the portfolio loads", () => {
+    const markup = renderToStaticMarkup(createElement(ExplorePendingPage, {}));
+
+    expect(markup).toContain('data-scene-projection="pending"');
+    expect(markup).toContain('aria-busy="true"');
+    expect(markup).toContain("REGIONAL WORLD");
+    expect(markup).toContain("LOADING EXACT SCENE EVIDENCE");
+    expect(markup).toContain("No regional evidence is rendered");
+    expect(markup).not.toContain("Rey County");
+  });
+
   it("reports the bounded Atlas terrain prewarm lifecycle", () => {
     expect(atlasTerrainPrewarmStatus(false, false, false)).toBe("unavailable");
     expect(atlasTerrainPrewarmStatus(true, false, false)).toBe("scheduled");

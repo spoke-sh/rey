@@ -109,6 +109,38 @@ describe("operator routes", () => {
     expect(targets).not.toContain("/api/v1/workloads");
   });
 
+  it("starts Explorer projection without blocking the route canvas", async () => {
+    let resolveWorkloads!: (response: {
+      ok: boolean;
+      json: () => Promise<object>;
+    }) => void;
+    const workloads = new Promise<{
+      ok: boolean;
+      json: () => Promise<object>;
+    }>((resolve) => {
+      resolveWorkloads = resolve;
+    });
+    const fetch = vi.fn().mockImplementation((input: string) => {
+      if (input === "/api/v1/workloads") return workloads;
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const exploreLoader = router.routesById["/explore"].options.loader;
+    if (typeof exploreLoader !== "function")
+      throw new Error("Explorer route loader is unavailable");
+
+    await expect(
+      Promise.resolve(exploreLoader({} as never)),
+    ).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledWith("/api/v1/workloads", {
+      headers: { Accept: "application/json" },
+    });
+
+    resolveWorkloads({ ok: true, json: async () => ({}) });
+    await workloads;
+  });
+
   it("retains bounded Feed stream composition in typed route search", () => {
     expect(
       normalizeFeedSearch({

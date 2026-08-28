@@ -286,6 +286,17 @@ export interface TopologyScene {
   atlas_landscape_transition: TopologyAtlasLandscapeTransition | null;
   county_frame: CountyFrame | null;
   county_footprint: ProjectedCountyFootprint | null;
+  topology_compilation?: {
+    admission_ms: number;
+    regional_landscape_ms: number;
+    atlas_landscape_ms: number;
+    projection_ms: number;
+    atlas_prewarm_ms: number;
+    world_atlas_ms: number;
+    regional_frame_ms: number;
+    regional_fields_ms: number;
+    regional_mosaic_ms: number;
+  };
 }
 
 export interface TopologyWorldAtlasPoint {
@@ -363,6 +374,11 @@ interface RegionalLandscapeTerrain {
   native_bounds: RegionalBounds;
   primary_bounds: TerrainFieldSet["grid"]["bounds"];
   omissions: readonly string[];
+  compilation: {
+    frame_ms: number;
+    fields_ms: number;
+    mosaic_ms: number;
+  };
 }
 
 const regionalLandscapeTerrainCache = new WeakMap<
@@ -380,8 +396,11 @@ export function buildTopologyScene(
   focusId = "cluster:portfolio",
   retainedRegime?: LensRegime,
 ): TopologyScene {
+  const now = () => globalThis.performance?.now() ?? Date.now();
+  let phaseStarted = now();
   const regime = retainedRegime ?? lensRegimeForZoom(zoom);
   const regionalScenes = admittedRegionalScenes(portfolio);
+  const admissionMs = now() - phaseStarted;
   const surveyFocus =
     focusId.startsWith("topography:") ||
     focusId.startsWith("seed:") ||
@@ -410,6 +429,7 @@ export function buildTopologyScene(
   // uncached cost (elevation summary, per-cell material, normals) that
   // landed exactly at the moment regime flips from "atlas" to "landscape",
   // stalling the frame the Atlas-to-Landscape morph needed to keep animating.
+  phaseStarted = now();
   const regionalLandscape =
     regionalScenes.length > 0 && !surveyFocus && regionalFocus
       ? compileRegionalLandscapeTerrain(
@@ -418,6 +438,8 @@ export function buildTopologyScene(
           portfolio.regional_geography ?? null,
         )
       : null;
+  const regionalLandscapeMs = now() - phaseStarted;
+  phaseStarted = now();
   const atlasLandscape =
     regionalScenes.length > 0 &&
     !surveyFocus &&
@@ -429,6 +451,8 @@ export function buildTopologyScene(
           regionalLandscape,
         )
       : null;
+  const atlasLandscapeMs = now() - phaseStarted;
+  phaseStarted = now();
   let projection: TopologyProjection;
   if (isFreshProjectOrientation(portfolio))
     projection = buildOrientationWorld(portfolio, focusId);
@@ -471,6 +495,8 @@ export function buildTopologyScene(
   else if (regime === "objects")
     projection = buildPortfolioObjects(portfolio, focusId);
   else projection = buildPortfolioEvidence(portfolio, focusId);
+  const projectionMs = now() - phaseStarted;
+  phaseStarted = now();
   const atlasTerrainPrewarm =
     regime === "atlas" && atlasLandscape === null
       ? compileSingleRegionalTerrainField(
@@ -478,6 +504,20 @@ export function buildTopologyScene(
           portfolio.regional_geography ?? null,
         )
       : null;
+  const atlasPrewarmMs = now() - phaseStarted;
+  phaseStarted = now();
+  const worldAtlasTransition =
+    regionalScenes.length > 0 &&
+    !surveyFocus &&
+    (regime === "world" ||
+      regime === "atlas" ||
+      (regime === "landscape" && atlasLandscape !== null))
+      ? buildWorldAtlasTransition(
+          regionalScenes,
+          portfolio.semantic_atlas ?? null,
+        )
+      : null;
+  const worldAtlasMs = now() - phaseStarted;
   return {
     ...projection,
     landforms: projection.landforms ?? [],
@@ -501,23 +541,24 @@ export function buildTopologyScene(
           : []),
     terrain_programs: projection.terrain_programs ?? [],
     globe: projection.globe ?? null,
-    world_atlas_transition:
-      regionalScenes.length > 0 &&
-      !surveyFocus &&
-      (regime === "world" ||
-        regime === "atlas" ||
-        (regime === "landscape" && atlasLandscape !== null))
-        ? buildWorldAtlasTransition(
-            regionalScenes,
-            portfolio.semantic_atlas ?? null,
-          )
-        : null,
+    world_atlas_transition: worldAtlasTransition,
     atlas_landscape_transition: atlasLandscape?.transition ?? null,
     county_frame: projection.county_frame ?? null,
     county_footprint: projection.county_footprint ?? null,
     world: projection.world ?? topologyWorld(projection),
     fit_world:
       projection.fit_world ?? projection.world ?? topologyWorld(projection),
+    topology_compilation: Object.freeze({
+      admission_ms: admissionMs,
+      regional_landscape_ms: regionalLandscapeMs,
+      atlas_landscape_ms: atlasLandscapeMs,
+      projection_ms: projectionMs,
+      atlas_prewarm_ms: atlasPrewarmMs,
+      world_atlas_ms: worldAtlasMs,
+      regional_frame_ms: regionalLandscape?.compilation.frame_ms ?? 0,
+      regional_fields_ms: regionalLandscape?.compilation.fields_ms ?? 0,
+      regional_mosaic_ms: regionalLandscape?.compilation.mosaic_ms ?? 0,
+    }),
   };
 }
 
@@ -822,10 +863,14 @@ function compileRegionalLandscapeSelection(
   compositionRevision: string,
   omissions: readonly string[],
 ): RegionalLandscapeTerrain | null {
+  const now = () => globalThis.performance?.now() ?? Date.now();
+  let phaseStarted = now();
   const frame = compileRegionalTerrainLandscapeFrame(
     members.map(({ projection }) => projection.scene),
     compositionRevision,
   );
+  const frameMs = now() - phaseStarted;
+  phaseStarted = now();
   const patches = members.flatMap(({ member_id, projection }) => {
     const field = compileRegionalTerrainField(
       projection.scene,
@@ -848,10 +893,12 @@ function compileRegionalLandscapeSelection(
         ]
       : [];
   });
+  const fieldsMs = now() - phaseStarted;
   const primary = patches.find(
     ({ scene_id }) => scene_id === selected.scene.scene_id,
   );
   if (!primary) return null;
+  phaseStarted = now();
   const mosaic = compileRegionalTerrainMosaic(
     patches,
     primary.field.field_set_id,
@@ -859,12 +906,18 @@ function compileRegionalLandscapeSelection(
     frame.coordinate_reference,
     frame.vertical_reference,
   );
+  const mosaicMs = now() - phaseStarted;
   return Object.freeze({
     field: mosaic.field,
     manifest: mosaic.manifest,
     native_bounds: frame.native_bounds,
     primary_bounds: primary.field.grid.bounds,
     omissions: Object.freeze([...omissions, ...mosaic.manifest.omissions]),
+    compilation: Object.freeze({
+      frame_ms: frameMs,
+      fields_ms: fieldsMs,
+      mosaic_ms: mosaicMs,
+    }),
   });
 }
 

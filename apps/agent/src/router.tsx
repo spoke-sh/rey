@@ -31,6 +31,7 @@ import {
   pollGitHubMailbox,
   loadPortfolio,
   loadPortfolioAfterRevision,
+  preloadPortfolio,
   loadWorkloadDeltaEvidence,
   loadWorkloadEvidence,
   loadWorkloadScenarioEvidence,
@@ -79,13 +80,12 @@ import { className as sx } from "./stylex/shared.stylex";
 const AgentsPage = lazyRouteComponent(() => import("./agents"), "AgentsPage");
 const importCadence = () => import("./cadence");
 const CadencePage = lazyRouteComponent(importCadence, "CadencePage");
-const CadenceTicksPage = lazyRouteComponent(
-  importCadence,
-  "CadenceTicksPage",
-);
-const ExplorePage = lazyRouteComponent(
-  () => import("./explore"),
-  "ExplorePage",
+const CadenceTicksPage = lazyRouteComponent(importCadence, "CadenceTicksPage");
+const importExplore = () => import("./explore");
+const ExplorePage = lazyRouteComponent(importExplore, "ExplorePage");
+const ExplorePendingPage = lazyRouteComponent(
+  importExplore,
+  "ExplorePendingPage",
 );
 const importWorkloads = () => import("./workloads");
 const AdmittedWorkloadDetail = lazyRouteComponent(
@@ -279,14 +279,14 @@ function usePassivePortfolio(initialDocument: OperatorContext) {
   return { document, error };
 }
 
-function useDemandPortfolio() {
+function useDemandPortfolio(retainedShell?: OperatorShell) {
   const [document, setDocument] = useState<OperatorContext | null>(null);
   const [error, setError] = useState<Error | null>(null);
   useEffect(() => {
     let active = true;
     let stopRevalidation: (() => void) | null = null;
     const retainedRevision = { current: "" };
-    void loadPortfolio()
+    void loadPortfolio(retainedShell)
       .then((next) => {
         if (!active) return;
         retainedRevision.current = next.revalidation.revision;
@@ -311,7 +311,7 @@ function useDemandPortfolio() {
       active = false;
       stopRevalidation?.();
     };
-  }, []);
+  }, [retainedShell]);
   return { document, error };
 }
 
@@ -340,8 +340,11 @@ function usePassiveOperatorShell(initialDocument: OperatorShell) {
 
 function RootLayout() {
   const initialShell = rootRoute.useLoaderData();
-  const { document: shell, error: shellError, publishChannels } =
-    usePassiveOperatorShell(initialShell);
+  const {
+    document: shell,
+    error: shellError,
+    publishChannels,
+  } = usePassiveOperatorShell(initialShell);
   const [communicationAxis, setCommunicationAxis] =
     useState<CommunicationAxis | null>(null);
   const [mailboxPortfolio, setMailboxPortfolio] =
@@ -1421,15 +1424,20 @@ function NotFoundPage() {
 }
 
 function ExploreRoutePage() {
-  const initialPortfolio = exploreRoute.useLoaderData();
-  const { document: portfolio } = usePassivePortfolio(initialPortfolio);
+  const shell = rootRoute.useLoaderData();
+  const { document: portfolio, error } = useDemandPortfolio(shell);
   const search = exploreRoute.useSearch();
   if (!search.coordinate && !search.scale) {
-    return <ExplorePage portfolio={portfolio} />;
+    return portfolio ? (
+      <ExplorePage portfolio={portfolio} />
+    ) : (
+      <ExplorePendingPage error={error} />
+    );
   }
   if (!search.coordinate || !search.scale) return <NotFoundPage />;
   const view = parseExplorerView(search.coordinate, search.scale);
   if (!view) return <NotFoundPage />;
+  if (!portfolio) return <ExplorePendingPage error={error} />;
   return (
     <ExplorePage
       coordinate={resolveExplorerView(portfolio, view)}
@@ -1610,7 +1618,7 @@ const exploreRoute = createRoute({
       ? "explore.html"
       : "explore",
   validateSearch: normalizeExplorerSearch,
-  loader: loadPortfolio,
+  loader: () => preloadPortfolio(),
   component: ExploreRoutePage,
 });
 
@@ -1679,7 +1687,7 @@ const environmentRoute = createRoute({
 const workloadsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "workloads",
-  loader: loadPortfolio,
+  loader: () => loadPortfolio(),
   component: WorkloadsRoutePage,
 });
 
@@ -1715,7 +1723,7 @@ const workloadDeltaRoute = createRoute({
 const regionalObjectEvidenceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "workloads/$workloadId/scenes/$sceneId/objects/$objectRevision",
-  loader: loadPortfolio,
+  loader: () => loadPortfolio(),
   component: RegionalObjectEvidenceRoutePage,
 });
 

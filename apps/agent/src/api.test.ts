@@ -86,6 +86,25 @@ describe("portfolio revalidation", () => {
     ).toHaveLength(1);
   });
 
+  it("reuses the root operator shell while Explorer loads its portfolio", async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ schema: "rey.workload-list.v1" }),
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const retainedShell = {
+      revalidation: { revision: "blake3:retained" },
+    } as never;
+    const portfolio = await loadPortfolio(retainedShell);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledWith("/api/v1/workloads", {
+      headers: { Accept: "application/json" },
+    });
+    expect(portfolio.revalidation.revision).toBe("blake3:retained");
+  });
+
   it("does not reload heavy portfolio endpoints when exact sources are unchanged", async () => {
     const fetch = vi.fn().mockResolvedValue({
       ok: true,

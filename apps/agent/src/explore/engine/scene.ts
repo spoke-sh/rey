@@ -45,6 +45,13 @@ export interface SceneSnapshot {
   readonly focus_id: string;
   readonly render_graph: ExplorerRenderGraph;
   readonly picking_index: ScenePickingIndex;
+  readonly compilation: {
+    readonly topology_ms: number;
+    readonly freeze_ms: number;
+    readonly render_graph_ms: number;
+    readonly picking_ms: number;
+    readonly identity_ms: number;
+  };
   readonly scene: TopologyScene;
 }
 
@@ -93,11 +100,20 @@ export function compileSceneSnapshot(
   focusId: string,
   retainedRegime?: LensRegime,
 ): SceneSnapshot {
-  const scene = freezeTopologyScene(
-    buildTopologyScene(portfolio, zoom, focusId, retainedRegime),
-  );
+  const now = () => globalThis.performance?.now() ?? Date.now();
+  let phaseStarted = now();
+  const topology = buildTopologyScene(portfolio, zoom, focusId, retainedRegime);
+  const topologyMs = now() - phaseStarted;
+  phaseStarted = now();
+  const scene = freezeTopologyScene(topology);
+  const freezeMs = now() - phaseStarted;
+  phaseStarted = now();
   const renderGraph = compileExplorerRenderGraph(scene);
+  const renderGraphMs = now() - phaseStarted;
+  phaseStarted = now();
   const pickingIndex = compileScenePickingIndex(scene);
+  const pickingMs = now() - phaseStarted;
+  phaseStarted = now();
   const topographies = admittedTopographies(portfolio);
   const regionalScenes = admittedRegionalScenes(portfolio);
   const sourceRevisions =
@@ -198,6 +214,7 @@ export function compileSceneSnapshot(
     renderGraph.graph_id,
     pickingIndex.picking_id,
   ].join("|");
+  const identityMs = now() - phaseStarted;
   return Object.freeze({
     schema: "rey.reference-scene-snapshot.v1",
     snapshot_id: snapshotId,
@@ -207,6 +224,13 @@ export function compileSceneSnapshot(
     focus_id: scene.focus_id,
     render_graph: renderGraph,
     picking_index: pickingIndex,
+    compilation: Object.freeze({
+      topology_ms: topologyMs,
+      freeze_ms: freezeMs,
+      render_graph_ms: renderGraphMs,
+      picking_ms: pickingMs,
+      identity_ms: identityMs,
+    }),
     scene,
   });
 }

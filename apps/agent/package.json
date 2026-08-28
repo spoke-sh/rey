@@ -15,6 +15,7 @@
     "qualify:explorer-landscape": "node scripts/qualify-explorer-landscape.mjs",
     "qualify:explorer-parity": "node scripts/qualify-explorer-parity.mjs",
     "qualify:explorer-performance": "node scripts/qualify-explorer-performance.mjs",
+    "measure:explorer-first-load": "node scripts/measure-explorer-first-load.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

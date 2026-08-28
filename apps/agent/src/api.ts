@@ -190,31 +190,48 @@ export interface AgentJournalDocument {
   opportunities: JournalOpportunitySurface;
 }
 
-let portfolioRequest: Promise<OperatorContext> | null = null;
+let workloadPortfolioRequest: Promise<WorkloadList> | null = null;
 
-export async function loadPortfolio(): Promise<OperatorContext> {
-  if (portfolioRequest) return portfolioRequest;
-  portfolioRequest = loadPortfolioDocument().finally(() => {
-    portfolioRequest = null;
-  });
-  return portfolioRequest;
+async function loadWorkloadPortfolio(): Promise<WorkloadList> {
+  if (workloadPortfolioRequest) return workloadPortfolioRequest;
+  workloadPortfolioRequest = fetch("/api/v1/workloads", {
+    headers: { Accept: "application/json" },
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(
+          `Portfolio request failed (${response.status}): ${detail}`,
+        );
+      }
+      return (await response.json()) as WorkloadList;
+    })
+    .finally(() => {
+      workloadPortfolioRequest = null;
+    });
+  return workloadPortfolioRequest;
+}
+
+export function preloadPortfolio(): void {
+  void loadWorkloadPortfolio().catch(() => undefined);
+}
+
+export async function loadPortfolio(
+  retainedShell?: OperatorShell,
+): Promise<OperatorContext> {
+  if (!retainedShell) return loadPortfolioDocument();
+  const portfolio = await loadWorkloadPortfolio();
+  return { ...portfolio, ...retainedShell };
 }
 
 async function loadPortfolioDocument(
   retainedRevalidation?: UiRevalidationCursor,
 ): Promise<OperatorContext> {
-  const [portfolioResponse, shell] = await Promise.all([
-    fetch("/api/v1/workloads", { headers: { Accept: "application/json" } }),
+  const [portfolio, shell] = await Promise.all([
+    loadWorkloadPortfolio(),
     loadOperatorShell(retainedRevalidation),
   ]);
-  if (!portfolioResponse.ok) {
-    const detail = await portfolioResponse.text();
-    throw new Error(
-      `Portfolio request failed (${portfolioResponse.status}): ${detail}`,
-    );
-  }
-  const portfolio = (await portfolioResponse.json()) as WorkloadList;
-  return Object.assign(portfolio, shell);
+  return { ...portfolio, ...shell };
 }
 
 export async function loadOperatorShell(
@@ -419,9 +436,7 @@ export async function controlSchedule(write: {
   });
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(
-      `Schedule control failed (${response.status}): ${detail}`,
-    );
+    throw new Error(`Schedule control failed (${response.status}): ${detail}`);
   }
 }
 

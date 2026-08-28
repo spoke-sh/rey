@@ -354,6 +354,23 @@ perceptual fidelity. GPU pixels and frame timing are not semantic identities;
 performance results must name the fixture, browser/backend, viewport, DPR,
 hardware, warm/cold posture, revisions, and budgets.
 
+Measure the initial Explorer surface separately from the retained voyage:
+
+```sh
+pnpm --filter @rey/agent measure:explorer-first-load -- \
+  --base-url http://127.0.0.1:5714/explore \
+  --pending-budget-ms 2000
+```
+
+The default `direct` posture exercises browser HTTP. A socket-restricted
+environment may use `--transport fulfilled`; it first reads the exact named
+documents from the supplied Rey origin, preserves the measured workload delay,
+and runs the production bundle in an isolated browser profile. That posture is
+useful for separating route mount and scene-compilation costs, but it is not a
+direct-network qualification. The result must retain an evidence-neutral
+pending canvas, must not display Rey County before admission, and must later
+bind a non-empty exact scene snapshot.
+
 Terrain interaction uses a bounded half-resolution drawing buffer without
 multisample antialiasing; the globe retains multisampling. The terrain material
 samples an exact worker-produced RGBA cartographic-relief texture over bounded
