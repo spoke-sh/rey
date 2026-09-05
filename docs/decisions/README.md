@@ -29,6 +29,9 @@ in the same change.
 
 ## Cross-Plane Invariants
 
+The server root `/` redirects to the operator app at `/explore`; API discovery
+is available separately at `/api` through embedded Swagger.
+
 The current choices compose through four paths:
 
 ```text

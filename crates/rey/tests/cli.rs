@@ -6413,9 +6413,12 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     assert!(channels.contains("\"schema\":\"rey.ui-channels.v1\""));
     assert!(channels.contains("\"state\":\"clean\""));
     assert!(channels.contains("\"loopback_only\":true"));
-    let root = http_request(address, "GET / HTTP/1.1");
-    assert!(root.starts_with("HTTP/1.1 307"));
-    assert!(root.contains("location: /api"));
+    for method in ["GET", "HEAD"] {
+        let root = http_request(address, &format!("{method} / HTTP/1.1"));
+        assert!(root.starts_with("HTTP/1.1 307"));
+        assert!(root.contains("location: /explore\r\n"));
+        assert!(http_response_body(&root).is_empty());
+    }
     let api_root = http_request(address, "GET /api HTTP/1.1");
     assert!(api_root.starts_with("HTTP/1.1 307"));
     assert!(api_root.contains("location: /api/docs/"));

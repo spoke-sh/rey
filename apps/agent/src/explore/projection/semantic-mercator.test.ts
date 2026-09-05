@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OrthographicCamera, Vector3 } from "three/src/Three.WebGPU.js";
+import { OrthographicCamera, Vector3 } from "@rey/explorer/three-fiber-runtime";
 import { globeAtlasViewCenter } from "@rey/explorer/globe-projection";
 import {
   invertSemanticMercator,

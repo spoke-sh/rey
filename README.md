@@ -72,8 +72,8 @@ revalidates through semantic server-sent events rather than polling. Startup
 prints one framework-style listening URL while stderr records
 the exact `rey version` identity and lifecycle events as the process and
 workers start and stop. Rey listens on
-`127.0.0.1:5714` by default. The server root opens the Swagger-guided API at
-`/api`, while the human operator enters the spatial surface at `/explore`;
+`127.0.0.1:5714` by default. The server root redirects to the operator app at
+`/explore`; Swagger-guided API discovery remains available at `/api`;
 exact live topology remains available through `/agents`, `/api/v1/agent`, and
 `--format json`. Incoming
 file-backed workload proposals appear as beacons without being treated as

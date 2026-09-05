@@ -73,8 +73,9 @@ shutdown, and an unexpected worker exit fails the Rey process closed. V1 has a
 fixed operator-and-scheduler bound and no restart, daemonization,
 multi-process fencing, or crash-durability claim.
 
-The operator projection attaches to that process. `/` enters the formal
-`/api` discovery root, `/api/docs/` serves vendored Swagger, and
+The operator projection attaches to that process. `/` redirects to the
+operator app at `/explore`. `/api` is the API discovery root,
+`/api/docs/` serves vendored Swagger, and
 `/api/openapi.json` projects the registered OpenAPI 3.1 document. API routes
 and documentation derive from one declarative catalog. Synchronous evidence
 projections execute outside the HTTP event loop, so a cold portfolio request
@@ -227,9 +228,8 @@ requirements demand it.
 
 The Axum operator worker started by `rey agent` embeds a TanStack Router
 single-page application and serves the live bounded workload-list document
-used by the CLI. The server root lands on Swagger-guided API discovery; the
-human operator lands on
-`/explore`; the CLI remains the agent's primary interface and the human's
+used by the CLI. The server root redirects to the human operator's
+`/explore` app; the CLI remains the agent's primary interface and the human's
 deeper diagnostic plane. Its root browser loader admits only the lightweight
 operator shell: process identity, Channels, Observations, conversation, and
 the exact revalidation cursor. Workload portfolio projection cannot delay

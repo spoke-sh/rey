@@ -821,7 +821,7 @@ impl UiServer {
         }
 
         let response = match path {
-            "/" => redirect_response(API_ROOT_PATH),
+            "/" => redirect_response("/explore"),
             "/api" => redirect_response("/api/docs/"),
             "/api/v1/health" => self.health(),
             "/api/v1/agent" => self.agent(),
@@ -3528,6 +3528,54 @@ mod tests {
     }
 
     #[test]
+    fn server_root_opens_operator_app_and_api_root_opens_swagger() {
+        let workspace = TempDir::new().unwrap();
+        let server = UiServer::bind(UiServerConfig {
+            workspace: workspace.path().to_owned(),
+            state_directory: workspace.path().join(".rey/workloads"),
+            catalog_directory: "sys".into(),
+            journal_directory: workspace.path().join(".rey/journal"),
+            channel_directory: workspace.path().join(".rey/channels"),
+            conversation_directory: workspace.path().join(".rey/conversations"),
+            host: "127.0.0.1".parse().unwrap(),
+            port: 0,
+        })
+        .unwrap();
+        let address = server.descriptor().address;
+        let handle = thread::spawn(move || server.serve_bounded(Some(7)).unwrap());
+
+        for method in ["GET", "HEAD"] {
+            let root = request(&address, &format!("{method} / HTTP/1.1"));
+            assert!(root.starts_with("HTTP/1.1 307"));
+            assert!(root.contains("location: /explore\r\n"));
+            assert!(response_body(&root).is_empty());
+        }
+
+        let explore = request(&address, "GET /explore HTTP/1.1");
+        assert!(explore.starts_with("HTTP/1.1 200"));
+        assert!(explore.contains("content-security-policy"));
+        assert!(explore.contains("<title>Rey / Explore</title>"));
+
+        let api_root = request(&address, "GET /api HTTP/1.1");
+        assert!(api_root.starts_with("HTTP/1.1 307"));
+        assert!(api_root.contains("location: /api/docs/"));
+
+        let swagger = request(&address, "GET /api/docs/ HTTP/1.1");
+        assert!(swagger.starts_with("HTTP/1.1 200"));
+        assert!(swagger.contains("<title>Swagger UI</title>"));
+
+        let swagger_stylesheet = request(&address, "GET /api/docs/swagger-ui.css HTTP/1.1");
+        assert!(swagger_stylesheet.starts_with("HTTP/1.1 200"));
+        assert!(swagger_stylesheet.contains("text/css"));
+
+        let openapi = request(&address, "GET /api/openapi.json HTTP/1.1");
+        assert!(openapi.starts_with("HTTP/1.1 200"));
+        assert!(openapi.contains("\"openapi\":\"3.1.0\""));
+        assert!(openapi.contains("\"title\":\"Rey Agent API\""));
+        handle.join().unwrap();
+    }
+
+    #[test]
     fn server_admits_unauthenticated_journal_writes_and_serves_deep_links() {
         let workspace = TempDir::new().unwrap();
         let channel_directory = workspace.path().join(".rey/channels");
@@ -3681,7 +3729,7 @@ mod tests {
         let origin = descriptor.url.clone();
         let handle = thread::spawn(move || {
             server
-                .serve_bounded(Some(55 + STATIC_UI_ASSETS.len()))
+                .serve_bounded(Some(49 + STATIC_UI_ASSETS.len()))
                 .unwrap()
         });
 
@@ -4224,32 +4272,6 @@ mod tests {
         assert!(stylesheet.starts_with("HTTP/1.1 200"));
         assert!(stylesheet.contains("text/css"));
         assert!(stylesheet.contains("@layer priority"));
-
-        let root = request(&address, "GET / HTTP/1.1");
-        assert!(root.starts_with("HTTP/1.1 307"));
-        assert!(root.contains("location: /api"));
-
-        let api_root = request(&address, "GET /api HTTP/1.1");
-        assert!(api_root.starts_with("HTTP/1.1 307"));
-        assert!(api_root.contains("location: /api/docs/"));
-
-        let swagger = request(&address, "GET /api/docs/ HTTP/1.1");
-        assert!(swagger.starts_with("HTTP/1.1 200"));
-        assert!(swagger.contains("<title>Swagger UI</title>"));
-
-        let swagger_stylesheet = request(&address, "GET /api/docs/swagger-ui.css HTTP/1.1");
-        assert!(swagger_stylesheet.starts_with("HTTP/1.1 200"));
-        assert!(swagger_stylesheet.contains("text/css"));
-
-        let openapi = request(&address, "GET /api/openapi.json HTTP/1.1");
-        assert!(openapi.starts_with("HTTP/1.1 200"));
-        assert!(openapi.contains("\"openapi\":\"3.1.0\""));
-        assert!(openapi.contains("\"title\":\"Rey Agent API\""));
-
-        let explore = request(&address, "GET /explore HTTP/1.1");
-        assert!(explore.starts_with("HTTP/1.1 200"));
-        assert!(explore.contains("content-security-policy"));
-        assert!(explore.contains("<title>Rey / Explore</title>"));
 
         let feed = request(&address, "GET /feed HTTP/1.1");
         assert!(feed.starts_with("HTTP/1.1 200"));

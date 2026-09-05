@@ -11,9 +11,9 @@ define the semantics of the typed documents carried over HTTP.
 1. **The API is a projection, not a second runtime.** HTTP exposes the same
    typed evidence and bounded admissions as the CLI. A route does not acquire
    scheduling, execution, provider, or proof authority from being reachable.
-2. **Discovery starts at the API root.** `/` redirects to `/api`, and `/api`
-   redirects to the embedded Swagger interface. The exact OpenAPI document is
-   available without a browser.
+2. **The server root opens the operator app.** `/` redirects to `/explore`.
+   API discovery starts at `/api`, which redirects to the embedded Swagger
+   interface. The exact OpenAPI document is available without a browser.
 3. **One catalog owns routing and documentation.** Registered API methods,
    OpenAPI paths, operation identifiers, authority descriptions, and request
    schemas derive from one declarative Rust route catalog. A test fails if
@@ -50,7 +50,7 @@ The default origin is `http://127.0.0.1:5714`.
 
 | Surface             | Path                                    | Behavior                                                                  |
 | ------------------- | --------------------------------------- | ------------------------------------------------------------------------- |
-| Server root         | `/`                                     | `307 Temporary Redirect` to `/api`.                                       |
+| Server root         | `/`                                     | `307 Temporary Redirect` to `/explore`.                                   |
 | API root            | `/api`                                  | `307 Temporary Redirect` to `/api/docs/`.                                 |
 | Swagger             | `/api/docs/`                            | Embedded interactive documentation. Assets are served below `/api/docs/`. |
 | OpenAPI             | `/api/openapi.json`                     | OpenAPI 3.1 JSON generated from the registered route catalog.             |
@@ -245,8 +245,9 @@ The route catalog and OpenAPI document are covered by Rust invariants. Server
 tests start the real Axum listener and verify health, Swagger HTML and assets,
 the OpenAPI document, application deep links, typed method errors, writes,
 gzip, and exact evidence routes. The CLI integration path starts `rey agent`,
-discovers its printed origin, and verifies `/`, `/api`, Swagger, OpenAPI,
-`/explore`, health, process, and evidence projections.
+discovers its printed origin, and verifies `GET|HEAD /` redirects to `/explore`,
+the embedded application, `/api`, Swagger, OpenAPI, health, process, and evidence
+projections.
 
 Vitest also invokes the actual root and Cadence route loaders together and
 asserts that `/api/v1/cadence` and lightweight shell endpoints are requested
